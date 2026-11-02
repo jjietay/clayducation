@@ -3,6 +3,7 @@
 // scenes.js, video.json) and gives you a narrated MP4 with soft subtitles.
 //
 //   node make.mjs doctor                    check Chrome, ffmpeg, explainroo, MathJax
+//   node make.mjs config [--budget high|medium|low] [--voice auto|chatterbox|kokoro] [--gpu auto|off]
 //   node make.mjs init <dir> --title "..."  new project with learning-pace voice settings
 //   node make.mjs build [dir]               voice, manim, check, sheet, review: every step before the agents look
 //   node make.mjs final [dir]               render, verify
@@ -32,6 +33,14 @@ import { music } from './music.mjs';
 const ENGINE = path.dirname(fileURLToPath(import.meta.url));
 const EXR = process.env.EXPLAINROO_HOME || path.join(os.homedir(), '.explainroo');
 const CHROME = process.env.CHROME || ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'].find((c) => spawnSync('which', [c]).status === 0);
+// The settings of this machine, written by "make config", the installer or /setup-kaleidoscope.
+// config.json is not in git. budget: how many tokens the review uses (SKILL.md, "Token budget").
+// voice: chatterbox (natural, best on a GPU), kokoro (small, fast on a CPU) or auto. gpu: auto or off.
+const CONFIG_FILE = path.join(ENGINE, '..', 'config.json');
+const CONFIG_DEFAULT = { budget: 'high', voice: 'auto', gpu: 'auto', kokoroVoice: 'af_heart' };
+const CONFIG_CHOICES = { budget: ['high', 'medium', 'low'], voice: ['auto', 'chatterbox', 'kokoro'], gpu: ['auto', 'off'] };
+const readConfig = () => { try { return { ...CONFIG_DEFAULT, ...JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) }; } catch { return { ...CONFIG_DEFAULT }; } };
+const CONFIG = readConfig();
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -150,10 +159,37 @@ async function manim() {
   if (failed) process.exit(1);
 }
 
+// Which voice speaks a project: video.json "_tts": {"engine": ...} wins, then config.json, then
+// Chatterbox if it is installed, else Kokoro.
+function voiceEngine(cfg = {}) {
+  const v = cfg._tts?.engine || CONFIG.voice;
+  if (v === 'chatterbox' || v === 'kokoro') return v;
+  return fs.existsSync(TTS_PY) ? 'chatterbox' : 'kokoro';
+}
+
+// ---------- config ----------
+// make config                         print this machine's settings
+// make config --budget medium --voice kokoro --gpu off    change them
+function config() {
+  const cur = readConfig();
+  let changed = false;
+  for (const [k, choices] of Object.entries(CONFIG_CHOICES)) {
+    const v = opt(`--${k}`);
+    if (v === undefined) continue;
+    if (!choices.includes(v)) die(`--${k} must be one of: ${choices.join(', ')}`);
+    cur[k] = v; changed = true;
+  }
+  const kv = opt('--kokoro-voice');
+  if (kv !== undefined) { cur.kokoroVoice = kv; changed = true; }
+  if (changed) fs.writeFileSync(CONFIG_FILE, JSON.stringify(cur, null, 2) + '\n');
+  console.log(`budget  ${cur.budget}\nvoice   ${cur.voice}${cur.voice === 'auto' ? ` (now: ${fs.existsSync(TTS_PY) ? 'chatterbox' : 'kokoro'})` : ''}${cur.voice !== 'chatterbox' ? `, Kokoro voice ${cur.kokoroVoice}` : ''}\ngpu     ${cur.gpu}\nfile    ${CONFIG_FILE}${fs.existsSync(CONFIG_FILE) ? '' : ' (not written yet: these are the defaults)'}`);
+}
+
 // ---------- doctor ----------
 async function doctor() {
   let ok = true;
-  const line = (good, name, note) => { console.log(`${good ? 'ok  ' : 'FAIL'} ${name.padEnd(12)} ${note}`); if (!good) ok = false; };
+  // An optional part (Manim, LaTeX) that is missing prints "skip": only maths scenes need it.
+  const line = (good, name, note, optional = false) => { console.log(`${good ? 'ok  ' : optional ? 'skip' : 'FAIL'} ${name.padEnd(12)} ${note}`); if (!good && !optional) ok = false; };
   const major = +process.versions.node.split('.')[0];
   line(major >= 22, 'node', `${process.version}${major >= 22 ? '' : ' (needs 22+ for the built-in WebSocket)'}`);
   line(spawnSync('ffmpeg', ['-version']).status === 0, 'ffmpeg', spawnSync('which', ['ffmpeg']).stdout?.toString().trim() || 'not found');
@@ -162,15 +198,18 @@ async function doctor() {
   line(fs.existsSync(path.join(ENGINE, 'vendor', 'three.module.min.js')), 'three.js', 'engine/vendor/three.module.min.js');
   try { await tex('\\lambda v = A v', true); line(true, 'mathjax', 'typesets'); } catch (e) { line(false, 'mathjax', e.message); }
   const mv = fs.existsSync(MANIM_PY) && spawnSync(MANIM_PY, ['-c', 'import manim; print(manim.__version__)'], { encoding: 'utf8' });
-  line(!!mv && mv.status === 0, 'manim', mv && mv.status === 0 ? `Manim Community ${mv.stdout.trim()} (maths scenes)` : `not installed: needs sudo apt install libcairo2-dev libpango1.0-dev pkg-config texlive texlive-latex-extra dvisvgm, then: cd ${path.join(ENGINE, 'manim')} && uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python manim`);
+  line(!!mv && mv.status === 0, 'manim', mv && mv.status === 0 ? `Manim Community ${mv.stdout.trim()} (maths scenes)` : `not installed: needs sudo apt install libcairo2-dev libpango1.0-dev pkg-config texlive texlive-latex-extra dvisvgm, then: cd ${path.join(ENGINE, 'manim')} && uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python manim`, true);
   const cb = fs.existsSync(TTS_PY) && spawnSync(TTS_PY, ['-c', 'import torch, chatterbox; print(torch.cuda.is_available())'], { encoding: 'utf8' });
   const shared = fs.existsSync(path.join(ENGINE, 'tts', '.venv', 'shared-torch'));
-  line(!!cb && cb.status === 0, 'chatterbox', cb && cb.status === 0 ? `voice (GPU: ${cb.stdout.trim() === 'True' ? 'yes' : 'no, slow on CPU'}${shared ? "; PyTorch from /path/to/other/.venv" : ''})` : shared ? "fails: it uses /path/to/other/.venv's PyTorch, which changed or is gone. See README.md" : 'not installed: see README.md');
-  line(spawnSync('which', ['latex']).status === 0 && spawnSync('which', ['dvisvgm']).status === 0, 'latex', 'latex + dvisvgm, for Manim formulas');
+  const needCb = voiceEngine() === 'chatterbox';
+  line(!needCb || (!!cb && cb.status === 0), 'chatterbox', !needCb && !(cb && cb.status === 0) ? 'not used: the voice is Kokoro (make config)' : cb && cb.status === 0 ? `voice (GPU: ${cb.stdout.trim() === 'True' ? 'yes' : 'no, slow on CPU'}${shared ? "; PyTorch from /path/to/other/.venv" : ''})` : shared ? "fails: it uses /path/to/other/.venv's PyTorch, which changed or is gone. See README.md" : 'not installed: see README.md');
+  line(spawnSync('which', ['latex']).status === 0 && spawnSync('which', ['dvisvgm']).status === 0, 'latex', 'latex + dvisvgm, for Manim formulas', true);
   if (fs.existsSync(EXR)) {
     const r = spawnSync('node', [path.join(EXR, 'bin', 'explainroo.js'), 'doctor'], { encoding: 'utf8' });
     for (const l of (r.stdout + r.stderr).split('\n')) if (/speech check/.test(l)) line(l.startsWith('ok'), 'whisper', l.replace(/^\S+\s+\S+(\s\S+)?\s+/, ''));
   }
+  const g = gpu();
+  console.log(`info settings     budget ${CONFIG.budget}, voice ${voiceEngine()}, frames by ${g.renderer}, encode ${g.nvenc ? 'NVENC (GPU)' : 'libx264 (CPU)'}`);
   process.exit(ok ? 0 : 1);
 }
 
@@ -458,7 +497,14 @@ async function voice() {
     fs.rmSync(l, { force: true });
     fs.symlinkSync(target, l);
   }
-  fs.writeFileSync(path.join(shadow, 'video.json'), JSON.stringify(await chatterbox(dir, shadow, cfg), null, 2));
+  const engine = voiceEngine(cfg);
+  console.log(`voice: ${engine}`);
+  // Kokoro: explainroo speaks with its own small model, on the CPU. Measured on the test
+  // video: speed 0.9 gives 182 to 187 words a minute, 0.82 gives 172 to 174 (over the 170
+  // limit), 0.78 gives 148 to 152, near the 160 the user chose for Chatterbox. Chatterbox: we speak, check
+  // and retake each part, then hand explainroo the recordings to time.
+  const spoken = engine === 'kokoro' ? { ...cfg, voice: cfg._tts?.kokoroVoice || CONFIG.kokoroVoice, speed: cfg._tts?.speed ?? 0.78 } : await chatterbox(dir, shadow, cfg);
+  fs.writeFileSync(path.join(shadow, 'video.json'), JSON.stringify(spoken, null, 2));
   const r = spawnSync('node', [path.join(EXR, 'bin', 'explainroo.js'), 'voice', shadow], { stdio: 'inherit' });
   if (r.status !== 0) die('explainroo voice failed (see above)');
   const tl = JSON.parse(fs.readFileSync(path.join(dir, 'build', 'timeline.json'), 'utf8'));
@@ -650,7 +696,7 @@ const CPU_FLAGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe
 let gpuMemo;
 function gpu() {
   if (gpuMemo) return gpuMemo;
-  if (process.env.XV_GPU === '0' || !CHROME) return (gpuMemo = { chrome: false, nvenc: false, renderer: 'SwiftShader (CPU)' });
+  if (process.env.XV_GPU === '0' || CONFIG.gpu === 'off' || !CHROME) return (gpuMemo = { chrome: false, nvenc: false, renderer: 'SwiftShader (CPU)' });
   const ver = (spawnSync(CHROME, ['--version'], { encoding: 'utf8' }).stdout || '').trim().replace(/\W+/g, '_');
   const cache = path.join(os.tmpdir(), `xv-gpu-${ver}.json`);
   try { return (gpuMemo = JSON.parse(fs.readFileSync(cache, 'utf8'))); } catch { /* probe below */ }
@@ -1268,7 +1314,7 @@ async function subtitlesCmd() {
   for (const i of issues) console.log(`WARN ${i}`);
   if (!issues.length) console.log('subtitles: one line per cue, no problems found');
 }
-const commands = { doctor, init, build, final, voice, subtitles: subtitlesCmd, manim, check, sheet, still, review, render, verify, preview };
+const commands = { doctor, config, init, build, final, voice, subtitles: subtitlesCmd, manim, check, sheet, still, review, render, verify, preview };
 if (!commands[cmd]) { console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 18).map((l) => l.replace(/^\/\/ ?/, '')).join('\n')); process.exit(cmd ? 1 : 0); }
 await commands[cmd]();
 if (cmd !== 'preview') process.exit(0);

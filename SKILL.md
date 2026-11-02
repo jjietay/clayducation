@@ -112,6 +112,27 @@ Each was asked for or chosen by ear. The engine does most of them by itself.
 | Quiz | none in the storyboard | you |
 | Watching | `mpv <dir>/out/<slug>.mp4` | put it in the report |
 
+## Token budget and machine settings
+
+Run `make config` before step 1. It prints this machine's settings, which the installer or
+`/setup-kaleidoscope` wrote. The `budget` line sets how many tokens the review uses:
+
+| Budget | Review rounds | Reviewers | Models | Fix list |
+|---|---|---|---|---|
+| `high` | 2 | all 6 | as in the table in step 9 | `video-compiler` (Opus) |
+| `medium` | 1 | all 6 | pass `model: "sonnet"` to each reviewer except `video-factcheck` | `video-compiler` with `model: "sonnet"` |
+| `low` | 1 | `video-factcheck` and `video-overlap` | pass `model: "sonnet"` to both | no compiler: read the two reports yourself |
+
+Every budget keeps the engine checks, the contact sheets, the rebuild check (step 8b) and
+`verify`, and every true "must" gets fixed. If the user asks for a different review in the
+conversation, do what they ask.
+
+The `voice` line names the voice: Chatterbox (natural, best on an NVIDIA GPU or Apple
+silicon) or Kokoro (small and fast on a CPU, at about 150 words a minute). A project can
+choose its own in `video.json`: `"_tts": {"engine": "kokoro"}`. Without a GPU, Chrome draws
+the frames with SwiftShader and ffmpeg encodes with libx264; a render takes longer, and the
+frames are the same.
+
 ## Workflow
 
 1. **Collect context (no tool calls needed).** Note what the user already knows (level,
@@ -199,14 +220,15 @@ Each was asked for or chosen by ear. The engine does most of them by itself.
     `visible = false`. On the GPU path, an object that is first drawn mid-scene can miss
     its first frame.
 
-9. **Review with agents, in two rounds.** `make build` made the review pack
+9. **Review with agents** (two rounds with budget `high`; see "Token budget" for `medium`
+   and `low`). `make build` made the review pack
    (`<dir>/build/review`). In each round, start the agents **in parallel, in one message**,
    with the Agent tool. Give each one only two paths: the review pack, and its report file
    `<dir>/build/reports/r<N>/<agent name>.md`. Give the learner no hint about the topic.
    Each reviewer writes its full report to that file and answers with one line.
    **Do not read the reports yourself.** When all reviewers of a round are done, start one
    `video-compiler` agent (see below). It reads all the reports and gives you one short,
-   checked fix list. The user chose two rounds per video:
+   checked fix list. With budget `high` (the user's choice on their own machine), two rounds:
 
    | Round | Agents | Then |
    |---|---|---|

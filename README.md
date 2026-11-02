@@ -46,12 +46,20 @@ In Claude Code, in the conversation where the topic came up:
 ## Install
 
 ```bash
-git clone git@github.com:jjietay/kaleidoscope.git ~/.claude/skills/kaleidoscope
-cd ~/.claude/skills/kaleidoscope
-node engine/make.mjs doctor      # shows what is missing
+npx github:jjietay/kaleidoscope
 ```
 
-[`INSTALL.md`](INSTALL.md) has the full setup for the voice, word timing, Manim and the reviewer agents.
+The setup checks your machine, asks 5 questions (folder, token budget, voice, Manim, reviewer agents), shows the plan, and installs only what you choose. It works without a GPU: then the Kokoro voice speaks and the CPU draws the frames.
+
+Later, in Claude Code, `/setup-kaleidoscope` changes the token budget or the voice:
+
+| Budget | Review |
+|---|---|
+| `high` | 2 rounds, 6 reviewers, Opus for the hard checks |
+| `medium` | 1 round, 6 reviewers on Sonnet, the fact check on Opus |
+| `low` | 1 round, 2 reviewers on Sonnet |
+
+[`INSTALL.md`](INSTALL.md) has the manual setup.
 
 ## The reviewer agents
 
@@ -70,6 +78,8 @@ node engine/make.mjs doctor      # shows what is missing
 | Path | What it holds |
 |---|---|
 | `SKILL.md` | the workflow the agent follows, step by step |
+| `bin/`, `package.json` | the setup that `npx github:jjietay/kaleidoscope` runs |
+| `setup/` | the `/setup-kaleidoscope` skill: token budget, voice and GPU |
 | `SOUND.md` | the background music: rules, approved tracks and their recipes |
 | `agents/` | the reviewer agents; the install links them into `~/.claude/agents` |
 | `engine/` | the command line `make.mjs`, the page runtime, fonts, the voice in `tts/`, the music in `music.mjs`, Manim in `manim/`, and the project template |

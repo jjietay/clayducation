@@ -5,3 +5,6 @@ __pycache__/
 gallery/build/
 gallery/out/
 gallery/assets/
+
+# This machine's settings (make config, the installer, /setup-kaleidoscope)
+config.json

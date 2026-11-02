@@ -1,0 +1,20 @@
+{
+  "name": "@jjietay/kaleidoscope",
+  "version": "0.1.0",
+  "description": "Set up Kaleidoscope, a Claude Code skill that makes narrated teaching videos.",
+  "type": "module",
+  "bin": {
+    "kaleidoscope": "bin/kaleidoscope.mjs"
+  },
+  "files": [
+    "bin/"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jjietay/kaleidoscope.git"
+  },
+  "homepage": "https://jjietay.github.io/kaleidoscope/"
+}

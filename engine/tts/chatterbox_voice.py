@@ -55,7 +55,8 @@ def main(path):
     if todo:
         import torch
         from chatterbox.tts import ChatterboxTTS
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        # An NVIDIA GPU, else Apple silicon (Metal), else the CPU (slow: Kokoro is faster there).
+        device = 'cuda' if torch.cuda.is_available() else 'mps' if getattr(torch.backends, 'mps', None) and torch.backends.mps.is_available() else 'cpu'
         print(f'chatterbox: {len(todo)} part(s) to speak on {device}', flush=True)
         model = ChatterboxTTS.from_pretrained(device=device)
         model.prepare_conditionals(REFERENCE, exaggeration=p['exaggeration'])
