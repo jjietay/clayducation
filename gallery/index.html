@@ -208,7 +208,7 @@ footer p + p { margin-top: 10px; }
     <a class="opt" href="#how">How it works</a>
     <a class="opt" href="#frames">Frames</a>
     <a class="opt" href="#review">Review</a>
-    <a class="opt" href="#music">Music</a>
+    <a class="opt" href="#music">Sound</a>
     <a class="opt" href="#styles">Styles</a>
     <a href="#install">Install</a>
   </nav>
@@ -258,7 +258,7 @@ footer p + p { margin-top: 10px; }
       <li><span class="k">headless Chrome<small>frames</small></span><span class="v">Draws each frame from the timeline with <b>canvas</b>, <b>Three.js</b> or <b>Manim</b>.</span></li>
       <li><span class="k">make check<small>automatic checks</small></span><span class="v">Tests overlap, the safe area, text size and pacing. Claude also looks at every changed part, frame by frame.</span></li>
       <li><span class="k">6 reviewer agents<small>one or two rounds</small></span><span class="v">Read the review pack and send one fix list back. Claude fixes the scenes and builds again.</span></li>
-      <li><span class="k">make final<small>render</small></span><span class="v">Chrome draws on the GPU and NVENC encodes, or the CPU does both when there is no GPU. <code>verify</code> checks the duration, the loudness and black frames. The result is an MP4 with soft subtitles and 48 kHz sound.</span></li>
+      <li><span class="k">make final<small>render</small></span><span class="v">Chrome draws on the GPU and NVENC encodes, or the CPU does both when there is no GPU. The mix puts the music and the sound effects under the voice. <code>verify</code> checks the duration, the loudness and black frames. The result is an MP4 with soft subtitles and 48 kHz sound.</span></li>
     </ol>
   </div>
 </section>
@@ -321,12 +321,12 @@ footer p + p { margin-top: 10px; }
 
 <section class="sec wrap" id="music">
   <div class="sec-head">
-    <h2>Music made from code</h2>
-    <p>The music plays about 16 dB under the voice and ducks gently when the voice speaks.</p>
+    <h2>Music and sound effects made from code</h2>
+    <p>The music plays about 13 dB under the voice and ducks gently when the voice speaks. The sound effects sit 7 to 12 dB under the voice.</p>
     <p class="src"><a href="https://github.com/jjietay/kaleidoscope/blob/main/SOUND.md">→ SOUND.md</a></p>
   </div>
   <div class="sec-body">
-    <p>The engine makes its background music in <code>engine/music.mjs</code>. It uses no samples, no AI models and no recordings, so there is no licence to clear. The same track and length always give the same file. These are 30 s previews of the two approved tracks.</p>
+    <p>The engine makes its background music in <code>engine/music.mjs</code> and its sound effects in <code>engine/sfx.mjs</code>. It uses no samples, no AI models and no recordings, so there is no licence to clear. The same input always gives the same file. These are 30 s previews of the two approved tracks and of the sound effects.</p>
     <ul class="tracks">
       <li><span class="name">current<small>72 BPM · C Am F G</small></span>
         <p>A calm pad and a slow arpeggio, with no beat. This is the default track, and it suits any video.</p>
@@ -334,6 +334,9 @@ footer p + p { margin-top: 10px; }
       <li><span class="name">lofi<small>76 BPM · swing</small></span>
         <p>A lo-fi study beat: electric piano, bass, soft drums and vinyl hiss. Use it for a calm video that needs more energy.</p>
         <audio controls preload="none" src="music/lofi-30s.flac" aria-label="lofi, 30 second preview"></audio></li>
+      <li><span class="name">sound effects<small>12 sounds · engine/sfx.mjs</small></span>
+        <p>Pop, click, tick, whoosh, swish, thud, stamp, paper, marker, pencil, chime and typing. A scene adds a sound at a cue with <code>s.sfx('stamp', '#slam')</code>. This demo plays all 12 over the music.</p>
+        <audio controls preload="none" src="sfx/demo-music-30s.flac" aria-label="sound effects, 30 second demo"></audio></li>
     </ul>
   </div>
 </section>

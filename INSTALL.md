@@ -18,19 +18,22 @@ You need Node 22+, Google Chrome or Chromium, ffmpeg, Python 3.12 with
 [uv](https://docs.astral.sh/uv/), and for the Chatterbox voice a GPU.
 
 ```bash
-git clone git@github.com:jjietay/kaleidoscope.git ~/.claude/skills/kaleidoscope
+git clone https://github.com/jjietay/kaleidoscope.git ~/.claude/skills/kaleidoscope
 cd ~/.claude/skills/kaleidoscope
 
 # Reviewer agents: Claude Code reads them from ~/.claude/agents
 mkdir -p ~/.claude/agents
 for f in agents/video-*.md; do ln -sf "$PWD/$f" ~/.claude/agents/; done
+# The /setup-kaleidoscope command (token budget, voice, GPU)
+ln -sfn "$PWD/setup" ~/.claude/skills/setup-kaleidoscope
 
-# Word timing: explainroo (its Whisper model). doctor --fetch also gets a Kokoro model,
-# which this skill does not use: rm -rf ~/.cache/explainroo/models/onnx-community/Kokoro-*
+# Word timing: explainroo (its Whisper model). doctor --fetch also gets the Kokoro voice model,
+# which the engine uses on a computer without a GPU.
 git clone --depth 1 https://github.com/vincentsch/explainroo ~/.explainroo
 (cd ~/.explainroo && npm install && node bin/explainroo.js doctor --fetch)
 
-# Voice: Chatterbox on the GPU. It pins torch 2.6, which has no Blackwell (RTX 50) support,
+# Voice: Chatterbox, for an NVIDIA GPU (skip it without one, and use Kokoro: see the end).
+# Chatterbox pins torch 2.6, which has no Blackwell (RTX 50) support,
 # so override it; perth (its watermark) needs pkg_resources from setuptools < 81.
 (cd engine/tts && uv venv --python 3.12 .venv && UV_HTTP_TIMEOUT=600 uv pip install --python .venv/bin/python \
   --override torch-overrides.txt --index https://download.pytorch.org/whl/cu128 --index-strategy unsafe-best-match \
@@ -51,7 +54,7 @@ git clone --depth 1 https://github.com/vincentsch/explainroo ~/.explainroo
 sudo apt install ffmpeg texlive texlive-latex-extra dvisvgm libcairo2-dev libpango1.0-dev pkg-config
 (cd engine/manim && uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python manim)
 
+# Settings: the token budget of the review, and the voice (chatterbox, or kokoro without a GPU)
+node engine/make.mjs config --budget medium --voice chatterbox
 node engine/make.mjs doctor
 ```
-
-Needs Node 22+ and Google Chrome or Chromium.

@@ -7,7 +7,7 @@ Every part of the video has its own animation style, and six reviewer agents che
 
 <img src="gallery/png/all.png" alt="Sample frames of the adapted styles and the drawing library" width="100%">
 
-<sub>Code draws every frame in all 29 styles, without a video model. The voice model runs on your own GPU.</sub>
+<sub>Code draws every frame in all 29 styles, without a video model, and makes the music and the sound effects. The voice runs on your own computer, with or without a GPU.</sub>
 
 <a href="https://jjietay.github.io/kaleidoscope/"><b>Open the gallery page</b></a>
 
@@ -80,9 +80,9 @@ Later, in Claude Code, `/setup-kaleidoscope` changes the token budget or the voi
 | `SKILL.md` | the workflow the agent follows, step by step |
 | `bin/`, `package.json` | the setup that `npx kaleidoscope-video` runs |
 | `setup/` | the `/setup-kaleidoscope` skill: token budget, voice and GPU |
-| `SOUND.md` | the background music: rules, approved tracks and their recipes |
+| `SOUND.md` | the background music and the sound effects: rules, approved tracks and sounds, levels |
 | `agents/` | the reviewer agents; the install links them into `~/.claude/agents` |
-| `engine/` | the command line `make.mjs`, the page runtime, fonts, the voice in `tts/`, the music in `music.mjs`, Manim in `manim/`, and the project template |
+| `engine/` | the command line `make.mjs`, the page runtime, fonts, the voice in `tts/`, the music in `music.mjs`, the sound effects in `sfx.mjs`, Manim in `manim/`, and the project template |
 | `reference/` | the engine API and the script rules |
 | `styles/` | one guide per style, the shared drawing code in `styles/library/`, and the credits |
 | `gallery/` | one sample project, with its pictures in `png/`, 30 s previews of the music tracks in `music/` and of the sound effects in `sfx/` |

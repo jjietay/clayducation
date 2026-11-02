@@ -102,7 +102,7 @@ Each was asked for or chosen by ear. The engine does most of them by itself.
 | Negative numbers | read "negative", never "minus" | `voice` stops with an ERROR |
 | Repeated words | "one one" gets a comma ("one, one"), or the voice slips | yes |
 | Writing | connected paragraphs; `[pause]` only where an idea ends or an animation plays. Rejected: a pause after every sentence, choppy sentences, a fast voice, a stretched (muffled) voice, Kokoro | you, see `reference/script.md` |
-| Music | audible, steady, about 16 dB under the voice, gentle ducking; two approved tracks, `current` (default) and `lofi`. Rejected: loud-soft pumping, music too soft to hear, 4 other tracks | yes; you choose the track, see `SOUND.md` |
+| Music | audible, steady, about 13 dB under the voice (`musicVolume` 0.37; the user raised it 3 dB from 0.26), gentle ducking; two approved tracks, `current` (default) and `lofi`. Rejected: loud-soft pumping, music too soft to hear, 4 other tracks | yes; you choose the track, see `SOUND.md` |
 | Sound effects | the kit in `engine/sfx.mjs`, approved by ear; the fly-in whoosh 4 dB under the other accents (the user found it a bit too loud). On for new videos (`_render.sfx: true`), off for old ones | you add `s.sfx` at the cues; the engine mixes them |
 | Audio | 48 kHz stereo | yes; `verify` checks it |
 | Subtitles | soft, never burned in; the user's mpv shows them small (`sub-scale=0.7`) | yes |
@@ -314,8 +314,9 @@ frames are the same.
 | `styles/README.md`, "Styles adapted from lemo-opuscar" | which styles are adapted from lemo-opuscar (MIT), with links to their posters |
 | `styles/library/README.md` | at step 6: the shared drawings, by style; pictures in `gallery/png/library-*.png` |
 | `reference/engine.md` | before step 7: the scene API and every command |
-| `SOUND.md` | when you choose the music, or the user asks for a new track: the rules, the tracks and their recipes, the rejected tracks, how to add one |
-| `agents/video-*.md` | the 6 reviewers (step 9), linked from `~/.claude/agents/`. You do not need to read them |
+| `SOUND.md` | when you choose the music or add sound effects, or the user asks for a new track or sound: the rules, the tracks and their recipes, the sound kit and its levels |
+| `agents/video-*.md` | the 6 reviewers and the compiler (step 9), linked from `~/.claude/agents/`. You do not need to read them |
+| `setup/SKILL.md` | the `/setup-kaleidoscope` skill, which writes `config.json` (budget, voice, GPU) with `make config` |
 
 ## If something fails
 

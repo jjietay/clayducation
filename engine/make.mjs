@@ -70,7 +70,8 @@ function timeline(dir) {
   if (fs.statSync(script).mtimeMs > fs.statSync(f).mtimeMs) die('script.md changed after the last voice run. Run "voice" again.');
   return JSON.parse(fs.readFileSync(f, 'utf8'));
 }
-const renderCfg = (dir) => ({ music: true, musicVolume: 0.26, sfx: false, sfxVolume: 1, workers: Math.max(1, Math.min(6, Math.floor(os.cpus().length / 3))), ...(JSON.parse(fs.readFileSync(path.join(dir, 'video.json'), 'utf8'))._render || {}) });
+// musicVolume 0.37: the user raised the music by 3 dB on 2026-11-02 (it was 0.26).
+const renderCfg = (dir) => ({ music: true, musicVolume: 0.37, sfx: false, sfxVolume: 1, workers: Math.max(1, Math.min(6, Math.floor(os.cpus().length / 3))), ...(JSON.parse(fs.readFileSync(path.join(dir, 'video.json'), 'utf8'))._render || {}) });
 const slug = (dir) => path.basename(dir);
 
 // ---------- Manim scenes (the maths style) ----------

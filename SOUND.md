@@ -1,14 +1,15 @@
-# Sound: the background music
+# Sound: the background music and the sound effects
 
-The engine makes the music itself, from code in `engine/music.mjs`. It uses no samples, no
-AI models and no recordings, so there is no licence to clear. Read this file when you choose
-the music for a video, or when the user asks for a new track.
+The engine makes the music itself, from code in `engine/music.mjs`, and the sound effects
+from code in `engine/sfx.mjs`. It uses no samples, no AI models and no recordings, so there is
+no licence to clear. Read this file when you choose the music or add sound effects to a video,
+or when the user asks for a new track or a new sound.
 
 ## The rules the user chose
 
 | Rule | Value |
 |---|---|
-| Level | audible and steady, about 16 dB under the voice: `musicVolume` 0.26 |
+| Level | audible and steady, about 13 dB under the voice: `musicVolume` 0.37. The user raised it by 3 dB on 2026-11-02; before, it was 0.26, about 16 dB under |
 | Ducking | gentle: sidechain ratio 2, attack 250 ms, release 1.8 s. Rejected: a hard duck (ratio 8), which pumps loud-soft-loud between sentences |
 | Too soft | rejected: music that the user cannot hear under the voice |
 | Fades | 3 s in, 4 s out |
@@ -95,7 +96,7 @@ The user gave no reason.
    g=$(python3 -c "print($(lufs current.wav) - ($(lufs new.wav)))")
    ffmpeg -y -i new.wav -af "volume=${g}dB" new-30s.wav
    ffmpeg -y -ss 20 -t 34 -i <project>/build/narration.wav -i new-30s.wav -filter_complex \
-     "[0:a]apad=pad_dur=4,aresample=48000,loudnorm=I=-16:TP=-1.5,aresample=48000,asplit=2[v][key];[1:a]volume=0.26[m];[m][key]sidechaincompress=threshold=0.03:ratio=2:attack=250:release=1800:knee=6[md];[v][md]amix=inputs=2:normalize=0:duration=shortest,alimiter=limit=0.95,atrim=0:30" \
+     "[0:a]apad=pad_dur=4,aresample=48000,loudnorm=I=-16:TP=-1.5,aresample=48000,asplit=2[v][key];[1:a]volume=0.37[m];[m][key]sidechaincompress=threshold=0.03:ratio=2:attack=250:release=1800:knee=6[md];[v][md]amix=inputs=2:normalize=0:duration=shortest,alimiter=limit=0.95,atrim=0:30" \
      -ac 2 new-under-voice.wav
    ```
 4. Give the user both files to listen to. Only the user approves a track.
@@ -110,7 +111,7 @@ The engine also makes short sound effects from code, in `engine/sfx.mjs`: no sam
 licence. They are **off by default**. A video turns them on in `video.json`:
 
 ```json
-"_render": { "music": true, "musicVolume": 0.26, "sfx": true, "sfxVolume": 1 }
+"_render": { "music": true, "musicVolume": 0.37, "sfx": true, "sfxVolume": 1 }
 ```
 
 A scene declares each sound at a cue, in `setup` (see `reference/engine.md`):
@@ -158,7 +159,8 @@ without new frames. With `sfx` off, the mix is the same as before, byte for byte
 Previews (3 variations of each sound, at video level): `gallery/sfx/<sound>.flac`, and all
 of them over the music in `gallery/sfx/demo-music-30s.flac` (`mpv gallery/sfx/*.flac`).
 Make them again with `node engine/sfx.mjs kit <dir>` and `node engine/sfx.mjs track
-gallery/sfx/demo-events.json 30 <out.wav>`, then mix with the music at 0.26.
+gallery/sfx/demo-events.json 30 <out.wav>`, then mix with the music at `musicVolume`.
+The demo `gallery/sfx/demo-music-30s.flac` was made before the +3 dB change, with the music at 0.26.
 
 New sounds follow the music rule: the user approves each one by ear. If a recorded sound is
 ever needed, use only CC0 sources (Kenney audio packs, Freesound CC0). Sources for the design:

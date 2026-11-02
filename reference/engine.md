@@ -15,7 +15,7 @@ The stage is 1920 x 1080 px. Headless Chrome draws each frame by calling `seek(t
 | `script.md` | you | narration, scenes, cues (see `script.md` reference) |
 | `scenes.js` | you | one `scene()` per "## id" |
 | `storyboard.md` | you | plan, facts and sources, your case |
-| `video.json` | `init` | `_tts`: the voice (`exaggeration`, `cfg_weight`, `stopGap`, `paragraphGap`, `seeds`); fps, lead, hold. `_render`: `music` (`true` = `"current"`, `"lofi"`, or `false`; see `SOUND.md`), `musicVolume` (0.26), `sfx` (sound effects, `false`), `sfxVolume` (1), `workers` |
+| `video.json` | `init` | `_tts`: the voice (`exaggeration`, `cfg_weight`, `stopGap`, `paragraphGap`, `seeds`); fps, lead, hold. `_render`: `music` (`true` = `"current"`, `"lofi"`, or `false`; see `SOUND.md`), `musicVolume` (0.37), `sfx` (sound effects, `false`), `sfxVolume` (1), `workers` |
 | `assets/` | you | images the scenes load as `/assets/name.png` |
 | `build/` | engine | voice, timeline, sheets, stills (gitignored) |
 | `out/` | engine | `<slug>.mp4` and `<slug>.srt` (gitignored) |
@@ -149,7 +149,7 @@ scene('frames', {
 });
 ```
 Chrome draws the frames and WebGL on the NVIDIA GPU when the engine finds one (ANGLE on EGL, PRIME offload on a
-hybrid laptop), and NVENC encodes the video; `make render` prints which device it uses. `XV_GPU=0` forces the CPU
+hybrid laptop), and NVENC encodes the video; `make render` prints which device it uses. `XV_GPU=0` or `make config --gpu off` forces the CPU
 path (SwiftShader and libx264). The CPU path must still work, so keep scenes simple: a few thousand triangles,
 one shadow-casting light, shadow map 1024.
 
@@ -161,16 +161,17 @@ one shadow-casting light, shadow map 1024.
 |---|---|
 | `make build <dir>` | **one shot**: voice, manim, check, sheet, review pack, in order; stops at the first ERROR. Finished steps are cached |
 | `make final <dir>` | **one shot**: render, verify |
-| `make doctor` | checks the tools |
+| `make doctor` | checks the tools, and prints this machine's budget, voice and GPU |
+| `make config` | prints or changes this machine's settings in `config.json`: `--budget high\|medium\|low`, `--voice auto\|chatterbox\|kokoro`, `--gpu auto\|off` |
 | `make init <dir> --title "..."` | new project |
 | `make voice <dir>` | voice + timings + narration track + subtitles + pacing table |
 | `make manim <dir>` | renders each `Timed` class in `manim_scenes.py` whose code or timing changed, to frames in `build/manim/<id>/` (in parallel). `--all` every scene, `--scene id` one scene, `--draft` half size. Prints "started late" warnings |
-| `make check <dir>` | scene errors, cues that do not exist, text outside the safe area or too small, pacing. Exit 1 on errors |
+| `make check <dir>` | scene errors, cues that do not exist, text outside the safe area or too small, pacing, and (with `_render.sfx`) too many sound effects. Exit 1 on errors |
 | `make sheet <dir>` | contact sheets, 3 frames a scene. `--scene id` one frame a second, `--every 2` whole video |
 | `make still <dir> 12.5 intro@end idea@#step idea@lambda` | full-size PNGs in `build/stills/` |
-| `make review <dir>` | `build/review/`: the pack the 5 reviewer agents read. Transcript with a still a sentence, a grid at each cue, the motion of every traced thing at every frame, film strips |
+| `make review <dir>` | `build/review/`: the pack the 6 reviewer agents read. Transcript with a still a sentence, a grid at each cue, the motion of every traced thing at every frame, film strips |
 | `make subtitles <dir>` | `build/subtitles.srt` again from `build/timeline.json`, with no new voice run. One line per cue, at most 42 characters. Then `make render <dir> --remix` puts it in the MP4 |
-| `make render <dir>` | `out/<slug>.mp4` (soft subtitles) + `.srt`. `--draft` half size, `--from s --to s` one part to `build/`, `--workers n`, `--remix` new audio on the last render's frames. Makes `build/music.wav` at the video's length first (cached) |
+| `make render <dir>` | `out/<slug>.mp4` (soft subtitles) + `.srt`. `--draft` half size, `--from s --to s` one part to `build/`, `--workers n`, `--remix` new audio on the last render's frames. Makes `build/music.wav` at the video's length first (cached), and `build/sfx.wav` from the `s.sfx` calls when `_render.sfx` is true |
 | `make verify <dir>` | duration, streams, loudness, black frames |
 | `make preview <dir>` | prints a URL: the video in a browser with the voice (space, arrow keys) |
 
