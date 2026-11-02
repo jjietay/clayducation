@@ -89,6 +89,7 @@ Later, in Claude Code, `/setup-kaleidoscope` changes the token budget or the voi
 
 ## Credits
 
+Kaleidoscope is under the MIT licence: see [`LICENSE`](LICENSE).
 We adapted 11 styles from [Lemo-Opuscar](https://github.com/lemomo-ai/lemo-opuscar) by LemoLab and took details from it for 3 more.
 Its MIT licence is in [`styles/LICENSE-opuscar`](styles/LICENSE-opuscar).
 [explainroo](https://github.com/vincentsch/explainroo) times the words, [Chatterbox](https://github.com/resemble-ai/chatterbox) speaks the narration,
