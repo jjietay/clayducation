@@ -1,0 +1,536 @@
+// Page side of the Kaleidoscope engine. It loads the project's scenes.js and
+// gives you window.seek(T): the frame at time T, drawn only from T.
+//
+// Every picture must be a pure function of time. No CSS transitions, no
+// requestAnimationFrame in scenes, no Math.random: the renderer jumps to any
+// frame in any order and in several browsers at once, and each must agree.
+
+const W = 1920, H = 1080;
+const SAFE = { x: 96, y: 72, w: W - 192, h: H - 144 };
+const stage = document.getElementById('stage');
+const TL = window.TIMELINE;
+const RENDER = new URLSearchParams(location.search).has('render');
+window.__errors = [];
+window.__cues = {};
+const report = (msg) => { window.__errors.push(String(msg)); console.error(msg); };
+window.addEventListener('error', (e) => report(e.message + (e.filename ? ` (${e.filename.split('/').pop()}:${e.lineno})` : '')));
+window.addEventListener('unhandledrejection', (e) => report(e.reason?.stack || e.reason));
+
+// ---------- maths and easing ----------
+export const clamp = (x, a = 0, b = 1) => (x < a ? a : x > b ? b : x);
+export const lerp = (a, b, t) => a + (b - a) * t;
+export const invLerp = (a, b, x) => clamp((x - a) / (b - a));
+
+// cubic-bezier(x1, y1, x2, y2) exactly as CSS defines it, so a style's numbers
+// can be copied straight from its rules.
+export function bezier(x1, y1, x2, y2) {
+  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+  const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+  const X = (u) => ((ax * u + bx) * u + cx) * u;
+  const dX = (u) => (3 * ax * u + 2 * bx) * u + cx;
+  const Y = (u) => ((ay * u + by) * u + cy) * u;
+  return (x) => {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    let u = x;
+    for (let i = 0; i < 8; i++) {
+      const e = X(u) - x, d = dX(u);
+      if (Math.abs(e) < 1e-6) break;
+      if (Math.abs(d) < 1e-6) break;
+      u -= e / d;
+    }
+    // Newton can leave [0,1] on steep curves; bisection always lands.
+    if (u < 0 || u > 1 || Math.abs(X(u) - x) > 1e-4) {
+      let lo = 0, hi = 1; u = x;
+      for (let i = 0; i < 30; i++) { if (X(u) < x) lo = u; else hi = u; u = (lo + hi) / 2; }
+    }
+    return Y(u);
+  };
+}
+
+export const E = {
+  linear: (x) => clamp(x),
+  inOut: bezier(0.65, 0, 0.35, 1),
+  out: bezier(0.16, 1, 0.3, 1),
+  in: bezier(0.7, 0, 0.84, 0),
+  snap: bezier(0.7, 0, 0.2, 1),
+  overshoot: bezier(0.34, 1.56, 0.64, 1),
+  // A drop that lands with weight and then settles `n` times, each smaller.
+  settle: (x, n = 2, amp = 0.1) => {
+    x = clamp(x);
+    const fall = 0.42;
+    if (x < fall) { const u = x / fall; return u * u; }
+    const u = (x - fall) / (1 - fall);
+    return 1 - amp * Math.abs(Math.sin(Math.PI * n * u)) * (1 - u) * (1 - u);
+  },
+};
+
+// Seeded random, so a procedural shape is the same in every frame and worker.
+export function rng(seed = 1) {
+  let a = (seed * 2654435761) >>> 0 || 1;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Colours: mix('#ff0000', '#0000ff', 0.5).
+const hex = (c) => { const n = parseInt(c.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+export function mix(a, b, t) {
+  const A = hex(a), B = hex(b);
+  return '#' + A.map((v, i) => Math.round(lerp(v, B[i], clamp(t))).toString(16).padStart(2, '0')).join('');
+}
+
+// ---------- point lists: morphs, line drawing, wobble ----------
+const measure = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+measure.style.cssText = 'position:absolute;width:0;height:0;visibility:hidden';
+document.body.appendChild(measure);
+
+// Points evenly spaced along an SVG path. Two shapes resampled to the same n
+// can be morphed point by point with lerpPoints.
+export function resample(d, n = 120) {
+  const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  p.setAttribute('d', d);
+  measure.appendChild(p);
+  const L = p.getTotalLength(), out = [];
+  for (let i = 0; i < n; i++) { const q = p.getPointAtLength((L * i) / n); out.push([q.x, q.y]); }
+  p.remove();
+  return out;
+}
+export const lerpPoints = (a, b, t) => a.map((p, i) => [lerp(p[0], b[i][0], t), lerp(p[1], b[i][1], t)]);
+// Rotates a closed point list so index 0 is the point nearest `to`. Without it
+// a morph between two closed shapes twists through itself.
+export function align(points, to) {
+  let best = 0, bd = Infinity;
+  points.forEach((p, i) => { const d = (p[0] - to[0]) ** 2 + (p[1] - to[1]) ** 2; if (d < bd) { bd = d; best = i; } });
+  return points.slice(best).concat(points.slice(0, best));
+}
+// A smooth SVG path through points (Catmull-Rom as cubic Beziers).
+export function pathFrom(pts, closed = true) {
+  const n = pts.length, P = (i) => pts[closed ? (i + n) % n : clamp(i, 0, n - 1)];
+  let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+  const last = closed ? n : n - 1;
+  for (let i = 0; i < last; i++) {
+    const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+    const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    d += `C${c1[0].toFixed(1)},${c1[1].toFixed(1)} ${c2[0].toFixed(1)},${c2[1].toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+  }
+  return closed ? d + 'Z' : d;
+}
+export function polyLength(pts) { let L = 0; for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return L; }
+// The first `len` pixels of a polyline, and the pen tip at its end.
+export function polySlice(pts, len) {
+  const out = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], seg = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (len <= seg) { const t = seg ? len / seg : 0; out.push([lerp(a[0], b[0], t), lerp(a[1], b[1], t)]); return out; }
+    len -= seg; out.push(b);
+  }
+  return out;
+}
+// Hand-made jitter: the same seed gives the same wobble, so cycling 3 seeds boils.
+export function wobble(pts, amp = 2, seed = 1) {
+  const r = rng(seed);
+  return pts.map(([x, y]) => [x + (r() - 0.5) * 2 * amp, y + (r() - 0.5) * 2 * amp]);
+}
+// A stroke whose width follows width(u), u from 0 to 1 along the line: ink, not a pen plotter.
+export function strokeVar(ctx, pts, width = () => 4, color = '#1c1c1c') {
+  ctx.save(); ctx.strokeStyle = color; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (let i = 1; i < pts.length; i++) {
+    ctx.lineWidth = width(i / (pts.length - 1));
+    ctx.beginPath(); ctx.moveTo(...pts[i - 1]); ctx.lineTo(...pts[i]); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ---------- isometric ----------
+// World (x, y, z) in tiles to screen pixels, true isometric (30 degrees).
+export function iso(x, y, z = 0, { tile = 48, ox = W / 2, oy = H / 2 } = {}) {
+  const c = Math.cos(Math.PI / 6), s = 0.5;
+  return [ox + (x - y) * tile * c, oy + (x + y) * tile * s - z * tile];
+}
+// A block with three flat tones: light top, mid left, dark right.
+export function isoBox(ctx, { x, y, z = 0, w = 1, d = 1, h = 1, top, left, right, line = null, ...o }) {
+  const P = (a, b, c) => iso(a, b, c, o);
+  const face = (pts, fill) => { ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(...p) : ctx.moveTo(...p))); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); if (line) { ctx.strokeStyle = line; ctx.lineWidth = 2; ctx.stroke(); } };
+  face([P(x, y + d, z), P(x + w, y + d, z), P(x + w, y + d, z + h), P(x, y + d, z + h)], left);
+  face([P(x + w, y, z), P(x + w, y + d, z), P(x + w, y + d, z + h), P(x + w, y, z + h)], right);
+  face([P(x, y, z + h), P(x + w, y, z + h), P(x + w, y + d, z + h), P(x, y + d, z + h)], top);
+}
+
+// ---------- pixel art ----------
+const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+// Ordered-dither threshold for pixel (x, y), from 0 to 1. Fill when value > bayer(x, y).
+export const bayer = (x, y) => (BAYER4[(y & 3) * 4 + (x & 3)] + 0.5) / 16;
+
+// A 5x7 bitmap font, drawn with whole pixels so it stays crisp on a pixel canvas.
+const GLYPHS = {
+  A: '01110 10001 10001 11111 10001 10001 10001', B: '11110 10001 10001 11110 10001 10001 11110',
+  C: '01110 10001 10000 10000 10000 10001 01110', D: '11110 10001 10001 10001 10001 10001 11110',
+  E: '11111 10000 10000 11110 10000 10000 11111', F: '11111 10000 10000 11110 10000 10000 10000',
+  G: '01110 10001 10000 10111 10001 10001 01111', H: '10001 10001 10001 11111 10001 10001 10001',
+  I: '01110 00100 00100 00100 00100 00100 01110', J: '00111 00010 00010 00010 00010 10010 01100',
+  K: '10001 10010 10100 11000 10100 10010 10001', L: '10000 10000 10000 10000 10000 10000 11111',
+  M: '10001 11011 10101 10101 10001 10001 10001', N: '10001 11001 10101 10011 10001 10001 10001',
+  O: '01110 10001 10001 10001 10001 10001 01110', P: '11110 10001 10001 11110 10000 10000 10000',
+  Q: '01110 10001 10001 10001 10101 10010 01101', R: '11110 10001 10001 11110 10100 10010 10001',
+  S: '01111 10000 10000 01110 00001 00001 11110', T: '11111 00100 00100 00100 00100 00100 00100',
+  U: '10001 10001 10001 10001 10001 10001 01110', V: '10001 10001 10001 10001 10001 01010 00100',
+  W: '10001 10001 10001 10101 10101 10101 01010', X: '10001 10001 01010 00100 01010 10001 10001',
+  Y: '10001 10001 01010 00100 00100 00100 00100', Z: '11111 00001 00010 00100 01000 10000 11111',
+  0: '01110 10001 10011 10101 11001 10001 01110', 1: '00100 01100 00100 00100 00100 00100 01110',
+  2: '01110 10001 00001 00010 00100 01000 11111', 3: '11111 00010 00100 00010 00001 10001 01110',
+  4: '00010 00110 01010 10010 11111 00010 00010', 5: '11111 10000 11110 00001 00001 10001 01110',
+  6: '00110 01000 10000 11110 10001 10001 01110', 7: '11111 00001 00010 00100 01000 01000 01000',
+  8: '01110 10001 10001 01110 10001 10001 01110', 9: '01110 10001 10001 01111 00001 00010 01100',
+  ' ': '00000 00000 00000 00000 00000 00000 00000', '.': '00000 00000 00000 00000 00000 01100 01100',
+  ',': '00000 00000 00000 00000 01100 00100 01000', '!': '00100 00100 00100 00100 00100 00000 00100',
+  '?': '01110 10001 00001 00010 00100 00000 00100', ':': '00000 01100 01100 00000 01100 01100 00000',
+  '-': '00000 00000 00000 11111 00000 00000 00000', "'": '00100 00100 01000 00000 00000 00000 00000',
+  '(': '00010 00100 01000 01000 01000 00100 00010', ')': '01000 00100 00010 00010 00010 00100 01000',
+  '/': '00001 00010 00010 00100 01000 01000 10000', '+': '00000 00100 00100 11111 00100 00100 00000',
+  '=': '00000 00000 11111 00000 11111 00000 00000', '>': '01000 00100 00010 00001 00010 00100 01000',
+  '<': '00010 00100 01000 10000 01000 00100 00010', '%': '11000 11001 00010 00100 01000 10011 00011',
+  '#': '01010 01010 11111 01010 11111 01010 01010', '"': '01010 01010 00000 00000 00000 00000 00000',
+};
+// Draws text on a pixel canvas, 6 px per character, 8 px per line. Lower case shows as upper case.
+export function pixelText(ctx, str, x, y, color = '#f4f4f4', scale = 1) {
+  ctx.fillStyle = color;
+  let cx = x;
+  for (const ch of String(str).toUpperCase()) {
+    if (ch === '\n') { cx = x; y += 8 * scale; continue; }
+    const g = (GLYPHS[ch] || GLYPHS['?']).split(' ');
+    g.forEach((row, r) => { for (let c = 0; c < 5; c++) if (row[c] === '1') ctx.fillRect(cx + c * scale, y + r * scale, scale, scale); });
+    cx += 6 * scale;
+  }
+  return cx;
+}
+// The part of `str` that has typed out by time t, at `cps` characters a second.
+export const typed = (str, t, cps = 30) => str.slice(0, Math.max(0, Math.floor(t * cps)));
+
+// ---------- SVG helpers ----------
+const SVGNS = 'http://www.w3.org/2000/svg';
+export function el(tag, attrs = {}, parent = null) {
+  const isSvg = parent ? parent.namespaceURI === SVGNS : ['svg', 'g', 'path', 'circle', 'rect', 'line', 'polyline', 'polygon', 'ellipse', 'text', 'defs', 'filter', 'clipPath', 'mask', 'tspan', 'linearGradient', 'radialGradient', 'stop', 'use', 'foreignObject'].includes(tag);
+  const n = isSvg ? document.createElementNS(SVGNS, tag) : document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'text') n.textContent = v;
+    else if (k === 'style' && typeof v === 'object') Object.assign(n.style, v);
+    else n.setAttribute(k, v);
+  }
+  if (parent) parent.appendChild(n);
+  return n;
+}
+// Metaball blending: shapes inside <g filter="url(#id)"> melt together where they meet.
+export function goo(svg, id = 'goo', blur = 16) {
+  const defs = svg.querySelector('defs') || el('defs', {}, svg);
+  const f = el('filter', { id, x: '-50%', y: '-50%', width: '200%', height: '200%' }, defs);
+  el('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: blur, result: 'b' }, f);
+  el('feColorMatrix', { in: 'b', mode: 'matrix', values: '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 24 -10', result: 'g' }, f);
+  el('feComposite', { in: 'SourceGraphic', in2: 'g', operator: 'atop' }, f);
+  return `url(#${id})`;
+}
+// Moves an element by (x, y) px from where it was placed, and scales and turns
+// it about its own centre. Works on HTML and SVG elements.
+export function set(n, { x = 0, y = 0, scale = 1, rot = 0, opacity } = {}) {
+  if (n instanceof SVGElement) { n.style.transformBox = 'fill-box'; n.style.transformOrigin = 'center'; }
+  if (!n.dataset.tr) n.dataset.tr = 'auto'; // "make review" follows everything that moves
+  n.style.transform = `translate(${x}px,${y}px) rotate(${rot}deg) scale(${scale})`;
+  if (opacity !== undefined) n.style.opacity = opacity;
+  return n;
+}
+
+// A scene drawn by Manim (manim_scenes.py, rendered with "make manim"): shows
+// its frames. extra.setup / extra.draw add HTML or SVG on top.
+export function manim(extra = {}) {
+  return {
+    bg: extra.bg || '#000',
+    // only a plain Manim scene shows exactly its Manim frames; verify compares those frame by frame
+    manimOnly: !extra.setup && !extra.draw,
+    async setup(s) {
+      const r = await fetch(`/build/manim/${s.id}/info.json`);
+      if (!r.ok) throw new Error(`scene ${s.id}: no Manim frames. Run "make manim".`);
+      s.manim = await r.json();
+      s.frame = el('img');
+      s.frame.style.cssText = `position:absolute;left:0;top:0;width:${W}px;height:${H}px;z-index:0`;
+      s.root.appendChild(s.frame);
+      await extra.setup?.(s);
+    },
+    async draw(s) {
+      const i = Math.min(s.manim.frames - 1, Math.floor(s.t * s.manim.fps + 1e-6));
+      const src = `/build/manim/${s.id}/f_${String(i + 1).padStart(5, '0')}.jpg`;
+      // a failed decode must not stop the overlay draw below (it would keep an old overlay on screen)
+      if (s.frame.getAttribute('src') !== src) { s.frame.src = src; try { await s.frame.decode(); } catch (e) { /* keep the old frame */ } }
+      await extra.draw?.(s);
+    },
+  };
+}
+
+// ---------- scenes ----------
+const defs = new Map();
+window.manimOnly = () => [...defs].filter(([, d]) => d.manimOnly).map(([id]) => id);
+window.scene = (id, def) => {
+  if (typeof def === 'function') def = { draw: def };
+  defs.set(id, def);
+};
+
+const norm = (w) => w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+
+class Scene {
+  constructor(info, def) {
+    Object.assign(this, { id: info.id, start: info.start, dur: info.dur, words: info.words || [], marks: info.marks || {}, attrs: info.attrs || {} });
+    this.def = def;
+    this.W = W; this.H = H; this.SAFE = SAFE; this.t = 0; this._trace = {};
+    this.root = el('div', { class: 'scene', 'data-id': info.id });
+    this.root.style.cssText = `position:absolute;inset:0;overflow:hidden;display:none;background:${def.bg || '#000'}`;
+    stage.appendChild(this.root);
+  }
+  // Time (seconds into the scene) of a cue: '#marker' from script.md, or a
+  // spoken word. at('vector', 2) is the second time "vector" is said.
+  at(key, n = 1) {
+    if (typeof key === 'number') return key;
+    if (key.startsWith('#')) {
+      const v = this.marks[key.slice(1)];
+      if (v === undefined) throw new Error(`scene ${this.id}: no marker [${key}] in script.md. Markers: ${Object.keys(this.marks).join(', ') || 'none'}`);
+      window.__cues[`${this.id}|${key}|1`] = v;
+      return v;
+    }
+    const want = norm(key);
+    let seen = 0;
+    for (const w of this.words) if (norm(w.text) === want && ++seen === n) { window.__cues[`${this.id}|${key}|${n}`] = w.start; return w.start; }
+    throw new Error(`scene ${this.id}: the narration does not say "${key}"${n > 1 ? ` ${n} times` : ''}`);
+  }
+  // Progress from 0 to 1 of something that starts at `from` (seconds or a cue) and lasts `dur`.
+  p(from, dur = 0.6, ease = E.inOut) { return ease(clamp((this.t - this.at(from)) / dur)); }
+  after(from) { return this.t >= this.at(from); }
+  // Time quantised to `fps`, for stop motion (12) and animation on twos (12 at 24).
+  tq(fps = 12) { return Math.floor(this.t * fps + 1e-6) / fps; }
+  // Which of n jitter variants to draw now, cycling at `fps`.
+  boil(n = 3, fps = 12) { return Math.floor(this.t * fps + 1e-6) % n; }
+  // Tells "make review" where a thing is, so the physics check can follow it.
+  // In setup: trace(element, 'name') names an HTML or SVG element.
+  // In draw: trace('name', x, y, { r }) for things drawn on a canvas or in
+  // Three.js (stage px; r = radius for the collision check).
+  trace(what, x, y, extra = {}) {
+    if (what instanceof Element) { what.dataset.tr = x || 'auto'; return what; }
+    this._trace[what] = { x, y, ...extra };
+  }
+  // A canvas that fills the stage. pixel: draws at w x h and scales up without smoothing.
+  canvas({ w = W, h = H, pixel = false, z = 0 } = {}) {
+    const c = el('canvas', { width: w, height: h });
+    c.style.cssText = `position:absolute;left:0;top:0;width:${W}px;height:${H}px;z-index:${z};${pixel ? 'image-rendering:pixelated;' : ''}`;
+    this.root.appendChild(c);
+    const ctx = c.getContext('2d');
+    ctx.imageSmoothingEnabled = !pixel;
+    return ctx;
+  }
+  svg({ z = 0 } = {}) {
+    const s = el('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H });
+    s.style.cssText = `position:absolute;left:0;top:0;z-index:${z};overflow:visible`;
+    this.root.appendChild(s);
+    return s;
+  }
+  // An HTML text box. anchor: 'tl' top-left, 'c' centre, 'tc' top-centre, 'l' left-middle.
+  text(str, { x = W / 2, y = H / 2, size = 56, font = 'Inter', weight = 600, color = '#111', anchor = 'c', width, align, z = 2, html = false } = {}) {
+    const d = el('div');
+    const [ax, ay] = { tl: [0, 0], tc: [-50, 0], c: [-50, -50], l: [0, -50], r: [-100, -50], tr: [-100, 0], bc: [-50, -100] }[anchor];
+    d.style.cssText = `position:absolute;left:${x}px;top:${y}px;translate:${ax}% ${ay}%;font:${weight} ${size}px/${1.2} '${font}';color:${color};z-index:${z};white-space:${width ? 'normal' : 'nowrap'};${width ? `width:${width}px;` : ''}text-align:${align || (anchor.includes('c') ? 'center' : 'left')}`;
+    if (html) d.innerHTML = str; else d.textContent = str;
+    d.dataset.text = '1';
+    this.root.appendChild(d);
+    return d;
+  }
+  // TeX typeset to SVG (in Node, by the engine). Wrap a term in \class{name}{...}
+  // to colour it later with node.querySelectorAll('.name'). Await it in setup.
+  async tex(src, { x = W / 2, y = H / 2, size = 64, color = '#111', anchor = 'c', display = true, z = 2 } = {}) {
+    const r = await fetch(`/_tex?display=${display ? 1 : 0}&q=${encodeURIComponent(src)}`);
+    if (!r.ok) throw new Error(`tex "${src}": ${await r.text()}`);
+    const d = this.text('', { x, y, size, color, anchor, z, html: true });
+    d.innerHTML = await r.text();
+    d.dataset.text = '';
+    d.dataset.tex = src;
+    return d;
+  }
+  // Three.js in this scene. Returns { THREE, renderer, scene, camera }. Call
+  // render() at the end of draw. ortho: true gives a true isometric camera.
+  async three({ ortho = false, view = 10, bg = null, z = 0 } = {}) {
+    const THREE = await import('three');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: !bg });
+    renderer.setPixelRatio(1);
+    renderer.setSize(W, H, false);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.domElement.style.cssText = `position:absolute;left:0;top:0;width:${W}px;height:${H}px;z-index:${z}`;
+    this.root.appendChild(renderer.domElement);
+    const scene = new THREE.Scene();
+    if (bg) scene.background = new THREE.Color(bg);
+    let camera;
+    if (ortho) {
+      const a = W / H;
+      camera = new THREE.OrthographicCamera((-view * a) / 2, (view * a) / 2, view / 2, -view / 2, 0.1, 1000);
+      camera.position.set(50, 50, 50); // equal x, y, z: true isometric
+      camera.lookAt(0, 0, 0);
+    } else {
+      camera = new THREE.PerspectiveCamera(35, W / H, 0.1, 500);
+      camera.position.set(0, 4, 14);
+      camera.lookAt(0, 0, 0);
+    }
+    const render = () => renderer.render(scene, camera);
+    // Stage px of an object's centre, for trace().
+    const screen = (obj) => { const v = obj.getWorldPosition(new THREE.Vector3()).project(camera); return [(v.x + 1) / 2 * W, (1 - v.y) / 2 * H]; };
+    return { THREE, renderer, scene, camera, render, screen };
+  }
+}
+
+// ---------- the clock ----------
+const list = [];
+let current = null;
+const ready = (async () => {
+  await import('/scenes.js?v=' + Date.now());
+  for (const info of TL.scenes) {
+    const def = defs.get(info.id);
+    if (!def) { report(`scenes.js has no scene('${info.id}', ...) for the "## ${info.id}" heading in script.md`); continue; }
+    list.push(new Scene(info, def));
+  }
+  for (const id of defs.keys()) if (!TL.scenes.some((s) => s.id === id)) report(`scenes.js defines scene '${id}', but script.md has no "## ${id}"`);
+  // Load every declared font face now. Canvas text does not ask for a font by itself,
+  // so without this the first frames of a canvas scene draw in a serif fallback font.
+  await Promise.all([...document.fonts].map((f) => f.load().catch(() => null)));
+  await document.fonts.ready;
+})();
+
+window.TOTAL = TL.duration;
+window.FPS = TL.fps;
+window.SCENES = TL.scenes.map((s) => ({ id: s.id, start: s.start, dur: s.dur, attrs: s.attrs || {}, marks: s.marks, words: s.words }));
+
+window.seek = async function (T) {
+  await ready;
+  T = clamp(T, 0, TL.duration - 1e-6);
+  const s = list.find((x) => T >= x.start && T < x.start + x.dur) || list[list.length - 1];
+  if (!s) return;
+  if (current !== s) {
+    if (current) current.root.style.display = 'none';
+    s.root.style.display = 'block';
+    current = s;
+  }
+  try {
+    // Every seek waits for the one setup: a second seek that arrived while setup was
+    // still loading used to draw a half-built scene (a Manim scene with no frame list).
+    s.setupDone ??= Promise.resolve(s.def.setup?.(s));
+    await s.setupDone;
+    s.t = T - s.start;
+    s.T = T;
+    s._trace = {};
+    await s.def.draw?.(s);
+  } catch (e) {
+    report(`scene ${s.id} at ${(T - s.start).toFixed(2)} s: ${e.stack || e}`);
+  }
+};
+window.sceneAt = (T) => (list.find((x) => T >= x.start && T < x.start + x.dur) || list[list.length - 1])?.id;
+
+// Two boxes overlap when they share more than OVERLAP_PX in both directions.
+// A few pixels of touch is fine (descenders, tight rows); more covers letters.
+const OVERLAP_PX = 6;
+window.overlapOf = (a, b) => {
+  const w = Math.min(a.right, b.right) - Math.max(a.left, b.left), h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+  return w > OVERLAP_PX && h > OVERLAP_PX ? { w, h } : null;
+};
+// Layout problems the checker can find in HTML text: outside the safe area, too small
+// to read, or on top of another text or formula.
+window.layoutIssues = function () {
+  const out = [];
+  if (!current) return out;
+  const shown = [];
+  for (const n of current.root.querySelectorAll('[data-text="1"], [data-tex]')) {
+    const cs = getComputedStyle(n);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity === 0 || !n.textContent.trim() && !n.dataset.tex) continue;
+    let hidden = false;
+    for (let p = n.parentElement; p && p !== current.root; p = p.parentElement) if (+getComputedStyle(p).opacity === 0) hidden = true;
+    if (hidden) continue;
+    const r = n.getBoundingClientRect();
+    const label = (n.dataset.tex || n.textContent).trim().slice(0, 40);
+    if (r.left < SAFE.x - 1 || r.top < SAFE.y - 1 || r.right > SAFE.x + SAFE.w + 1 || r.bottom > SAFE.y + SAFE.h + 1)
+      out.push(`"${label}" leaves the safe area (box ${Math.round(r.left)},${Math.round(r.top)} to ${Math.round(r.right)},${Math.round(r.bottom)})`);
+    if (!n.dataset.tex && parseFloat(cs.fontSize) * (r.height / (n.offsetHeight || r.height)) < 28)
+      out.push(`"${label}" is ${Math.round(parseFloat(cs.fontSize))} px; 28 px is the smallest readable size`);
+    if (seenOpacity(n, current.root) > 0.3) shown.push({ n, r, label });
+  }
+  for (let i = 0; i < shown.length; i++) for (let j = i + 1; j < shown.length; j++) {
+    const a = shown[i], b = shown[j];
+    if (a.n.contains(b.n) || b.n.contains(a.n)) continue;
+    const o = overlapOf(a.r, b.r);
+    if (o) out.push(`"${a.label}" overlaps "${b.label}" (${Math.round(o.w)} x ${Math.round(o.h)} px at ${Math.round(Math.max(a.r.left, b.r.left))},${Math.round(Math.max(a.r.top, b.r.top))})`);
+  }
+  return out;
+};
+
+// What "make review" records each frame: every text, formula and moved or traced
+// element (centre, size, opacity as seen), and the trace() points.
+const trKeys = new WeakMap();
+let trCount = 0;
+const trUsed = {};
+const seenOpacity = (n, root) => {
+  let o = 1;
+  for (let p = n; p && p !== root.parentElement; p = p.parentElement) {
+    const cs = getComputedStyle(p);
+    if (cs.display === 'none' || cs.visibility === 'hidden') return 0;
+    o *= +cs.opacity;
+  }
+  return o;
+};
+window.__traceFrame = function () {
+  if (!current) return null;
+  const items = [];
+  for (const n of current.root.querySelectorAll('[data-text="1"], [data-tex], [data-tr]')) {
+    if (!trKeys.has(n)) {
+      const name = n.dataset.tr && n.dataset.tr !== 'auto' ? n.dataset.tr
+        : n.dataset.tex ? `tex "${n.dataset.tex.slice(0, 30)}"`
+        : n.dataset.text === '1' ? `text "${n.textContent.trim().slice(0, 30)}"`
+        : `${n.tagName.toLowerCase()} ${++trCount}`;
+      const used = (trUsed[current.id] ??= new Set());
+      let k = name, i = 2;
+      while (used.has(k)) k = `${name} (${i++})`;
+      used.add(k);
+      trKeys.set(n, k);
+    }
+    const r = n.getBoundingClientRect();
+    const text = n.dataset.tex || (n.dataset.text === '1' ? n.textContent.trim() : '');
+    items.push({ k: trKeys.get(n), x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height, o: seenOpacity(n, current.root), text, isText: !!text });
+  }
+  for (const [k, v] of Object.entries(current._trace)) items.push({ k, ...v, o: v.o ?? 1, manual: true });
+  return { scene: current.id, items };
+};
+
+// ---------- preview in a normal browser ----------
+if (!RENDER) {
+  document.body.style.background = '#111';
+  const fit = () => { const k = Math.min(innerWidth / W, (innerHeight - 40) / H); stage.style.transform = `scale(${k})`; stage.style.transformOrigin = '0 0'; };
+  addEventListener('resize', fit); fit();
+  const audio = new Audio('/build/narration.wav');
+  const bar = el('div'); bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;height:40px;background:#222;color:#ddd;font:14px Inter;display:flex;align-items:center;gap:12px;padding:0 12px';
+  bar.innerHTML = '<span id="pt"></span><input id="ps" type="range" min="0" step="0.01" style="flex:1"><span>space: play / pause, arrows: 5 s</span>';
+  document.body.appendChild(bar);
+  const ps = bar.querySelector('#ps'), pt = bar.querySelector('#pt');
+  ps.max = TL.duration;
+  ps.oninput = () => { audio.currentTime = +ps.value; };
+  addEventListener('keydown', (e) => {
+    if (e.code === 'Space') { e.preventDefault(); audio.paused ? audio.play() : audio.pause(); }
+    if (e.code === 'ArrowRight') audio.currentTime += 5;
+    if (e.code === 'ArrowLeft') audio.currentTime -= 5;
+  });
+  const loop = async () => {
+    const t = audio.currentTime;
+    await window.seek(t);
+    ps.value = t; pt.textContent = `${t.toFixed(1)} / ${TL.duration.toFixed(1)} s  ${window.sceneAt(t) || ''}`;
+    requestAnimationFrame(loop);
+  };
+  loop();
+}
+
+// Scenes use these without importing anything.
+Object.assign(window, { manim, E, clamp, lerp, invLerp, bezier, rng, mix, resample, lerpPoints, align, pathFrom, polyLength, polySlice, wobble, strokeVar, iso, isoBox, bayer, pixelText, typed, el, goo, set, W, H, SAFE });

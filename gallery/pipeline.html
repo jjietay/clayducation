@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- canvas width, height in CSS px, then the scale of the PNG (3000 x 1785) -->
+<meta name="canvas" content="2000 1190 1.5">
+<title>How a video is made</title>
+<!-- The pipeline figure in the README. Same look as the FYP interim report figures:
+     absolutely placed boxes, one SVG for the arrows. Render: see gallery/README.md. -->
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #fff; }
+body { font-family: "Inter", sans-serif; color: #1d1f23; font-size: 16px; line-height: 1.35; }
+#canvas { position: relative; overflow: hidden; background: #fff; width: 2000px; height: 1190px; }
+
+.panel { position: absolute; border-radius: 22px; }
+.panel h2 { position: absolute; left: 22px; top: 14px; font-size: 26px; font-weight: 700; white-space: nowrap; }
+.panel h2.right { left: auto; right: 22px; }
+.p-blue  { background: #eef3fb; }
+.p-lilac { background: #f6f1fa; }
+.sub { position: absolute; border: 1.5px dashed #b9a8dc; border-radius: 12px; }
+.legend { position: absolute; border: 1.5px dashed #9aa0aa; border-radius: 12px; background: #fff; }
+
+.box { position: absolute; font-size: 16.5px; display: flex; flex-direction: column; justify-content: center;
+       align-items: center; text-align: center; border: 2px solid #3b3d42; border-radius: 12px;
+       background: #fff; padding: 6px 10px; }
+.box.top { justify-content: flex-start; padding-top: 12px; }
+.box .t { font-weight: 700; font-size: 18px; margin-bottom: 4px; }
+.box .m { font-size: 13.5px; color: #6a5aa0; font-weight: 600; margin-bottom: 4px; }
+.pill { border-radius: 999px; }
+.mono { font-family: "JetBrains Mono", monospace; }
+
+.c-plan  { background: #ebe5f7; border-color: #7b5fc7; }
+.c-perc  { background: #e3ecfa; border-color: #4a7bd0; }
+.c-act   { background: #fde6d3; border-color: #e0884a; }
+.c-check { background: #e3f3df; border-color: #59a14f; }
+.c-grey  { background: #f4f4f2; border-color: #3b3d42; }
+.c-teal  { background: #dff2ec; border-color: #2f8f74; }
+.stack   { position: absolute; border: 2px solid #7b5fc7; border-radius: 12px; background: #ebe5f7; }
+.chip    { position: absolute; height: 34px; border: 1.5px solid #4a7bd0; border-radius: 8px; background: #fff;
+           font-size: 15px; display: flex; align-items: center; justify-content: center; }
+
+.shape { position: absolute; }
+.shape svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.shape .lbl { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center;
+              text-align: center; font-size: 16.5px; }
+.shape .lbl b { display: block; font-size: 18px; }
+
+.note { position: absolute; font-size: 16px; color: #3d4048; white-space: nowrap; }
+.note.red { color: #c8434a; }
+.small { font-size: 14px; }
+.img { position: absolute; border: 1.5px solid #555; object-fit: cover; }
+.emoji { font-family: "Noto Color Emoji"; font-size: 0.85em; }
+.sw { display: inline-block; width: 26px; height: 18px; border-radius: 5px; border: 2px solid; vertical-align: -3px; margin-right: 8px; }
+
+svg.wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.a  { fill: none; stroke: #1d1f23; stroke-width: 2.2; marker-end: url(#ah); }
+.a0 { fill: none; stroke: #1d1f23; stroke-width: 2.2; }
+.ar { fill: none; stroke: #d9545a; stroke-width: 2.2; stroke-dasharray: 8 6; marker-end: url(#ahr); }
+</style>
+</head>
+<body>
+<div id="canvas">
+
+<!-- (a) Plan and build -->
+<div class="panel p-blue" style="left:40px;top:36px;width:1920px;height:530px">
+  <h2>(a) Plan and build: from your topic to checked frames</h2>
+</div>
+
+<div class="box pill" style="left:70px;top:118px;width:240px;height:74px">your topic, from<br>the conversation</div>
+<div class="box c-grey top" style="left:70px;top:228px;width:240px;height:132px">
+  <span class="t">Your project</span>
+  <div>code, datasheets,<br>papers, your numbers</div>
+</div>
+<div class="note small" style="left:70px;top:372px;width:240px;text-align:center">every fact is checked<br>before the script</div>
+
+<div class="stack" style="left:372px;top:98px;width:290px;height:220px"></div>
+<div class="stack" style="left:366px;top:104px;width:290px;height:220px"></div>
+<div class="box c-plan" style="left:360px;top:110px;width:290px;height:220px">
+  <span class="t">Main session</span>
+  <span class="m">Claude Opus <span class="emoji">❄️</span></span>
+  <div>collects the context,<br>checks the facts,<br>writes the three files</div>
+</div>
+
+<div class="box c-teal top" style="left:360px;top:358px;width:290px;height:182px">
+  <span class="t">Style guides</span>
+  <div>29 styles and the drawing code</div>
+</div>
+<img class="img" src="png/library-common.png" style="left:376px;top:448px;width:60px;height:34px">
+<img class="img" src="png/library-morph.png" style="left:443px;top:448px;width:60px;height:34px">
+<img class="img" src="png/library-iso.png" style="left:510px;top:448px;width:60px;height:34px">
+<img class="img" src="png/newsreel.png" style="left:577px;top:448px;width:60px;height:34px">
+<img class="img" src="png/library-flat.png" style="left:376px;top:490px;width:60px;height:34px">
+<img class="img" src="png/library-boil.png" style="left:443px;top:490px;width:60px;height:34px">
+<img class="img" src="png/library-paper.png" style="left:510px;top:490px;width:60px;height:34px">
+<img class="img" src="png/library-toy3d.png" style="left:577px;top:490px;width:60px;height:34px">
+
+<div class="box c-act" style="left:700px;top:110px;width:230px;height:110px">
+  <span class="t mono">script.md</span>
+  <div>one part per idea,<br>[#cue] markers</div>
+</div>
+<div class="box c-act" style="left:700px;top:240px;width:230px;height:110px">
+  <span class="t mono">storyboard.md</span>
+  <div>one style per part,<br>sources, the viewer</div>
+</div>
+<div class="box c-act" style="left:700px;top:370px;width:230px;height:110px">
+  <span class="t mono">scenes.js</span>
+  <div>one scene per part</div>
+</div>
+
+<div class="shape" style="left:990px;top:100px;width:190px;height:135px">
+  <svg viewBox="0 0 190 135" preserveAspectRatio="none"><polygon points="1,1 189,22 189,113 1,134" fill="#e3ecfa" stroke="#4a7bd0" stroke-width="2"/></svg>
+  <div class="lbl"><div><b>Chatterbox <span class="emoji">❄️</span></b>speaks the script<br>on your GPU</div></div>
+</div>
+<div class="note small" style="left:1186px;top:140px">audio</div>
+<div class="shape" style="left:1250px;top:100px;width:180px;height:135px">
+  <svg viewBox="0 0 180 135" preserveAspectRatio="none"><polygon points="1,1 179,22 179,113 1,134" fill="#e3ecfa" stroke="#4a7bd0" stroke-width="2"/></svg>
+  <div class="lbl"><div><b>Whisper <span class="emoji">❄️</span></b>times<br>every word</div></div>
+</div>
+<div class="box top" style="left:1490px;top:100px;width:230px;height:135px">
+  <span class="t">Timeline</span>
+  <div>each word and<br>each [#cue] in seconds</div>
+</div>
+<div class="note small" style="left:1745px;top:126px">a sentence that does<br>not match the script<br>is spoken again</div>
+
+<div class="box c-perc top" style="left:990px;top:340px;width:440px;height:170px">
+  <span class="t">Page in headless Chrome</span>
+  <div>draws each frame from the timeline</div>
+</div>
+<div class="chip" style="left:1012px;top:452px;width:120px">canvas</div>
+<div class="chip" style="left:1150px;top:452px;width:120px">Three.js</div>
+<div class="chip" style="left:1288px;top:452px;width:120px">Manim</div>
+
+<div class="shape" style="left:1490px;top:340px;width:260px;height:170px">
+  <svg viewBox="0 0 260 170" preserveAspectRatio="none"><polygon points="45,1 215,1 259,85 215,169 45,169 1,85" fill="#fff6d6" stroke="#d9b440" stroke-width="2"/></svg>
+  <div class="lbl"><div><b>make check</b>overlap, safe area,<br>text size, pacing</div></div>
+</div>
+<div class="note red small" style="left:1660px;top:296px">WARN: fix the scene,<br>build again</div>
+<div class="note small" style="left:1775px;top:400px">Claude also looks<br>at every changed<br>part, frame by frame</div>
+
+<!-- (b) Review and render -->
+<div class="panel p-lilac" style="left:40px;top:596px;width:1920px;height:560px">
+  <h2 class="right">(b) Review and render: two rounds of six agents</h2>
+</div>
+
+<div class="box c-grey" style="left:70px;top:700px;width:260px;height:160px">
+  <span class="t">Review pack</span>
+  <div>transcript, stills,<br>cue grids, film strips,<br>measured overlaps</div>
+</div>
+
+<div class="sub" style="left:375px;top:680px;width:700px;height:250px"></div>
+<div class="note small" style="left:375px;top:938px;width:700px;text-align:center">each reviewer starts cold, reads only the pack, and writes its report to a file</div>
+<div class="box c-plan" style="left:390px;top:695px;width:215px;height:105px"><span class="t">learner</span><span class="m">Opus</span><div class="small">quiz, where it got lost</div></div>
+<div class="box c-plan" style="left:620px;top:695px;width:215px;height:105px"><span class="t">factcheck</span><span class="m">Opus</span><div class="small">each fact worked out again</div></div>
+<div class="box c-plan" style="left:850px;top:695px;width:215px;height:105px"><span class="t">overall</span><span class="m">Opus</span><div class="small">layout, legibility, colour</div></div>
+<div class="box c-plan" style="left:390px;top:812px;width:215px;height:105px"><span class="t">alignment</span><span class="m">Sonnet</span><div class="small">picture matches the voice</div></div>
+<div class="box c-plan" style="left:620px;top:812px;width:215px;height:105px"><span class="t">physics</span><span class="m">Sonnet</span><div class="small">jumps, pops, easing</div></div>
+<div class="box c-plan" style="left:850px;top:812px;width:215px;height:105px"><span class="t">overlap</span><span class="m">Sonnet</span><div class="small">nothing covers anything</div></div>
+
+<div class="box c-plan" style="left:1130px;top:700px;width:250px;height:150px">
+  <span class="t">compiler</span><span class="m">Opus</span>
+  <div>merges the 6 reports,<br>one checked fix list</div>
+</div>
+<div class="note red small" style="left:830px;top:648px">round 1, then round 2: Claude fixes the scenes and builds again</div>
+
+<div class="box c-perc" style="left:1440px;top:700px;width:230px;height:150px">
+  <span class="t">make final</span>
+  <div>Chrome draws on<br>the GPU, NVENC<br>encodes</div>
+</div>
+<div class="note small" style="left:1386px;top:786px">after<br>round 2</div>
+
+<div class="shape" style="left:1450px;top:885px;width:210px;height:160px">
+  <svg viewBox="0 0 210 160" preserveAspectRatio="none"><polygon points="105,1 209,80 105,159 1,80" fill="#e3f3df" stroke="#59a14f" stroke-width="2"/></svg>
+  <div class="lbl"><div><b>verify</b>duration, loudness,<br>black frames</div></div>
+</div>
+
+<img class="img" src="png/newsreel.png" style="left:1715px;top:700px;width:215px;height:121px">
+<div class="note small" style="left:1715px;top:828px;width:215px;text-align:center">one frame of a result</div>
+<div class="box pill" style="left:1710px;top:928px;width:225px;height:74px"><b style="font-size:18px">MP4</b>soft subtitles, 48 kHz</div>
+
+<div class="legend" style="left:70px;top:985px;width:1310px;height:145px"></div>
+<div class="note" style="left:92px;top:997px;font-weight:700;font-size:18px">Legend</div>
+<div class="note" style="left:92px;top:1036px"><span class="sw" style="background:#ebe5f7;border-color:#7b5fc7"></span>Claude: the main session and the agents</div>
+<div class="note" style="left:92px;top:1076px"><span class="sw" style="background:#e3ecfa;border-color:#4a7bd0"></span>models and the renderer</div>
+<div class="note" style="left:520px;top:1036px"><span class="sw" style="background:#fde6d3;border-color:#e0884a"></span>files that Claude writes</div>
+<div class="note" style="left:520px;top:1076px"><span class="sw" style="background:#dff2ec;border-color:#2f8f74"></span>style guides and drawing code</div>
+<div class="note" style="left:880px;top:1036px"><span class="sw" style="background:#fff6d6;border-color:#d9b440"></span>automatic checks</div>
+<div class="note" style="left:880px;top:1076px"><span class="emoji">❄️</span> pretrained model, used as is</div>
+<div class="note" style="left:1130px;top:1036px"><svg width="40" height="14" style="vertical-align:-1px;margin-right:8px"><path d="M2 7 H38" stroke="#d9545a" stroke-width="2.2" stroke-dasharray="8 6"/></svg>fix loop</div>
+<div class="note" style="left:1130px;top:1076px"><span class="sw" style="background:#e3f3df;border-color:#59a14f"></span>final check</div>
+
+<svg class="wires" viewBox="0 0 2000 1190">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1d1f23"/></marker>
+    <marker id="ahr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d9545a"/></marker>
+  </defs>
+  <!-- inputs to the main session -->
+  <path class="a" d="M310 155 H357"/>
+  <path class="a" d="M310 294 H357"/>
+  <path class="a" d="M505 358 V333"/>
+  <!-- the main session writes three files -->
+  <path class="a0" d="M650 220 H675"/>
+  <path class="a" d="M675 220 V165 H697"/>
+  <path class="a" d="M675 220 V295 H697"/>
+  <path class="a" d="M675 295 V425 H697"/>
+  <!-- voice and timing -->
+  <path class="a" d="M930 165 H987"/>
+  <path class="a" d="M1180 167 H1247"/>
+  <path class="a" d="M1430 167 H1487"/>
+  <path class="a" d="M1605 235 V288 H1210 V337"/>
+  <!-- frames and the check -->
+  <path class="a" d="M930 425 H987"/>
+  <path class="a" d="M1430 425 H1487"/>
+  <path class="ar" d="M1620 340 V318 H1415 V337"/>
+  <!-- to the review pack -->
+  <path class="a" d="M1620 510 V581 H200 V697"/>
+  <path class="a" d="M330 780 H372"/>
+  <path class="a" d="M1075 775 H1127"/>
+  <!-- fix loop back to the scenes -->
+  <path class="ar" d="M1255 700 V672 H815 V483"/>
+  <!-- render, verify, MP4 -->
+  <path class="a" d="M1380 775 H1437"/>
+  <path class="a" d="M1555 850 V882"/>
+  <path class="a" d="M1660 965 H1707"/>
+</svg>
+
+</div>
+</body>
+</html>

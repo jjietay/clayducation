@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kaleidoscope</title>
+<meta name="description" content="A Claude Code skill that makes narrated teaching videos, with a different animation style for each part and six reviewer agents.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #1d1f23; --muted: #5a5f69; --line: #d9dce3; --bg: #ffffff;
+  --blue: #eef3fb; --blue-b: #4a7bd0; --lilac: #f6f1fa; --lilac-b: #7b5fc7;
+  --peach: #fdf5ee; --peach-b: #e0884a; --green: #e3f3df; --green-b: #59a14f;
+  --teal: #dff2ec; --teal-b: #2f8f74; --yellow: #fff6d6; --yellow-b: #d9b440;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "Inter", system-ui, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.5; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 16px; }
+header { padding: 64px 0 40px; text-align: center; }
+header h1 { font-size: clamp(40px, 7vw, 68px); font-weight: 800; letter-spacing: -0.02em; }
+header p { max-width: 640px; margin: 14px auto 0; font-size: 19px; color: var(--muted); }
+.facts { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 26px; }
+.fact { border: 2px solid; border-radius: 999px; padding: 6px 16px; font-size: 15px; font-weight: 600; }
+section { margin: 0 0 28px; padding: 28px; border-radius: 22px; }
+section h2 { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
+section .lead { color: var(--muted); margin-bottom: 20px; }
+.s-blue { background: var(--blue); } .s-lilac { background: var(--lilac); } .s-peach { background: var(--peach); }
+.s-green { background: var(--green); } .s-teal { background: var(--teal); }
+figure img { width: 100%; height: auto; display: block; border-radius: 12px; background: #fff; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.card.wide { grid-column: span 2; }
+.card { background: #fff; border: 2px solid var(--lilac-b); border-radius: 14px; overflow: hidden; }
+.card a { display: block; }
+.card img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; }
+.card div { padding: 10px 14px 12px; }
+.card b { display: block; font-size: 17px; }
+.card span { font-size: 14.5px; color: var(--muted); }
+.tracks { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+.track { background: #fff; border: 2px solid var(--peach-b); border-radius: 14px; padding: 16px; }
+.track b { font-size: 18px; }
+.track p { font-size: 15px; color: var(--muted); margin: 4px 0 12px; }
+.track audio { width: 100%; }
+.styles { display: grid; grid-template-columns: 180px 1fr; gap: 14px 18px; align-items: start; }
+.styles h3 { font-size: 16px; font-weight: 700; padding-top: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font-family: "JetBrains Mono", monospace; font-size: 14px; background: #fff; border: 1.5px solid var(--teal-b);
+        border-radius: 8px; padding: 4px 10px; }
+footer { padding: 10px 0 48px; color: var(--muted); font-size: 14.5px; text-align: center; }
+footer a { color: var(--ink); }
+@media (max-width: 900px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) {
+  .grid { grid-template-columns: 1fr; }
+  .card.wide { grid-column: auto; }
+  section { padding: 18px; }
+  .styles { grid-template-columns: 1fr; gap: 6px; }
+  .styles h3 { padding-top: 10px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Kaleidoscope</h1>
+  <p>A Claude Code skill that makes a narrated teaching video about a topic. Every part of the video has its own animation style, and six reviewer agents check the video before it renders.</p>
+  <div class="facts">
+    <span class="fact" style="border-color:var(--teal-b);background:var(--teal)">29 animation styles</span>
+    <span class="fact" style="border-color:var(--blue-b);background:var(--blue)">Code draws every frame</span>
+    <span class="fact" style="border-color:var(--lilac-b);background:var(--lilac)">6 reviewer agents</span>
+    <span class="fact" style="border-color:var(--peach-b);background:var(--peach)">Voice on your own GPU</span>
+  </div>
+</header>
+
+<section class="s-blue">
+  <h2>How a video is made</h2>
+  <p class="lead">Claude writes the script, the storyboard and the scenes. The engine makes the voice, times each word and draws the frames. Two rounds of reviewers then send fixes back to Claude.</p>
+  <figure><a href="png/pipeline.png"><img src="png/pipeline.png" alt="Pipeline: plan and build, then review and render" loading="lazy"></a></figure>
+</section>
+
+<section class="s-lilac">
+  <h2>Samples</h2>
+  <p class="lead">These are end frames from the gallery project. Select a picture to see it at full size.</p>
+  <div class="grid">
+    <div class="card wide"><a href="png/newsreel.png"><img src="png/newsreel.png" alt="1920s newsreel style" loading="lazy"></a><div><b>1920s newsreel</b><span>A paper spins in and a grease pencil rings the headline.</span></div></div>
+    <div class="card"><a href="png/library-common.png"><img src="png/library-common.png" alt="Common parts" loading="lazy"></a><div><b>Common parts</b><span>Every style uses these headers, labels, arrows and faces.</span></div></div>
+    <div class="card"><a href="png/library-flat.png"><img src="png/library-flat.png" alt="Flat props" loading="lazy"></a><div><b>Flat props</b><span>The tank, the drone, the files and the boxes have faces.</span></div></div>
+    <div class="card"><a href="png/library-morph.png"><img src="png/library-morph.png" alt="Shape morph" loading="lazy"></a><div><b>Shape morph</b><span>Shapes join into one bar or split into chunks.</span></div></div>
+    <div class="card"><a href="png/library-iso.png"><img src="png/library-iso.png" alt="Isometric" loading="lazy"></a><div><b>Isometric</b><span>A roof lifts to show what happens inside a building.</span></div></div>
+    <div class="card"><a href="png/library-boil.png"><img src="png/library-boil.png" alt="Hand drawn" loading="lazy"></a><div><b>Hand drawn</b><span>The ink lines change shape slightly 12 times a second, like a hand-drawn cartoon.</span></div></div>
+    <div class="card"><a href="png/library-paper.png"><img src="png/library-paper.png" alt="Paper cut-out" loading="lazy"></a><div><b>Paper cut-out</b><span>Card shapes have rough edges, and arms turn on split pins.</span></div></div>
+    <div class="card"><a href="png/library-pixel.png"><img src="png/library-pixel.png" alt="Pixel art" loading="lazy"></a><div><b>Pixel art</b><span>A 320 × 180 pixel canvas, scaled 6 times, shows typed dialogue.</span></div></div>
+    <div class="card"><a href="png/library-toy3d.png"><img src="png/library-toy3d.png" alt="Toy 3D" loading="lazy"></a><div><b>Toy 3D</b><span>Soft Three.js objects drop, land and cast a contact shadow.</span></div></div>
+    <div class="card wide"><a href="png/contact-sheet.png"><img src="png/contact-sheet.png" alt="A contact sheet" loading="lazy"></a><div><b>Contact sheet</b><span>Claude reads sheets like this one before the reviewers start.</span></div></div>
+  </div>
+</section>
+
+<section class="s-peach">
+  <h2>Music</h2>
+  <p class="lead">The engine makes its background music from code, with no samples or recordings. These are 30 s previews.</p>
+  <div class="tracks">
+    <div class="track"><b>current</b><p>A calm pad and a slow arpeggio play at 72 BPM, with no beat. This is the default track.</p><audio controls preload="none" src="music/current-30s.flac"></audio></div>
+    <div class="track"><b>lofi</b><p>This lo-fi study beat plays at 76 BPM, with a light swing.</p><audio controls preload="none" src="music/lofi-30s.flac"></audio></div>
+  </div>
+</section>
+
+<section class="s-teal">
+  <h2>The 29 styles</h2>
+  <p class="lead">Claude picks a style for each part from the kind of idea in it.</p>
+  <div class="styles">
+    <h3>Maths and diagrams</h3>
+    <div class="chips"><span class="chip">math-manim</span><span class="chip">signal-graph</span><span class="chip">pixel-grid</span><span class="chip">single-line</span><span class="chip">shape-morph</span><span class="chip">whiteboard</span><span class="chip">blueprint</span></div>
+    <h3>Characters and stories</h3>
+    <div class="chips"><span class="chip">flat-vector</span><span class="chip">line-boil</span><span class="chip">paper-cutout</span><span class="chip">pixel-art</span><span class="chip">midcentury-toon</span><span class="chip">watercolour</span><span class="chip">risograph</span></div>
+    <h3>3D and space</h3>
+    <div class="chips"><span class="chip">isometric</span><span class="chip">iso-infographic</span><span class="chip">toy-3d</span><span class="chip">teardown</span><span class="chip">desktop-flythrough</span><span class="chip">transit-map</span></div>
+    <h3>Data and evidence</h3>
+    <div class="chips"><span class="chip">data-story</span><span class="chip">data-physical</span><span class="chip">briefing-board</span><span class="chip">telestrator</span><span class="chip">swiss-type</span><span class="chip">dark-keynote</span><span class="chip">hud-terminal</span><span class="chip">film-crt</span><span class="chip">newsreel</span></div>
+  </div>
+</section>
+
+<footer>
+  We adapted 11 styles from <a href="https://github.com/lemomo-ai/lemo-opuscar">Lemo-Opuscar</a> by LemoLab (MIT) and took details from it for 3 more.
+  <a href="https://github.com/vincentsch/explainroo">explainroo</a> times the words, <a href="https://github.com/resemble-ai/chatterbox">Chatterbox</a> speaks the narration,
+  and <a href="https://www.manim.community/">Manim Community</a> draws the maths scenes.
+</footer>
+
+</div>
+</body>
+</html>

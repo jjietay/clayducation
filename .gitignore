@@ -1,0 +1,7 @@
+engine/manim/.venv
+engine/tts/.venv
+__pycache__/
+*.pyc
+gallery/build/
+gallery/out/
+gallery/assets/
