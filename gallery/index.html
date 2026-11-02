@@ -218,13 +218,13 @@ footer p + p { margin-top: 10px; }
 
 <div class="masthead wrap">
   <h1>Kaleidoscope</h1>
-  <div class="dateline"><p><span>A skill for Claude Code</span><span><span class="nw">29 animation styles</span> · <span class="nw">6 reviewer agents</span> · <span class="nw">2 review rounds</span></span></p></div>
+  <div class="dateline"><p><span>A skill for Claude Code</span><span><span class="nw">29 animation styles</span> · <span class="nw">6 reviewer agents</span> · <span class="nw">3 token budgets</span></span></p></div>
 </div>
 
 <section class="opening wrap" aria-label="Introduction">
   <div class="text">
     <p class="lede">Kaleidoscope makes a narrated video that teaches one topic. Each part of the video has its own animation style.</p>
-    <p>Claude writes the script, the storyboard and the scenes from what your conversation and your project already show. The engine speaks the script on your own GPU, times each word and draws every frame with code. It uses no video model. Six reviewer agents then check the video in two rounds before it renders.</p>
+    <p>Claude writes the script, the storyboard and the scenes from what your conversation and your project already show. The engine speaks the script on your own computer, times each word and draws every frame with code. It uses no video model. Six reviewer agents then check the video in two rounds before it renders.</p>
     <div class="ask">
       <p class="label">In Claude Code, in the conversation where the topic came up, ask:</p>
       <blockquote>Make a video on I2C for the BNO085, and tell its history as a 1920s newsreel.</blockquote>
@@ -249,16 +249,16 @@ footer p + p { margin-top: 10px; }
   <div class="sec-body">
     <figure class="plate light">
       <a href="png/pipeline.png"><img src="png/pipeline.png" width="3000" height="1785" alt="Pipeline figure. Panel a, plan and build: the main session writes script.md, storyboard.md and scenes.js; Chatterbox speaks; Whisper times each word; headless Chrome draws the frames; make check tests them. Panel b, review and render: six reviewer agents read a review pack, a compiler merges their reports, and after round 2 make final renders the MP4." loading="lazy"></a>
-      <figcaption><span class="fig">Fig. 2</span>(a) Plan and build, from your topic to checked frames. (b) Review and render, two rounds of six agents. Select the figure to see it at full size.</figcaption>
+      <figcaption><span class="fig">Fig. 2</span>(a) Plan and build, from your topic to checked frames. (b) Review and render, two rounds of six agents with the high budget. Select the figure to see it at full size.</figcaption>
     </figure>
     <ol class="ledger">
       <li><span class="k">script.md<br>storyboard.md<br>scenes.js<small>Claude writes</small></span><span class="v">One part for each idea, one style for each part, one scene for each part. Claude checks every fact before it writes the script.</span></li>
-      <li><span class="k">Chatterbox<small>voice, on your GPU</small></span><span class="v">Speaks the script.</span></li>
+      <li><span class="k">Chatterbox or Kokoro<small>voice</small></span><span class="v">Speaks the script. Chatterbox runs best on a GPU. Kokoro is small and fast on a CPU.</span></li>
       <li><span class="k">Whisper<small>word timing</small></span><span class="v">Gives each word and each <code>[#cue]</code> a time in seconds. If a sentence does not match the script, the engine speaks it again.</span></li>
       <li><span class="k">headless Chrome<small>frames</small></span><span class="v">Draws each frame from the timeline with <b>canvas</b>, <b>Three.js</b> or <b>Manim</b>.</span></li>
       <li><span class="k">make check<small>automatic checks</small></span><span class="v">Tests overlap, the safe area, text size and pacing. Claude also looks at every changed part, frame by frame.</span></li>
-      <li><span class="k">6 reviewer agents<small>two rounds</small></span><span class="v">Read the review pack and send one fix list back. Claude fixes the scenes and builds again.</span></li>
-      <li><span class="k">make final<small>render</small></span><span class="v">Chrome draws on the GPU and NVENC encodes. <code>verify</code> checks the duration, the loudness and black frames. The result is an MP4 with soft subtitles and 48 kHz sound.</span></li>
+      <li><span class="k">6 reviewer agents<small>one or two rounds</small></span><span class="v">Read the review pack and send one fix list back. Claude fixes the scenes and builds again.</span></li>
+      <li><span class="k">make final<small>render</small></span><span class="v">Chrome draws on the GPU and NVENC encodes, or the CPU does both when there is no GPU. <code>verify</code> checks the duration, the loudness and black frames. The result is an MP4 with soft subtitles and 48 kHz sound.</span></li>
     </ol>
   </div>
 </section>
@@ -302,7 +302,7 @@ footer p + p { margin-top: 10px; }
     <p class="src"><a href="https://github.com/jjietay/kaleidoscope/tree/main/agents">→ agents/</a></p>
   </div>
   <div class="sec-body">
-    <p>Before the reviewers start, Claude reads contact sheets like this one. Then six agents check the video. A seventh agent joins their reports into one short fix list. Claude fixes the scenes and builds again, and the second round checks the fixes.</p>
+    <p>Before the reviewers start, Claude reads contact sheets like this one. Then six agents check the video. A seventh agent joins their reports into one short fix list. Claude fixes the scenes and builds again. With the high budget, a second round checks the fixes.</p>
     <figure class="plate sheet">
       <a href="png/contact-sheet.png"><img src="png/contact-sheet.png" width="1960" height="620" alt="A contact sheet: eight frames from the gallery project in a grid, each labelled with its scene name and time" loading="lazy"></a>
       <figcaption><span class="fig">Fig. 3</span>The top of the gallery project's first contact sheet, made with <code>make sheet gallery</code>. Each frame shows its scene and its time.</figcaption>
@@ -407,14 +407,18 @@ footer p + p { margin-top: 10px; }
 <section class="sec wrap" id="install">
   <div class="sec-head">
     <h2>Install</h2>
-    <p>Clone the repo into your skills folder, then run <code>doctor</code>. It shows what is missing.</p>
+    <p>One command checks your computer, asks 5 questions, shows the plan and installs only what you choose. A GPU is not necessary.</p>
     <p class="src"><a href="https://github.com/jjietay/kaleidoscope/blob/main/INSTALL.md">→ INSTALL.md</a></p>
   </div>
   <div class="sec-body">
-<pre><code>git clone git@github.com:jjietay/kaleidoscope.git ~/.claude/skills/kaleidoscope
-cd ~/.claude/skills/kaleidoscope
-node engine/make.mjs doctor      <span class="c"># shows what is missing</span></code></pre>
-    <p style="margin-top:24px"><code>INSTALL.md</code> has the full setup for the voice, the word timing, Manim and the reviewer agents. Then ask for a video in the conversation where the topic came up:</p>
+<pre><code>npx --allow-git=all github:jjietay/kaleidoscope</code></pre>
+    <p style="margin-top:24px">Later, <code>/setup-kaleidoscope</code> in Claude Code changes the token budget of the review:</p>
+    <ul class="ledger">
+      <li><span class="k">high</span><span class="v">2 rounds, 6 reviewers, Opus for the hard checks.</span></li>
+      <li><span class="k">medium</span><span class="v">1 round, 6 reviewers on Sonnet, the fact check on Opus.</span></li>
+      <li><span class="k">low</span><span class="v">1 round, 2 reviewers on Sonnet.</span></li>
+    </ul>
+    <p style="margin-top:24px"><code>INSTALL.md</code> has the manual setup. Then ask for a video in the conversation where the topic came up:</p>
     <ul class="prompts">
       <li>Make a video explaining how the EKF fuses wheel odometry and the IMU.</li>
       <li>Make a video on I2C for the BNO085, and tell its history as a 1920s newsreel.</li>
