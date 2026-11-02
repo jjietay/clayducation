@@ -30,7 +30,7 @@ a painted map whose fills change in time.
 - Ink linework may boil 12 times a second from a seed (`s.boil(3, 12)`) when the part needs a hand-made feel; washes never boil. The source keeps everything still.
 - Transitions: a brush-edge wipe (a wavy vertical clip), a mist erase (a paper-coloured layer with a wavy rising edge), a new sheet that slides over. No hard cuts, no dissolves.
 - Camera on one painted sheet: a long lateral dolly for a transect, a tilt along one tall object, a locked sheet while things paint in, a slow push into a note, a pull back to a map.
-- A sound would mark each brush pass.
+- With sound effects on (`SOUND.md`), `s.sfx` marks each brush pass.
 
 ## With the house look
 

@@ -29,6 +29,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { music } from './music.mjs';
+import { sfxTrack, lint as sfxLint, timelineWords, writeWav as writeSfxWav } from './sfx.mjs';
 
 const ENGINE = path.dirname(fileURLToPath(import.meta.url));
 const EXR = process.env.EXPLAINROO_HOME || path.join(os.homedir(), '.explainroo');
@@ -69,7 +70,7 @@ function timeline(dir) {
   if (fs.statSync(script).mtimeMs > fs.statSync(f).mtimeMs) die('script.md changed after the last voice run. Run "voice" again.');
   return JSON.parse(fs.readFileSync(f, 'utf8'));
 }
-const renderCfg = (dir) => ({ music: true, musicVolume: 0.26, workers: Math.max(1, Math.min(6, Math.floor(os.cpus().length / 3))), ...(JSON.parse(fs.readFileSync(path.join(dir, 'video.json'), 'utf8'))._render || {}) });
+const renderCfg = (dir) => ({ music: true, musicVolume: 0.26, sfx: false, sfxVolume: 1, workers: Math.max(1, Math.min(6, Math.floor(os.cpus().length / 3))), ...(JSON.parse(fs.readFileSync(path.join(dir, 'video.json'), 'utf8'))._render || {}) });
 const slug = (dir) => path.basename(dir);
 
 // ---------- Manim scenes (the maths style) ----------
@@ -633,6 +634,31 @@ function pacing(tl, print) {
 
 // The music track at the video's length (engine/music.mjs, SOUND.md). It is made again
 // only when the track, the length or music.mjs changes.
+// The sound effects that the scenes declare with s.sfx(): seek each scene once (that runs its
+// setup) and read them. Cached in build/sfx.json until scenes.js or the timeline changes.
+async function sfxEvents(dir, tl) {
+  const file = path.join(dir, 'build', 'sfx.json');
+  const key = createHash('sha1').update(fs.readFileSync(path.join(dir, 'scenes.js'))).update(fs.readFileSync(path.join(dir, 'build', 'timeline.json'))).digest('hex');
+  try { const c = JSON.parse(fs.readFileSync(file, 'utf8')); if (c.key === key) return c.events; } catch { /* make it below */ }
+  let events = [];
+  await withPage(dir, async (page) => {
+    for (const s of tl.scenes) await page.evaluate(`seek(${s.start + 0.01})`);
+    events = Object.values(await page.evaluate('window.__sfx || {}'));
+  });
+  events.sort((a, b) => a.t - b.t);
+  fs.writeFileSync(file, JSON.stringify({ key, events }, null, 1));
+  return events;
+}
+// The SFX bus at the video's length (engine/sfx.mjs), made again only when it changes.
+function sfxBus(dir, tl, events) {
+  const file = path.join(dir, 'build', 'sfx.wav'), stamp = path.join(dir, 'build', 'sfx.stamp');
+  const key = createHash('sha1').update(JSON.stringify(events)).update(String(tl.duration)).update(fs.readFileSync(path.join(ENGINE, 'sfx.mjs'))).digest('hex');
+  if (fs.existsSync(file) && fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === key) return file;
+  writeSfxWav(file, sfxTrack(events, tl.duration, { words: timelineWords(tl) }));
+  fs.writeFileSync(stamp, key);
+  return file;
+}
+
 function musicTrack(dir, track, seconds) {
   const file = path.join(dir, 'build', 'music.wav'), stamp = path.join(dir, 'build', 'music.stamp');
   const key = `${track} ${seconds} ${createHash('sha1').update(fs.readFileSync(path.join(ENGINE, 'music.mjs'))).digest('hex')}`;
@@ -862,6 +888,8 @@ async function check() {
       }
     }
     for (const e of await page.evaluate('window.__errors')) problems.add(e.split('\n')[0]);
+    // Sound effects: too many, two accents close together, an accent on a word.
+    if (renderCfg(dir).sfx) for (const w of sfxLint(Object.values(await page.evaluate('window.__sfx || {}')), timelineWords(tl))) layout.add(`sfx ${w}`);
   });
   // Word timing: when Whisper matches too few words of a scene, the engine guesses the word
   // times, and the cues of that scene bunch together (video 3: six cues in 0.5 s, rate 0.46).
@@ -895,6 +923,7 @@ async function render() {
   requireManim(dir);
   const track = cfg.music === true ? 'current' : cfg.music;
   const musicFile = track ? musicTrack(dir, track, tl.duration) : null;
+  const sfxFile = cfg.sfx ? sfxBus(dir, tl, await sfxEvents(dir, tl)) : null;
   const draft = flag('--draft'), fps = tl.fps;
   { const g = gpu(); console.log(`render: frames drawn by ${g.renderer}; encode ${g.nvenc ? 'NVENC (GPU)' : 'libx264 (CPU)'}`); }
   const from = +opt('--from', 0), to = Math.min(+opt('--to', tl.duration), tl.duration);
@@ -954,20 +983,24 @@ async function render() {
   fs.mkdirSync(path.join(dir, 'out'), { recursive: true });
   const name = partial ? `part-${from}-${to}` : draft ? `${slug(dir)}-draft` : slug(dir);
   const final = path.join(dir, partial ? 'build' : 'out', `${name}.mp4`);
-  const srt = path.join(dir, 'build', 'subtitles.srt'), useMusic = !!musicFile;
+  const srt = path.join(dir, 'build', 'subtitles.srt'), useMusic = !!musicFile, useSfx = !!sfxFile;
   const ss = ['-ss', String(from)];
   const args = ['-v', 'error', '-y', '-i', silent, ...ss, '-i', path.join(dir, 'build', 'narration.wav')];
   if (useMusic) args.push(...ss, '-i', musicFile);
+  if (useSfx) args.push(...ss, '-i', sfxFile);
   if (!partial) args.push('-i', srt);
   // loudnorm holds back about 3 s and drops it at the end, so pad the voice first.
   // The music ducks gently (ratio 2, slow release): a hard duck pumps loud-soft-loud
   // between sentences (measured: 13.5 LU swing with ratio 8, 5.5 LU with this).
   const voiceChain = `[1:a]apad=pad_dur=4,aresample=48000,loudnorm=I=-16:TP=-1.5`;
+  // Sound effects (when video.json turns them on) are a third input, after the music duck and
+  // before the limiter. With sfx off, the filter is the same as before, so old videos do not change.
+  const sx = useSfx ? `;[${2 + useMusic}:a]volume=${cfg.sfxVolume}[sx]` : '', sxIn = useSfx ? '[sx]' : '';
   args.push('-filter_complex', useMusic
-    ? `${voiceChain},asplit=2[v][key];[2:a]volume=${cfg.musicVolume}[m];[m][key]sidechaincompress=threshold=0.03:ratio=2:attack=250:release=1800:knee=6[md];[v][md]amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.95[a]`
-    : `${voiceChain},alimiter=limit=0.95[a]`);
+    ? `${voiceChain},asplit=2[v][key];[2:a]volume=${cfg.musicVolume}[m];[m][key]sidechaincompress=threshold=0.03:ratio=2:attack=250:release=1800:knee=6[md]${sx};[v][md]${sxIn}amix=inputs=${2 + useSfx}:normalize=0:duration=first,alimiter=limit=0.95[a]`
+    : useSfx ? `${voiceChain}[v]${sx};[v][sx]amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.95[a]` : `${voiceChain},alimiter=limit=0.95[a]`);
   args.push('-map', '0:v', '-map', '[a]');
-  if (!partial) args.push('-map', `${useMusic ? 3 : 2}:s`, '-c:s', 'mov_text', '-metadata:s:s:0', 'language=eng');
+  if (!partial) args.push('-map', `${2 + useMusic + useSfx}:s`, '-c:s', 'mov_text', '-metadata:s:s:0', 'language=eng');
   // loudnorm works at 192 kHz inside and passes that rate on. AAC at 96 kHz or
   // in mono plays silent in many players, so force 48 kHz stereo.
   args.push('-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2', '-t', String(to - from), '-movflags', '+faststart', final);

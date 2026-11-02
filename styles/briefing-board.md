@@ -27,7 +27,7 @@ cut-out photos of real parts, and the argument is a measurement and a verdict.
 - Ink draws at hand speed. A dimension line grows from A to B and lands with an arrowhead tap. Erase: a soft band sweeps across and leaves a 7 % blurred ghost.
 - The stamp lands in 0.07 s from 1.18× to 1× with a small camera shake. One stamp per part.
 - Camera: eased moves that start and stop at zero speed, with a hand-held drift of 3 px or less. Ride a dimension line; put each new item beside the last result; hold a judgement frame (item, limit, verdict) for 2.5 s or more. Show the whole wall only at the end.
-- Something lands, draws or swings every 1 to 2 beats. A sound would mark each landing and the stamp.
+- Something lands, draws or swings every 1 to 2 beats. With sound effects on (`SOUND.md`), `s.sfx` marks each landing and the stamp.
 - Moves that fit: **ride the dimension line** (a quantity drawn as a real length at one scale; the camera rides its tip); **erase to a ghost** (the rejected option stays faintly under the chosen one); **the subject passes through the answer** (the real part moves through the chosen gap or route).
 
 ## With the house look

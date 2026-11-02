@@ -36,7 +36,7 @@ are the point and the part ends on a finished map that reads like a printed info
 - Objects perform: 18 % squash on landing and two small bounces; a colour change shows a process step (raw → done). Vehicles follow polylines with `E.inOut` and face their tangent.
 - Focus and context: at the key moment everything except the subject fades toward warm grey.
 - Camera: a world centre plus a zoom k (px per unit), with zoom interpolated in log scale. Follow the route, hold wide with a circular inset for a detail, end with a fast pull-out to the whole board: every station, the route and the total in one frame. Fade tall objects in by zoom (`clamp((80 − k) / 40)`) so a pull-out never sweeps a giant shape through the frame.
-- A sound would mark each icon that pops.
+- With sound effects on (`SOUND.md`), `s.sfx` marks each icon that pops.
 
 ## With the house look
 

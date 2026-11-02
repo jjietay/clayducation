@@ -34,7 +34,7 @@ a long record drawn mark by mark (loss per epoch, a sensor reading per day).
 - The y axis grows when the narration first names the unit. A rescale is a few eased steps. A morph (bars into a unit chart) is a staggered sweep. When a value breaks out of the plot, hold the broken frame for half a beat before the rescale.
 - Camera: a 2D view over one sheet. Track the newest mark at 60 % of the width, dive from the full view to one mark, pull back as the axes grow. When an axis scrolls off, pin its ticks at the frame edge. No fades to blank.
 - A dashed empty cell marks the next value that nobody knows yet.
-- A sound would mark each mark that lands, its pitch from the value.
+- With sound effects on (`SOUND.md`), `s.sfx` marks each mark that lands, its pitch from the value.
 
 ## With the house look
 

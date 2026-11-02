@@ -27,7 +27,7 @@ Light studio variant. The source uses a dark graphite sweep `#34363a` → `#0d0e
 - While apart, layers float 1 to 2 mm with offset phases; in a close-up they hold still.
 - Closing: bottom first, about 1 s per layer. The last layer lands with its real response (a key travels its 4 mm stroke and comes back). Only rubber bounces.
 - Labels draw in (dot, leader grows in 0.38 s, text slides 10 px) and fade out before parts move again. At most 3 labels in view; a short label (one word) still needs its full reading time.
-- The camera keeps moving: orbit while layers separate, push in on the part that matters, go between two layers, pull back fast to close. Use a monotone curve through camera keys, so a held stop holds. A sound would mark each lift and each landing.
+- The camera keeps moving: orbit while layers separate, push in on the part that matters, go between two layers, pull back fast to close. Use a monotone curve through camera keys, so a held stop holds. With sound effects on (`SOUND.md`), `s.sfx` marks each lift and each landing.
 
 ## With the house look
 

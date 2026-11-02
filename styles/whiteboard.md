@@ -25,7 +25,7 @@ two quantities drawn side by side by two pens (a setpoint and the step response)
 - Between strokes the pen lifts in proportion to the distance and its shadow grows. After a long gap it parks outside the frame.
 - Only magnets move on the board: they drop (the shadow shrinks) or slide with a small lift. The eraser moves at constant speed on a 150 px zig-zag at 90 % strength, so a ghost stays; erasing backwards reads as "undo".
 - One large board (about 4000 × 2250 px), no cuts. The camera rides the line the pen draws, holds still on an equation and returns to an earlier region for a callback. Interpolate zoom in log scale.
-- A sound would mark each stroke start and each magnet click.
+- With sound effects on (`SOUND.md`), `s.sfx` marks each stroke start and each magnet click.
 
 ## With the house look
 

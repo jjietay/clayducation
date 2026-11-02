@@ -29,7 +29,7 @@ ink; a title or a recap.
 - The dots are fixed to the screen, not to objects: a pan slides the image under the dot grid, as if each frame were printed anew.
 - A plate can arrive mid-shot with a roller sweep (a moving edge with a slightly heavier ink band). Overprint transition: a shape of one ink grows over the frame, then shrinks into the next key shape. Prints never fade: titles arrive with a roller wipe.
 - Camera: a wide lateral track with a small figure, a locked composition for the one pause, a push into a halftone field until the dots become shapes.
-- A sound would mark each plate that arrives.
+- With sound effects on (`SOUND.md`), `s.sfx` marks each plate that arrives.
 
 ## With the house look
 

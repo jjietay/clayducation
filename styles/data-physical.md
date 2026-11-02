@@ -34,7 +34,7 @@ curves and exact readings use `data-story`.
 - Readings fade in with a 16 px rise while the leader draws; they leave by fading. A verdict appears only after its readings have held still for 2.5 s.
 - Never moves: the base, a landed piece, a ruler piece.
 - One take; the camera never stops (2 to 5 % creep in holds): a dolly along a stack edge for the unit, a low track along the series, a locked three-quarter view for a pair, a crane that rises with the top, a pull back to a near top view where the stacks become one object.
-- A sound would mark each brass piece as it lands.
+- With sound effects on (`SOUND.md`), `s.sfx` marks each brass piece as it lands.
 
 ## With the house look
 

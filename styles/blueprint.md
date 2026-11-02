@@ -28,7 +28,7 @@ whiteprint variant: the same rules, blue lines on cream paper.
 - Exploded views: parts leave one after another, eased, to the side (never up into the header), and come back one at a time with a click. A gear advances one tooth per step with a short ease-out, and the teeth mesh.
 - The machine is the character: angles, sag and gauge needles show its mood. Failure: it slows and sags over about 1.5 s. Success: it snaps upright and a needle overshoots (`E.overshoot`).
 - The oblique depth factor can go from 0 to 0.5: the flat drawing gets thickness.
-- Camera: close shots; a solid section line sweeps across for a cutaway; a pan from Fig. 1 to Fig. 2, or strike through "FIG. 1" and write "FIG. 2". No cuts inside the part. Show the whole sheet only at the start or for the verdict. A sound would mark each part click and the stamp.
+- Camera: close shots; a solid section line sweeps across for a cutaway; a pan from Fig. 1 to Fig. 2, or strike through "FIG. 1" and write "FIG. 2". No cuts inside the part. Show the whole sheet only at the start or for the verdict. With sound effects on (`SOUND.md`), `s.sfx` marks each part click and the stamp.
 - Moves that fit: **live annotations** (a dimension measures a moving part and its number changes); **the title block as story** (the status field is the verdict, the revision rows are the history); **a symbol made real**, once at most (a dimension arrow leaves the drawing and flies).
 
 ## With the house look

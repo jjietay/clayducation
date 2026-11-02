@@ -85,7 +85,7 @@ Later, in Claude Code, `/setup-kaleidoscope` changes the token budget or the voi
 | `engine/` | the command line `make.mjs`, the page runtime, fonts, the voice in `tts/`, the music in `music.mjs`, Manim in `manim/`, and the project template |
 | `reference/` | the engine API and the script rules |
 | `styles/` | one guide per style, the shared drawing code in `styles/library/`, and the credits |
-| `gallery/` | one sample project, with its pictures in `png/` and 30 s previews of the music tracks in `music/` |
+| `gallery/` | one sample project, with its pictures in `png/`, 30 s previews of the music tracks in `music/` and of the sound effects in `sfx/` |
 
 ## Credits
 

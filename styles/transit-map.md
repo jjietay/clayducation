@@ -27,7 +27,7 @@ Light variant: the paper sheet fills the frame. Leave out the source's near-blac
 - Stops pop from 0.6× with a small overshoot in 0.28 s; a ring spreads from 0.10 to 0.42 G and fades in 0.6 s. An interchange appears only when the second line arrives: it falls from 3.4× in 0.4 s while its shadow sharpens, then rings in both line colours spread.
 - Vehicles are the characters (a packet, a message, a task): white capsules 0.40 × 0.14 G with three windows in the line colour, about 2 G/s, only on finished track.
 - Camera: ride the tip (aim 1.5 G ahead); pull back to show growth (minor names fade by zoom, hubs stay); push in under a 60 % paper veil for "you are here"; hold a locked frame 2.5 s or more for a verdict. End on the whole network.
-- A sound would mark each stop that lights up and each interchange that lands.
+- With sound effects on (`SOUND.md`), `s.sfx` marks each stop that lights up and each interchange that lands.
 
 ## With the house look
 

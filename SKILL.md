@@ -103,6 +103,7 @@ Each was asked for or chosen by ear. The engine does most of them by itself.
 | Repeated words | "one one" gets a comma ("one, one"), or the voice slips | yes |
 | Writing | connected paragraphs; `[pause]` only where an idea ends or an animation plays. Rejected: a pause after every sentence, choppy sentences, a fast voice, a stretched (muffled) voice, Kokoro | you, see `reference/script.md` |
 | Music | audible, steady, about 16 dB under the voice, gentle ducking; two approved tracks, `current` (default) and `lofi`. Rejected: loud-soft pumping, music too soft to hear, 4 other tracks | yes; you choose the track, see `SOUND.md` |
+| Sound effects | the kit in `engine/sfx.mjs`, approved by ear; the fly-in whoosh 4 dB under the other accents (the user found it a bit too loud). On for new videos (`_render.sfx: true`), off for old ones | you add `s.sfx` at the cues; the engine mixes them |
 | Audio | 48 kHz stereo | yes; `verify` checks it |
 | Subtitles | soft, never burned in; the user's mpv shows them small (`sub-scale=0.7`) | yes |
 | One subtitle line | one line per cue, at most 42 characters, no two cues at the same time. The user saw two lines in video 1 of the ROS 2 set | yes; `verify` reports a cue that breaks it |
@@ -176,6 +177,9 @@ frames are the same.
    part holds several scene ids, the next scene starts from the exact last frame of the one
    before, so the part looks like one shot. Load fonts before canvas text: the runtime
    loads every declared font, so use only the fonts listed in `reference/engine.md`.
+   **Sound effects**: in each scene's `setup`, add `s.sfx(...)` at the moments the style file
+   marks (a landing, a stamp, a card that slides in), about one sound a beat at most. The kit
+   and its rules are in `SOUND.md`; `check` warns when there are too many.
    **Maths scenes use Manim**: write them in `manim_scenes.py` and put
    `scene('<id>', manim())` in `scenes.js`.
    **Import shared drawings from the library** (`import { barrel } from '/_lib/flat.js'`, see

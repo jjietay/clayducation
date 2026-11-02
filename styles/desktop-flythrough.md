@@ -31,7 +31,7 @@ tools; for physical parts use `isometric` or `teardown`.
 - A slam lands on a beat, jolts the card and spreads a flat accent ring over the paper that fades in about 1 s.
 - Every stop is busy with one or two small movers that do not compete with the narration. Idle is a bounce on the beat or a blink, never a dead hold over 1.5 s. Cards move only for a jolt.
 - One take. Macro glide 20 to 45° down; a whip from card to card in 0.3 to 0.5 s, banking into the turn (roll from the rate of azimuth change, at most 0.12 rad), arcing up between far stops; a rise to 55 to 70° to read; a pull back over the whole desk to close (each stop hops once, left to right). The target rests at the key where a whip starts. The subject sits 110 px above centre, clear of the subtitles.
-- A sound would mark each pop and each landing.
+- With sound effects on (`SOUND.md`), `s.sfx` marks each pop and each landing.
 
 ## With the house look
 

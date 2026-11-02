@@ -60,7 +60,11 @@ function drawPaper(c, s, rot, jolt, fx, fy) {
   c.shadowColor = 'rgba(0,0,0,.6)'; c.shadowBlur = 40; c.shadowOffsetY = 14; c.drawImage(PAGE, -fx * 1000, -fy * 1300); c.restore();
 }
 scene('newsreel', { bg: '#000',
-  async setup(s) { await document.fonts.load('84px Limelight'); await document.fonts.load('700 88px Oswald'); PAGE = makePage(); s.ctx = s.canvas(); s.place = s.text('NATURE · OCTOBER 1986', { x: GX + 48, y: 80, anchor: 'tl', size: 34, font: 'Oswald', weight: 600, color: '#f3eee4' });
+  async setup(s) { await document.fonts.load('84px Limelight'); await document.fonts.load('700 88px Oswald'); PAGE = makePage(); s.ctx = s.canvas();
+    // Sound effects (engine/sfx.mjs): the paper flies in, slams down, the card slides, the pencil rings.
+    s.sfx('whoosh', '#fly', { dur: s.at('#slam') - s.at('#fly'), peak: 0.95, lo: 150, hi: 2200 });
+    s.sfx('stamp', '#slam'); s.sfx('thud', '#slam', { gain: -4 });
+    s.sfx('swish', '#place'); s.sfx('pencil', '#ring', { dur: 0.4 }); s.place = s.text('NATURE · OCTOBER 1986', { x: GX + 48, y: 80, anchor: 'tl', size: 34, font: 'Oswald', weight: 600, color: '#f3eee4' });
     s.place.style.cssText += ';letter-spacing:5px;background:rgba(12,11,10,.8);padding:14px 22px;outline:2px solid #d8d0bf;outline-offset:-8px'; },
   draw(s) {
     const c = s.ctx, f = Math.floor(s.t * FPS); c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); gate(c);

@@ -12,6 +12,8 @@
   "end": 2,
   "_render": {
     "music": true,
-    "musicVolume": 0.26
+    "musicVolume": 0.26,
+    "sfx": true,
+    "sfxVolume": 1
   }
 }

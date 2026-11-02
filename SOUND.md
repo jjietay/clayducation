@@ -103,3 +103,66 @@ The user gave no reason.
    `gallery/music/<name>-30s.flac` (lossless). When a track is rejected: delete its function,
    any instrument that only it used, and its preview files, then add one row to
    "Rejected tracks".
+
+## Sound effects
+
+The engine also makes short sound effects from code, in `engine/sfx.mjs`: no samples, no
+licence. They are **off by default**. A video turns them on in `video.json`:
+
+```json
+"_render": { "music": true, "musicVolume": 0.26, "sfx": true, "sfxVolume": 1 }
+```
+
+A scene declares each sound at a cue, in `setup` (see `reference/engine.md`):
+
+```js
+s.sfx('whoosh', '#fly', { dur: s.at('#slam') - s.at('#fly'), peak: 0.95 });
+s.sfx('stamp', '#slam'); s.sfx('thud', '#slam', { gain: -4 });   // two sounds at one time
+s.sfx('pop', 'eigenvector', { at: 0.15, x: 1400 });              // 0.15 s after the word, panned right
+```
+
+`check` collects the sounds and warns about too many sounds in 2 s, two accents less than
+2 s apart, more than 2 chimes, or an accent on a word. `render` makes `build/sfx.wav` and
+mixes it after the music duck, before the limiter. `render --remix` changes the sounds
+without new frames. With `sfx` off, the mix is the same as before, byte for byte.
+
+### The kit (approved by the user on 2026-11-02)
+
+| Sound | Length | Level | Use it for |
+|---|---|---|---|
+| `pop` | 0.18 s | medium | an icon or a node that appears |
+| `click` | 0.1 s | small | a magnet, a part that snaps in |
+| `tick` | 0.06 s | small | a counter or a data mark (`pitch` from the value) |
+| `whoosh` | `dur`, 0.3 to 3 s | −25 LUFS | a fly-in or a big move (`peak` near 1 = a rise into a hit) |
+| `swish` | 0.28 s | medium | a card or a label that slides in |
+| `thud` | 0.45 s | accent | a heavy landing |
+| `stamp` | 0.9 s | accent | a stamp or a slam |
+| `paper` | `dur` + 0.12 s | medium | a sheet or a cut-out that slides and lands |
+| `marker` | `dur` | medium | a marker stroke on a whiteboard |
+| `pencil` | `dur` | medium | a pencil or grease-pencil line |
+| `chime` | 2.3 s | accent | the one "aha" moment, 1 or 2 a video |
+| `typing` | `dur` | medium | text that types out |
+
+| Level | Loudness (largest K-weighted level over 100 ms) |
+|---|---|
+| accent | −21 LUFS |
+| medium | −24 LUFS |
+| small | −27 LUFS |
+
+- The whoosh has its own level, −25 LUFS: the user found the 2.5 s fly-in whoosh at −21 a bit too loud.
+- The voice is at −16 LUFS, so the sounds sit 7 to 12 dB under it. No sound peaks above −9 dBFS.
+- A sound that starts while the voice speaks plays 3 dB softer. Put a sound that matters in the gap before a word.
+- Each event gets a seeded change of up to ±0.5 semitone and ±1 dB, so repeats do not sound the same, and one video always gives the same file.
+- Mark only what changes the picture, about one sound a beat at most.
+
+Previews (3 variations of each sound, at video level): `gallery/sfx/<sound>.flac`, and all
+of them over the music in `gallery/sfx/demo-music-30s.flac` (`mpv gallery/sfx/*.flac`).
+Make them again with `node engine/sfx.mjs kit <dir>` and `node engine/sfx.mjs track
+gallery/sfx/demo-events.json 30 <out.wav>`, then mix with the music at 0.26.
+
+New sounds follow the music rule: the user approves each one by ear. If a recorded sound is
+ever needed, use only CC0 sources (Kenney audio packs, Freesound CC0). Sources for the design:
+[Material Design: applying sound to UI](https://m2.material.io/design/sound/applying-sound-to-ui.html),
+[sound design checklist for explainer videos](https://sounddesign.irpr.agency/guides/sound-design-checklist-for-explainer-videos/),
+[repetition in game audio](https://sounddesign.irpr.agency/solutions/game-audio-repetitive/),
+[the soundtrack of Kurzgesagt](https://kottke.org/18/01/the-soundtrack-to-kurzgesagt).

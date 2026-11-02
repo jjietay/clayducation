@@ -15,7 +15,7 @@ The stage is 1920 x 1080 px. Headless Chrome draws each frame by calling `seek(t
 | `script.md` | you | narration, scenes, cues (see `script.md` reference) |
 | `scenes.js` | you | one `scene()` per "## id" |
 | `storyboard.md` | you | plan, facts and sources, your case |
-| `video.json` | `init` | `_tts`: the voice (`exaggeration`, `cfg_weight`, `stopGap`, `paragraphGap`, `seeds`); fps, lead, hold. `_render`: `music` (`true` = `"current"`, `"lofi"`, or `false`; see `SOUND.md`), `musicVolume` (0.26), `workers` |
+| `video.json` | `init` | `_tts`: the voice (`exaggeration`, `cfg_weight`, `stopGap`, `paragraphGap`, `seeds`); fps, lead, hold. `_render`: `music` (`true` = `"current"`, `"lofi"`, or `false`; see `SOUND.md`), `musicVolume` (0.26), `sfx` (sound effects, `false`), `sfxVolume` (1), `workers` |
 | `assets/` | you | images the scenes load as `/assets/name.png` |
 | `build/` | engine | voice, timeline, sheets, stills (gitignored) |
 | `out/` | engine | `<slug>.mp4` and `<slug>.srt` (gitignored) |
@@ -63,6 +63,7 @@ active with `style.display = 'none'`: a canvas that is only cleared can keep its
 | `await s.tex(tex, {x, y, size, color, anchor, display, z})` | TeX as SVG. Wrap a term in `\class{name}{...}` and colour it with `node.querySelectorAll('.name')` → `n.style.fill = ...` |
 | `await s.three({ortho, view, bg, z})` | Three.js: returns `{THREE, renderer, scene, camera, render, screen}`. `screen(obj)` gives the object's stage px, for `s.trace`. Call `render()` at the end of `draw`. `ortho: true` gives a true isometric camera, `view` = world units visible top to bottom |
 | `s.trace('name', x, y, {r})` | in `draw`: where a thing drawn on a canvas or in Three.js is now (stage px), so `make review` can measure its motion. `r` = radius, for the collision check. In `setup`, `s.trace(element, 'name')` names an HTML or SVG element. Text, formulas and elements moved with `set()` are traced already |
+| `s.sfx(sound, cue, {at, x, gain, pitch, dur, peak})` | in `setup`: a sound effect at a cue (`at` s after it; `x` = stage x for the pan). Sounds: pop, click, tick, whoosh, swish, thud, stamp, paper, marker, pencil, chime, typing. Mixed only when `video.json` has `_render.sfx: true`. See `SOUND.md` |
 | `s.root` | the scene's `<div>`, for your own elements |
 | `s.words`, `s.marks` | the word timings and markers, in scene seconds |
 | `W`, `H`, `s.SAFE` | 1920, 1080, and the safe area `{x: 96, y: 72, w: 1728, h: 936}` |

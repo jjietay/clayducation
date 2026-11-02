@@ -25,6 +25,8 @@ cp gallery/build/stills/<scene>@end.png gallery/png/<name>.png
 and the style list. It uses only files in this folder, so the folder can be published as it is.
 `DESIGN-NOTES.md` says why the page looks the way it does, with sources. Read it before you change the page.
 
+`sfx/` holds short previews of the sound effects (see `SOUND.md`).
+
 `pipeline.html` is the source of the README figure `png/pipeline.png`. Render it with Chrome:
 
 ```bash

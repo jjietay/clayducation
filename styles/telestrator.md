@@ -26,7 +26,7 @@ simulation recording. Show it, freeze it, draw on it: one finding per freeze.
 - Freeze entry: a white flash for 0.1 s (0.55 alpha), a punch from 1.035 to 1.0 in 0.35 s (`E.out`), 42 % less saturation, then a slow 1.2 % push. Overlays use the same transform as the picture.
 - One freeze, one finding: 1.8 to 2.4 s, at most two groups of lines and one label. Draw ring (who) → line or area (what happened) → label, 0.3 to 0.6 s apart. The arrowhead pops in over the last 10 % of the line.
 - Rewind: the clip reversed in 0.6 s with ±13 px horizontal jitter and a ◀◀ sign. Trails keep only the last 0.6 s.
-- Perspective flatten (once, optional): fit a homography to 4 or more known points (a table's corners, floor tape) and move a triangle mesh of the image to a top-down board. A sound would mark each freeze and each ring.
+- Perspective flatten (once, optional): fit a homography to 4 or more known points (a table's corners, floor tape) and move a triangle mesh of the image to a top-down board. With sound effects on (`SOUND.md`), `s.sfx` marks each freeze and each ring.
 
 ## With the house look
 

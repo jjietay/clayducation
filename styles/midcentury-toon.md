@@ -33,7 +33,7 @@ able to do the thing; to show why it works, use `whiteboard` or `flat-vector`.
 - One part is one shot: keep the steps on one stage. Each step gets a numbered medallion and a round call-out (a circle with a dashed leader to its subject) that shows the hands and the step's value (a pin number, a torque, a voltage) on the action beat. Draw close-ups inside the call-out at native scale, so the ink stays 4 px.
 - Payoff: a real process draws itself region by region (a robot's coverage path, a cable route) and, seen whole, reads as a 1950s textile; pull back with a small counter-rotation (−6° → 0°). Hold the summary dead still for 3 s.
 - Hand over to the next part with an iris through a medallion or a round object, or a colour-block wipe.
-- A sound would mark each medallion stamp; a short silence before the main action makes it land.
+- With sound effects on (`SOUND.md`), `s.sfx` marks each medallion stamp; a short silence before the main action makes it land.
 
 ## With the house look
 

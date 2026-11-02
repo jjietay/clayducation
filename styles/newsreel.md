@@ -34,7 +34,7 @@ objects, place cards, grease pencil and the newsreel's own transitions.
 - **Spinning paper**: it grows by `u^2.3` and turns by `(1 − u)^1.25` over 2.5 turns, with three ghost copies 18 ms apart; on the slam a damped 16 px jolt and a 3 % bounce.
 - **Moves that fit** (each once): the **map spread** (dotted arcs from the source city draw on the spoken name, a corner odometer rolls the years); **grid deal → flip-book** (stills land one per beat, then play as stop motion with `s.tq(8)`); **document underline** (soft-lead lines under the exact words the voice quotes); **grease-pencil freeze** (freeze, jolt, ring and arrow on the detail); **split-screen duel → push-over** (old against new, the winner pushes the loser out).
 - **Transitions are punctuation**, each used once: an iris, a diagonal hard wipe with a bright 6 px edge, a vertical flip, venetian blinds or a clock wipe. No cross-dissolves, whip pans or zoom blur.
-- A still always gets a move with a purpose; real archive footage moves 6 % at most. A sound would mark each slam and each pencil line.
+- A still always gets a move with a purpose; real archive footage moves 6 % at most. With sound effects on (`SOUND.md`), `s.sfx` marks each slam and each pencil line.
 
 ## With the house look
 

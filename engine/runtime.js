@@ -12,6 +12,7 @@ const TL = window.TIMELINE;
 const RENDER = new URLSearchParams(location.search).has('render');
 window.__errors = [];
 window.__cues = {};
+window.__sfx = {};   // sound effects that scenes declare with s.sfx(); the render mixes them
 const report = (msg) => { window.__errors.push(String(msg)); console.error(msg); };
 window.addEventListener('error', (e) => report(e.message + (e.filename ? ` (${e.filename.split('/').pop()}:${e.lineno})` : '')));
 window.addEventListener('unhandledrejection', (e) => report(e.reason?.stack || e.reason));
@@ -288,6 +289,13 @@ class Scene {
     this.root = el('div', { class: 'scene', 'data-id': info.id });
     this.root.style.cssText = `position:absolute;inset:0;overflow:hidden;display:none;background:${def.bg || '#000'}`;
     stage.appendChild(this.root);
+  }
+  // A sound effect at a cue: s.sfx('stamp', '#slam'). Call it in setup, once for each sound.
+  // at: seconds after the cue. x: the stage x of the thing, for the pan. Also gain (dB),
+  // pitch (semitones), dur and peak. The kit is in engine/sfx.mjs; video.json turns it on.
+  sfx(sound, cue, { at = 0, x, ...o } = {}) {
+    const t = this.start + this.at(cue) + at, pan = x == null ? 0 : clamp((x - 960) / 1600, -0.6, 0.6);
+    window.__sfx[`${this.id}|${sound}|${cue}|${at}`] = { t: +t.toFixed(4), sound, pan, ...o };
   }
   // Time (seconds into the scene) of a cue: '#marker' from script.md, or a
   // spoken word. at('vector', 2) is the second time "vector" is said.

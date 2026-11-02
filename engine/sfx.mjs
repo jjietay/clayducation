@@ -107,7 +107,8 @@ export const KIT = {
   } },
   // Air that passes from left to right: noise through a band-pass that opens as the thing comes near.
   // Scene changes and big moves. o.dur 0.3 to 3 s; o.peak (0 to 1) = where in the sound the thing is nearest.
-  whoosh: { level: ACCENT, make: (r, o) => whoosh(r, { dur: 0.7, peak: 0.55, lo: 220, hi: 2600, ...o }) },
+  // -25 LUFS, 4 dB under the accents: the user found the 2.5 s fly-in whoosh at -21 a bit too loud.
+  whoosh: { level: -25, make: (r, o) => whoosh(r, { dur: 0.7, peak: 0.55, lo: 220, hi: 2600, ...o }) },
   // Short high whoosh: a card or a label that slides in.
   swish: { level: MEDIUM, make: (r, o) => whoosh(r, { dur: 0.28, peak: 0.4, lo: 700, hi: 5500, body: 0.25, ...o }) },
   // Heavy landing: a sine that falls from 135 Hz to 50 Hz, with harmonics so laptop speakers play it too.
