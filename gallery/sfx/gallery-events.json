@@ -1,0 +1,11 @@
+[
+  { "t": 0.6,   "sound": "whoosh", "dur": 2.52, "peak": 0.95, "lo": 150, "hi": 2200 },
+  { "t": 3.12,  "sound": "stamp" },
+  { "t": 3.12,  "sound": "thud", "gain": -4 },
+  { "t": 4.34,  "sound": "swish" },
+  { "t": 6.82,  "sound": "pencil", "dur": 0.4 },
+  { "t": 10.15, "sound": "swish" },
+  { "t": 10.5,  "sound": "pop" },
+  { "t": 18.62, "sound": "swish" },
+  { "t": 18.97, "sound": "pop", "pitch": 2 }
+]
