@@ -23,7 +23,7 @@ The settings are in `~/.claude/skills/kaleidoscope/config.json`. Change them onl
 
 3. Run `make config --budget <b> --voice <v> --gpu <g>`.
 4. If the voice is `chatterbox` and `doctor` says Chatterbox is not installed, tell the user
-   to run `npx github:jjietay/kaleidoscope` in a terminal and choose `chatterbox`. It
+   to run `npx --allow-git=all github:jjietay/kaleidoscope` in a terminal and choose `chatterbox`. It
    installs only what is missing. Do not install it yourself: it is a large download.
 5. Run `make doctor` again and report the new settings in two or three lines.
 

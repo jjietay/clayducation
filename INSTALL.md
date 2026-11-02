@@ -4,7 +4,7 @@ The easy way is the setup command. It asks questions, shows the plan, and instal
 what you choose:
 
 ```bash
-npx github:jjietay/kaleidoscope            # or add --yes to take every default
+npx --allow-git=all github:jjietay/kaleidoscope            # or add --yes to take every default
 ```
 
 Without an NVIDIA GPU or Apple silicon, choose the Kokoro voice: it is fast on a CPU. Chrome
