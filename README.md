@@ -46,7 +46,7 @@ In Claude Code, in the conversation where the topic came up:
 ## Install
 
 ```bash
-npx --allow-git=all github:jjietay/kaleidoscope
+npx kaleidoscope-video
 ```
 
 The setup checks your machine, asks 5 questions (folder, token budget, voice, Manim, reviewer agents), shows the plan, and installs only what you choose. It works without a GPU: then the Kokoro voice speaks and the CPU draws the frames.
@@ -78,7 +78,7 @@ Later, in Claude Code, `/setup-kaleidoscope` changes the token budget or the voi
 | Path | What it holds |
 |---|---|
 | `SKILL.md` | the workflow the agent follows, step by step |
-| `bin/`, `package.json` | the setup that `npx --allow-git=all github:jjietay/kaleidoscope` runs |
+| `bin/`, `package.json` | the setup that `npx kaleidoscope-video` runs |
 | `setup/` | the `/setup-kaleidoscope` skill: token budget, voice and GPU |
 | `SOUND.md` | the background music: rules, approved tracks and their recipes |
 | `agents/` | the reviewer agents; the install links them into `~/.claude/agents` |

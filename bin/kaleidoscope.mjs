@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 // Kaleidoscope setup: installs the Claude Code skill and what it needs, after a few questions.
-// npm 12 blocks packages from git unless --allow-git=all is given; older npm ignores the flag.
-//   npx --allow-git=all github:jjietay/kaleidoscope            ask the questions, show the plan, then install
-//   npx --allow-git=all github:jjietay/kaleidoscope --yes      take every default
-//   npx --allow-git=all github:jjietay/kaleidoscope --dry-run  show the plan and the commands, change nothing
+//   npx kaleidoscope-video            ask the questions, show the plan, then install
+//   npx kaleidoscope-video --yes      take every default
+//   npx kaleidoscope-video --dry-run  show the plan and the commands, change nothing
 // Other flags: --dir <path>, --budget high|medium|low, --voice chatterbox|kokoro, --no-manim, --no-agents.
 // Run it again at any time: it updates the skill and installs only what is missing.
 import { spawnSync } from 'node:child_process';
