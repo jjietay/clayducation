@@ -4,128 +4,435 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kaleidoscope</title>
-<meta name="description" content="A Claude Code skill that makes narrated teaching videos, with a different animation style for each part and six reviewer agents.">
+<meta name="description" content="A Claude Code skill that makes narrated teaching videos. Each part has its own animation style, code draws every frame, and six reviewer agents check the video before it renders.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+<!-- Design notes: DESIGN-NOTES.md in this folder. -->
 <style>
 :root {
-  --ink: #1d1f23; --muted: #5a5f69; --line: #d9dce3; --bg: #ffffff;
-  --blue: #eef3fb; --blue-b: #4a7bd0; --lilac: #f6f1fa; --lilac-b: #7b5fc7;
-  --peach: #fdf5ee; --peach-b: #e0884a; --green: #e3f3df; --green-b: #59a14f;
-  --teal: #dff2ec; --teal-b: #2f8f74; --yellow: #fff6d6; --yellow-b: #d9b440;
+  --paper: #f4efe5;
+  --paper-2: #ebe4d6;
+  --ink: #1e1b16;
+  --ink-2: #4f483d;
+  --muted: #7a7062;
+  --rule: #d6ccba;
+  --red: #c8434a;
+  --night: #1c1a16;
+  --night-ink: #ece5d8;
+  --night-muted: #a39a8a;
+  --night-rule: #3a362f;
+  --serif: "Newsreader", Georgia, "Times New Roman", serif;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --gutter: clamp(16px, 4vw, 40px);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: "Inter", system-ui, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.5; }
-.wrap { max-width: 1180px; margin: 0 auto; padding: 0 16px; }
-header { padding: 64px 0 40px; text-align: center; }
-header h1 { font-size: clamp(40px, 7vw, 68px); font-weight: 800; letter-spacing: -0.02em; }
-header p { max-width: 640px; margin: 14px auto 0; font-size: 19px; color: var(--muted); }
-.facts { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 26px; }
-.fact { border: 2px solid; border-radius: 999px; padding: 6px 16px; font-size: 15px; font-weight: 600; }
-section { margin: 0 0 28px; padding: 28px; border-radius: 22px; }
-section h2 { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
-section .lead { color: var(--muted); margin-bottom: 20px; }
-.s-blue { background: var(--blue); } .s-lilac { background: var(--lilac); } .s-peach { background: var(--peach); }
-.s-green { background: var(--green); } .s-teal { background: var(--teal); }
-figure img { width: 100%; height: auto; display: block; border-radius: 12px; background: #fff; }
-.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
-.card.wide { grid-column: span 2; }
-.card { background: #fff; border: 2px solid var(--lilac-b); border-radius: 14px; overflow: hidden; }
-.card a { display: block; }
-.card img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; }
-.card div { padding: 10px 14px 12px; }
-.card b { display: block; font-size: 17px; }
-.card span { font-size: 14.5px; color: var(--muted); }
-.tracks { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
-.track { background: #fff; border: 2px solid var(--peach-b); border-radius: 14px; padding: 16px; }
-.track b { font-size: 18px; }
-.track p { font-size: 15px; color: var(--muted); margin: 4px 0 12px; }
-.track audio { width: 100%; }
-.styles { display: grid; grid-template-columns: 180px 1fr; gap: 14px 18px; align-items: start; }
-.styles h3 { font-size: 16px; font-weight: 700; padding-top: 6px; }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.chip { font-family: "JetBrains Mono", monospace; font-size: 14px; background: #fff; border: 1.5px solid var(--teal-b);
-        border-radius: 8px; padding: 4px 10px; }
-footer { padding: 10px 0 48px; color: var(--muted); font-size: 14.5px; text-align: center; }
-footer a { color: var(--ink); }
-@media (max-width: 900px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--sans); font-size: 17px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+img { display: block; max-width: 100%; height: auto; }
+a { color: inherit; text-decoration-line: underline; text-decoration-thickness: 1px;
+    text-underline-offset: 3px; text-decoration-color: var(--rule); }
+a:hover { text-decoration-color: var(--red); color: var(--red); }
+a:focus-visible { outline: 2px solid var(--red); outline-offset: 3px; border-radius: 2px; }
+code, .mono { font-family: var(--mono); font-size: 0.86em; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 var(--gutter); }
+
+/* Top line */
+.top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
+       padding-top: 22px; padding-bottom: 22px; font-size: 15px; }
+.top .repo { font-family: var(--mono); font-size: 14px; text-decoration: none; color: var(--ink); }
+.top .repo:hover { color: var(--red); }
+.top nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 22px; }
+.top nav a { text-decoration: none; color: var(--ink-2); }
+.top nav a:hover { color: var(--red); }
+
+/* Masthead */
+.masthead { padding-top: 28px; }
+.masthead h1 {
+  font-family: var(--serif); font-weight: 500; font-variation-settings: "opsz" 72;
+  font-size: clamp(54px, 13vw, 168px); line-height: 0.9; letter-spacing: -0.025em;
+  margin-left: -0.04em;
+}
+.dateline { margin-top: 22px; border-top: 3px solid var(--ink); }
+.dateline::before { content: ""; display: block; border-top: 1px solid var(--ink); margin-top: 3px; }
+.dateline p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 24px;
+              padding: 9px 0 10px; border-bottom: 1px solid var(--ink);
+              font-family: var(--mono); font-size: 13px; color: var(--ink-2); }
+.nw { white-space: nowrap; }
+
+/* Opening */
+.opening { display: grid; grid-template-columns: 5fr 7fr; gap: 56px; padding-top: 40px; padding-bottom: 88px; }
+.lede { font-family: var(--serif); font-size: 27px; line-height: 1.28; font-variation-settings: "opsz" 36; }
+.opening .text > p + p { margin-top: 18px; color: var(--ink-2); max-width: 34em; }
+.ask { margin-top: 32px; padding-top: 18px; border-top: 1px solid var(--rule); }
+.ask .label { font-size: 14px; color: var(--muted); }
+.ask blockquote { margin-top: 8px; font-family: var(--mono); font-size: 15px; line-height: 1.55;
+                  padding-left: 16px; border-left: 2px solid var(--red); }
+.actions { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 12px 26px; align-items: center; font-size: 16px; }
+.button { display: inline-block; padding: 10px 18px; background: var(--ink); color: var(--paper);
+          text-decoration: none; border-radius: 3px; font-weight: 500; }
+.button:hover { background: var(--red); color: #fff; }
+
+figure { margin: 0; }
+figcaption { margin-top: 10px; font-size: 14px; line-height: 1.45; color: var(--muted); max-width: 60em; }
+.fig { font-family: var(--mono); font-size: 12.5px; color: var(--red); margin-right: 8px; letter-spacing: 0.02em; }
+.plate img { border-radius: 4px; }
+.plate.light img { border: 1px solid var(--rule); background: #fff; }
+
+/* Sections */
+.sec { display: grid; grid-template-columns: 3fr 9fr; gap: 26px 56px; padding-bottom: 96px; }
+.sec::before, footer::before { content: ""; grid-column: 1 / -1; border-top: 1px solid var(--ink); }
+.sec.plain::before { display: none; }
+.sec-head h2 { font-family: var(--serif); font-weight: 500; font-size: 36px; line-height: 1.08;
+               letter-spacing: -0.01em; font-variation-settings: "opsz" 48; }
+.sec-head p { margin-top: 14px; font-size: 16px; color: var(--ink-2); }
+.sec-head .src { margin-top: 16px; font-family: var(--mono); font-size: 13px; }
+.sec-head .src a { color: var(--red); text-decoration-color: transparent; }
+.sec-head .src a:hover { text-decoration-color: var(--red); }
+.sec-body { min-width: 0; }
+.sec-body > p { max-width: 38em; }
+
+/* Ledger rows: pipeline steps, agents, tracks */
+.ledger { list-style: none; margin-top: 36px; border-top: 1px solid var(--rule); }
+.ledger li { display: grid; grid-template-columns: 15em 1fr; gap: 6px 32px;
+             padding: 14px 0 15px; border-bottom: 1px solid var(--rule); }
+.ledger .k { font-family: var(--mono); font-size: 14px; padding-top: 2px; }
+.ledger .k small { display: block; font-family: var(--sans); font-size: 13px; color: var(--muted); }
+.ledger .v { color: var(--ink-2); max-width: 40em; }
+.ledger .v b { color: var(--ink); font-weight: 600; }
+
+/* Frames band */
+.band { background: var(--night); color: var(--night-ink); padding: 0 0 96px; }
+.band .sec { padding-bottom: 40px; padding-top: 72px; }
+.band .intro { font-family: var(--serif); font-size: 23px; line-height: 1.35; max-width: 34em; font-variation-settings: "opsz" 24; }
+.band .intro code { font-size: 0.8em; }
+.band .sec-head p { color: var(--night-muted); }
+.band .sec-head .src a { color: #e8848a; }
+.band a { text-decoration-color: var(--night-rule); }
+.frames { display: grid; grid-template-columns: repeat(6, 1fr); gap: 40px 24px; }
+.frames figure { grid-column: span 2; }
+.frames figure.big { grid-column: span 3; }
+.frames img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 3px; }
+.frames figcaption { color: var(--night-muted); margin-top: 12px; }
+.frames figcaption .mono { display: block; color: var(--night-ink); font-size: 13px; margin-bottom: 2px; }
+
+/* Agents, contact sheet */
+.sheet { margin-top: 32px; }
+.sheet img { border-radius: 3px; }
+
+/* Music */
+.tracks { list-style: none; margin-top: 32px; border-top: 1px solid var(--rule); }
+.tracks li { display: grid; grid-template-columns: 7.5em 1fr 300px; gap: 10px 32px; align-items: center;
+             padding: 20px 0; border-bottom: 1px solid var(--rule); }
+.tracks .name { font-family: var(--serif); font-size: 26px; line-height: 1.1; }
+.tracks .name small { display: block; margin-top: 4px; font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+.tracks p { color: var(--ink-2); font-size: 16px; }
+.tracks audio { width: 100%; height: 40px; }
+
+/* Style index */
+.index { display: grid; grid-template-columns: 1fr 1fr; gap: 0 48px; margin-top: 8px; }
+.group { margin-bottom: 36px; }
+.group h3 { font-family: var(--serif); font-weight: 500; font-size: 22px; line-height: 1.2;
+            padding-bottom: 8px; border-bottom: 1px solid var(--ink); display: flex; justify-content: space-between; align-items: baseline; }
+.group h3 span { font-family: var(--mono); font-size: 13px; color: var(--muted); font-weight: 400; }
+.group ul { list-style: none; }
+.group li { padding: 10px 0 11px; border-bottom: 1px solid var(--rule); font-size: 15px; line-height: 1.45; }
+.group li code { display: block; font-size: 14px; color: var(--ink); margin-bottom: 1px; }
+.group li span { color: var(--ink-2); }
+sup.o { font-family: var(--mono); font-size: 11px; color: var(--red); margin-left: 3px; vertical-align: 4px; line-height: 0; }
+.note { font-size: 14px; color: var(--muted); max-width: 50em; }
+
+/* Install */
+pre { margin-top: 28px; background: var(--paper-2); border-radius: 4px; padding: 18px 20px;
+      font-family: var(--mono); font-size: 14px; line-height: 1.7; overflow-x: auto; color: var(--ink); }
+pre .c { color: var(--muted); }
+.prompts { list-style: none; margin-top: 28px; }
+.prompts li { font-family: var(--mono); font-size: 15px; padding: 10px 0 10px 16px; border-left: 2px solid var(--red); }
+.prompts li + li { margin-top: 10px; }
+
+/* Footer */
+#review { padding-top: 72px; }
+footer { padding-bottom: 56px;
+         display: grid; grid-template-columns: 3fr 9fr; gap: 16px 56px; font-size: 14.5px; color: var(--ink-2); }
+footer .home { font-family: var(--serif); font-size: 19px; font-weight: 600; color: var(--ink); text-decoration: none; }
+footer p { max-width: 52em; }
+footer p + p { margin-top: 10px; }
+
+/* Tablet */
+@media (max-width: 1020px) {
+  .opening { grid-template-columns: 1fr; gap: 40px; }
+  .opening .text { max-width: 640px; }
+  .sec, footer { grid-template-columns: 1fr; }
+  .sec-head p { max-width: 38em; }
+  .frames { grid-template-columns: 1fr 1fr; }
+  .frames figure, .frames figure.big { grid-column: span 1; }
+  .tracks li { grid-template-columns: 8em 1fr; }
+  .tracks audio { grid-column: 1 / -1; }
+}
+/* Phone */
 @media (max-width: 640px) {
-  .grid { grid-template-columns: 1fr; }
-  .card.wide { grid-column: auto; }
-  section { padding: 18px; }
-  .styles { grid-template-columns: 1fr; gap: 6px; }
-  .styles h3 { padding-top: 10px; }
+  body { font-size: 16.5px; }
+  .top nav a.opt { display: none; }
+  .masthead { padding-top: 12px; }
+  .dateline p { font-size: 12px; }
+  .opening { display: flex; flex-direction: column; gap: 0; padding-top: 28px; padding-bottom: 64px; }
+  .opening .text { display: contents; }
+  .opening .lede { order: 1; }
+  .opening .plate { order: 2; margin: 26px 0 6px; }
+  .opening .text > :not(.lede) { order: 3; }
+  .lede { font-size: 23px; }
+  .sec { padding-bottom: 64px; row-gap: 22px; }
+  .sec-head h2 { font-size: 30px; }
+  .band { padding-bottom: 64px; }
+  .band .sec { padding-top: 52px; padding-bottom: 28px; }
+  .frames { grid-template-columns: 1fr; gap: 28px; }
+  .ledger li { grid-template-columns: 1fr; gap: 2px; }
+  .band .intro { font-size: 19px; }
+  #review { padding-top: 52px; }
+  .index { grid-template-columns: 1fr; }
+  .tracks li { grid-template-columns: 1fr; gap: 8px; }
+  pre { font-size: 12.5px; padding: 14px; margin-left: calc(-1 * var(--gutter) / 2); margin-right: calc(-1 * var(--gutter) / 2); }
 }
 </style>
 </head>
 <body>
-<div class="wrap">
 
-<header>
-  <h1>Kaleidoscope</h1>
-  <p>A Claude Code skill that makes a narrated teaching video about a topic. Every part of the video has its own animation style, and six reviewer agents check the video before it renders.</p>
-  <div class="facts">
-    <span class="fact" style="border-color:var(--teal-b);background:var(--teal)">29 animation styles</span>
-    <span class="fact" style="border-color:var(--blue-b);background:var(--blue)">Code draws every frame</span>
-    <span class="fact" style="border-color:var(--lilac-b);background:var(--lilac)">6 reviewer agents</span>
-    <span class="fact" style="border-color:var(--peach-b);background:var(--peach)">Voice on your own GPU</span>
-  </div>
+<header class="top wrap">
+  <a class="repo" href="https://github.com/jjietay/kaleidoscope">jjietay/kaleidoscope</a>
+  <nav aria-label="Sections">
+    <a class="opt" href="#how">How it works</a>
+    <a class="opt" href="#frames">Frames</a>
+    <a class="opt" href="#review">Review</a>
+    <a class="opt" href="#music">Music</a>
+    <a class="opt" href="#styles">Styles</a>
+    <a href="#install">Install</a>
+  </nav>
 </header>
 
-<section class="s-blue">
-  <h2>How a video is made</h2>
-  <p class="lead">Claude writes the script, the storyboard and the scenes. The engine makes the voice, times each word and draws the frames. Two rounds of reviewers then send fixes back to Claude.</p>
-  <figure><a href="png/pipeline.png"><img src="png/pipeline.png" alt="Pipeline: plan and build, then review and render" loading="lazy"></a></figure>
+<main>
+
+<div class="masthead wrap">
+  <h1>Kaleidoscope</h1>
+  <div class="dateline"><p><span>A skill for Claude Code</span><span><span class="nw">29 animation styles</span> · <span class="nw">6 reviewer agents</span> · <span class="nw">2 review rounds</span></span></p></div>
+</div>
+
+<section class="opening wrap" aria-label="Introduction">
+  <div class="text">
+    <p class="lede">Kaleidoscope makes a narrated video that teaches one topic. Each part of the video has its own animation style.</p>
+    <p>Claude writes the script, the storyboard and the scenes from what your conversation and your project already show. The engine speaks the script on your own GPU, times each word and draws every frame with code. It uses no video model. Six reviewer agents then check the video in two rounds before it renders.</p>
+    <div class="ask">
+      <p class="label">In Claude Code, in the conversation where the topic came up, ask:</p>
+      <blockquote>Make a video on I2C for the BNO085, and tell its history as a 1920s newsreel.</blockquote>
+    </div>
+    <div class="actions">
+      <a class="button" href="#install">Install</a>
+      <a href="https://github.com/jjietay/kaleidoscope">Read the source on GitHub</a>
+    </div>
+  </div>
+  <figure class="plate">
+    <a href="png/newsreel.png"><img src="png/newsreel.png" width="1920" height="1080" alt="A 1920s newspaper in a dark film gate. The headline reads: Machine learns by sending errors back. A white grease-pencil ring circles it."></a>
+    <figcaption><span class="fig">Fig. 1</span>The <code>newsreel</code> style, end frame. A paper spins in, and a grease pencil rings the headline. The story is Rumelhart, Hinton and Williams, <i>Nature</i> 323, 1986.</figcaption>
+  </figure>
 </section>
 
-<section class="s-lilac">
-  <h2>Samples</h2>
-  <p class="lead">These are end frames from the gallery project. Select a picture to see it at full size.</p>
-  <div class="grid">
-    <div class="card wide"><a href="png/newsreel.png"><img src="png/newsreel.png" alt="1920s newsreel style" loading="lazy"></a><div><b>1920s newsreel</b><span>A paper spins in and a grease pencil rings the headline.</span></div></div>
-    <div class="card"><a href="png/library-common.png"><img src="png/library-common.png" alt="Common parts" loading="lazy"></a><div><b>Common parts</b><span>Every style uses these headers, labels, arrows and faces.</span></div></div>
-    <div class="card"><a href="png/library-flat.png"><img src="png/library-flat.png" alt="Flat props" loading="lazy"></a><div><b>Flat props</b><span>The tank, the drone, the files and the boxes have faces.</span></div></div>
-    <div class="card"><a href="png/library-morph.png"><img src="png/library-morph.png" alt="Shape morph" loading="lazy"></a><div><b>Shape morph</b><span>Shapes join into one bar or split into chunks.</span></div></div>
-    <div class="card"><a href="png/library-iso.png"><img src="png/library-iso.png" alt="Isometric" loading="lazy"></a><div><b>Isometric</b><span>A roof lifts to show what happens inside a building.</span></div></div>
-    <div class="card"><a href="png/library-boil.png"><img src="png/library-boil.png" alt="Hand drawn" loading="lazy"></a><div><b>Hand drawn</b><span>The ink lines change shape slightly 12 times a second, like a hand-drawn cartoon.</span></div></div>
-    <div class="card"><a href="png/library-paper.png"><img src="png/library-paper.png" alt="Paper cut-out" loading="lazy"></a><div><b>Paper cut-out</b><span>Card shapes have rough edges, and arms turn on split pins.</span></div></div>
-    <div class="card"><a href="png/library-pixel.png"><img src="png/library-pixel.png" alt="Pixel art" loading="lazy"></a><div><b>Pixel art</b><span>A 320 × 180 pixel canvas, scaled 6 times, shows typed dialogue.</span></div></div>
-    <div class="card"><a href="png/library-toy3d.png"><img src="png/library-toy3d.png" alt="Toy 3D" loading="lazy"></a><div><b>Toy 3D</b><span>Soft Three.js objects drop, land and cast a contact shadow.</span></div></div>
-    <div class="card wide"><a href="png/contact-sheet.png"><img src="png/contact-sheet.png" alt="A contact sheet" loading="lazy"></a><div><b>Contact sheet</b><span>Claude reads sheets like this one before the reviewers start.</span></div></div>
+<section class="sec wrap" id="how">
+  <div class="sec-head">
+    <h2>How a video is made</h2>
+    <p>Claude plans and builds. The engine speaks, times and draws. The reviewers send fixes back to Claude.</p>
+    <p class="src"><a href="https://github.com/jjietay/kaleidoscope/blob/main/SKILL.md">→ SKILL.md</a></p>
+  </div>
+  <div class="sec-body">
+    <figure class="plate light">
+      <a href="png/pipeline.png"><img src="png/pipeline.png" width="3000" height="1785" alt="Pipeline figure. Panel a, plan and build: the main session writes script.md, storyboard.md and scenes.js; Chatterbox speaks; Whisper times each word; headless Chrome draws the frames; make check tests them. Panel b, review and render: six reviewer agents read a review pack, a compiler merges their reports, and after round 2 make final renders the MP4." loading="lazy"></a>
+      <figcaption><span class="fig">Fig. 2</span>(a) Plan and build, from your topic to checked frames. (b) Review and render, two rounds of six agents. Select the figure to see it at full size.</figcaption>
+    </figure>
+    <ol class="ledger">
+      <li><span class="k">script.md<br>storyboard.md<br>scenes.js<small>Claude writes</small></span><span class="v">One part for each idea, one style for each part, one scene for each part. Claude checks every fact before it writes the script.</span></li>
+      <li><span class="k">Chatterbox<small>voice, on your GPU</small></span><span class="v">Speaks the script.</span></li>
+      <li><span class="k">Whisper<small>word timing</small></span><span class="v">Gives each word and each <code>[#cue]</code> a time in seconds. If a sentence does not match the script, the engine speaks it again.</span></li>
+      <li><span class="k">headless Chrome<small>frames</small></span><span class="v">Draws each frame from the timeline with <b>canvas</b>, <b>Three.js</b> or <b>Manim</b>.</span></li>
+      <li><span class="k">make check<small>automatic checks</small></span><span class="v">Tests overlap, the safe area, text size and pacing. Claude also looks at every changed part, frame by frame.</span></li>
+      <li><span class="k">6 reviewer agents<small>two rounds</small></span><span class="v">Read the review pack and send one fix list back. Claude fixes the scenes and builds again.</span></li>
+      <li><span class="k">make final<small>render</small></span><span class="v">Chrome draws on the GPU and NVENC encodes. <code>verify</code> checks the duration, the loudness and black frames. The result is an MP4 with soft subtitles and 48 kHz sound.</span></li>
+    </ol>
   </div>
 </section>
 
-<section class="s-peach">
-  <h2>Music</h2>
-  <p class="lead">The engine makes its background music from code, with no samples or recordings. These are 30 s previews.</p>
-  <div class="tracks">
-    <div class="track"><b>current</b><p>A calm pad and a slow arpeggio play at 72 BPM, with no beat. This is the default track.</p><audio controls preload="none" src="music/current-30s.flac"></audio></div>
-    <div class="track"><b>lofi</b><p>This lo-fi study beat plays at 76 BPM, with a light swing.</p><audio controls preload="none" src="music/lofi-30s.flac"></audio></div>
+<div class="band" id="frames">
+  <section class="sec plain wrap">
+    <div class="sec-head">
+      <h2>Frames from the gallery project</h2>
+      <p class="src"><a href="https://github.com/jjietay/kaleidoscope/tree/main/styles/library">→ styles/library/</a></p>
+    </div>
+    <div class="sec-body">
+      <p class="intro">Every style draws with the same shared code in <code>styles/library/</code>. Each picture below is the end frame of one scene, with one module of that code. Select a picture to see it at full size.</p>
+    </div>
+  </section>
+  <div class="wrap">
+    <div class="frames">
+      <figure class="big"><a href="png/library-common.png"><img src="png/library-common.png" width="1920" height="1080" alt="Common parts: six faces, an arrow, two leader lines and a tick, each with its function name" loading="lazy"></a>
+        <figcaption><span class="mono">common.js</span>Every style uses these headers, labels, arrows and faces.</figcaption></figure>
+      <figure class="big"><a href="png/library-flat.png"><img src="png/library-flat.png" width="1920" height="1080" alt="Flat props: a drone, barrels, a folder of tiles, a tank, cards and a GPU box, some with faces" loading="lazy"></a>
+        <figcaption><span class="mono">flat.js</span>The tank, the drone, the files and the boxes have faces.</figcaption></figure>
+      <figure><a href="png/library-morph.png"><img src="png/library-morph.png" width="1920" height="1080" alt="Shape morph on navy: pink blobs join into one bar, then split into chunks" loading="lazy"></a>
+        <figcaption><span class="mono">morph.js</span>Shapes join into one bar or split into chunks.</figcaption></figure>
+      <figure><a href="png/library-iso.png"><img src="png/library-iso.png" width="1920" height="1080" alt="Isometric buildings: one closed, one with the roof lifted to show pink blocks inside" loading="lazy"></a>
+        <figcaption><span class="mono">iso.js</span>A roof lifts to show what happens inside a building.</figcaption></figure>
+      <figure><a href="png/library-boil.png"><img src="png/library-boil.png" width="1920" height="1080" alt="Hand-drawn ink jars, a folder, a pencil, a stamp and ink faces" loading="lazy"></a>
+        <figcaption><span class="mono">boil.js</span>The ink lines change shape slightly 12 times a second, like a hand-drawn cartoon.</figcaption></figure>
+      <figure><a href="png/library-paper.png"><img src="png/library-paper.png" width="1920" height="1080" alt="Paper cut-out shapes, a receipt, cards and two paper people, one holding a stop sign" loading="lazy"></a>
+        <figcaption><span class="mono">paper.js</span>Card shapes have rough edges, and arms turn on split pins.</figcaption></figure>
+      <figure><a href="png/library-pixel.png"><img src="png/library-pixel.png" width="1920" height="1080" alt="Pixel art: a shelf, a crate, a GPU, two small workers and a dialogue box" loading="lazy"></a>
+        <figcaption><span class="mono">pixel.js</span>A 320 × 180 pixel canvas, scaled 6 times, shows typed dialogue.</figcaption></figure>
+      <figure><a href="png/library-toy3d.png"><img src="png/library-toy3d.png" width="1920" height="1080" alt="Toy 3D: a soft tank, an axis gizmo, file cubes, a cart and a server tower" loading="lazy"></a>
+        <figcaption><span class="mono">toy3d.js</span>Soft Three.js objects drop, land and cast a contact shadow.</figcaption></figure>
+    </div>
+  </div>
+</div>
+
+<section class="sec plain wrap" id="review">
+  <div class="sec-head">
+    <h2>Checked before render</h2>
+    <p>Each reviewer starts cold, reads only the review pack and writes its report to a file.</p>
+    <p class="src"><a href="https://github.com/jjietay/kaleidoscope/tree/main/agents">→ agents/</a></p>
+  </div>
+  <div class="sec-body">
+    <p>Before the reviewers start, Claude reads contact sheets like this one. Then six agents check the video. A seventh agent joins their reports into one short fix list. Claude fixes the scenes and builds again, and the second round checks the fixes.</p>
+    <figure class="plate sheet">
+      <a href="png/contact-sheet.png"><img src="png/contact-sheet.png" width="1960" height="620" alt="A contact sheet: eight frames from the gallery project in a grid, each labelled with its scene name and time" loading="lazy"></a>
+      <figcaption><span class="fig">Fig. 3</span>The top of the gallery project's first contact sheet, made with <code>make sheet gallery</code>. Each frame shows its scene and its time.</figcaption>
+    </figure>
+    <ul class="ledger">
+      <li><span class="k">video-factcheck</span><span class="v">Every fact, number and formula, worked out again.</span></li>
+      <li><span class="k">video-learner</span><span class="v">A first-time viewer answers a quiz and says where it got lost.</span></li>
+      <li><span class="k">video-alignment</span><span class="v">The picture shows what the voice says, at that moment.</span></li>
+      <li><span class="k">video-overlap</span><span class="v">No text or drawing covers another.</span></li>
+      <li><span class="k">video-physics</span><span class="v">Motion: jumps, pops, easing and weight.</span></li>
+      <li><span class="k">video-overall</span><span class="v">Layout, legibility, colour meaning and pacing.</span></li>
+      <li><span class="k">video-compiler</span><span class="v">Joins the six reports into one short fix list.</span></li>
+    </ul>
   </div>
 </section>
 
-<section class="s-teal">
-  <h2>The 29 styles</h2>
-  <p class="lead">Claude picks a style for each part from the kind of idea in it.</p>
-  <div class="styles">
-    <h3>Maths and diagrams</h3>
-    <div class="chips"><span class="chip">math-manim</span><span class="chip">signal-graph</span><span class="chip">pixel-grid</span><span class="chip">single-line</span><span class="chip">shape-morph</span><span class="chip">whiteboard</span><span class="chip">blueprint</span></div>
-    <h3>Characters and stories</h3>
-    <div class="chips"><span class="chip">flat-vector</span><span class="chip">line-boil</span><span class="chip">paper-cutout</span><span class="chip">pixel-art</span><span class="chip">midcentury-toon</span><span class="chip">watercolour</span><span class="chip">risograph</span></div>
-    <h3>3D and space</h3>
-    <div class="chips"><span class="chip">isometric</span><span class="chip">iso-infographic</span><span class="chip">toy-3d</span><span class="chip">teardown</span><span class="chip">desktop-flythrough</span><span class="chip">transit-map</span></div>
-    <h3>Data and evidence</h3>
-    <div class="chips"><span class="chip">data-story</span><span class="chip">data-physical</span><span class="chip">briefing-board</span><span class="chip">telestrator</span><span class="chip">swiss-type</span><span class="chip">dark-keynote</span><span class="chip">hud-terminal</span><span class="chip">film-crt</span><span class="chip">newsreel</span></div>
+<section class="sec wrap" id="music">
+  <div class="sec-head">
+    <h2>Music made from code</h2>
+    <p>The music plays about 16 dB under the voice and ducks gently when the voice speaks.</p>
+    <p class="src"><a href="https://github.com/jjietay/kaleidoscope/blob/main/SOUND.md">→ SOUND.md</a></p>
+  </div>
+  <div class="sec-body">
+    <p>The engine makes its background music in <code>engine/music.mjs</code>. It uses no samples, no AI models and no recordings, so there is no licence to clear. The same track and length always give the same file. These are 30 s previews of the two approved tracks.</p>
+    <ul class="tracks">
+      <li><span class="name">current<small>72 BPM · C Am F G</small></span>
+        <p>A calm pad and a slow arpeggio, with no beat. This is the default track, and it suits any video.</p>
+        <audio controls preload="none" src="music/current-30s.flac" aria-label="current, 30 second preview"></audio></li>
+      <li><span class="name">lofi<small>76 BPM · swing</small></span>
+        <p>A lo-fi study beat: electric piano, bass, soft drums and vinyl hiss. Use it for a calm video that needs more energy.</p>
+        <audio controls preload="none" src="music/lofi-30s.flac" aria-label="lofi, 30 second preview"></audio></li>
+    </ul>
   </div>
 </section>
 
-<footer>
-  We adapted 11 styles from <a href="https://github.com/lemomo-ai/lemo-opuscar">Lemo-Opuscar</a> by LemoLab (MIT) and took details from it for 3 more.
-  <a href="https://github.com/vincentsch/explainroo">explainroo</a> times the words, <a href="https://github.com/resemble-ai/chatterbox">Chatterbox</a> speaks the narration,
-  and <a href="https://www.manim.community/">Manim Community</a> draws the maths scenes.
+<section class="sec wrap" id="styles">
+  <div class="sec-head">
+    <h2>The 29 styles</h2>
+    <p>Claude picks a style for each part from the type of idea in it. Two parts in a row never use the same style.</p>
+    <p class="src"><a href="https://github.com/jjietay/kaleidoscope/blob/main/styles/README.md">→ styles/README.md</a></p>
+  </div>
+  <div class="sec-body">
+    <div class="index">
+      <div>
+        <div class="group">
+          <h3>Maths and diagrams <span>7</span></h3>
+          <ul>
+            <li><code>math-manim</code><span>The 3Blue1Brown look, drawn by Manim. The plane moves and formulas morph.</span></li>
+            <li><code>signal-graph</code><span>Nodes and edges. Pulses travel along the edges, and edge width shows weight.</span></li>
+            <li><code>pixel-grid</code><span>A zoomed-in pixel grid with values. A kernel window slides over it.</span></li>
+            <li><code>single-line</code><span>One line draws everything at a steady speed and never lifts.</span></li>
+            <li><code>shape-morph</code><span>No cuts. Each idea grows out of the previous shape.</span></li>
+            <li><code>whiteboard<sup class="o">a</sup></code><span>Dry-erase marker on a glossy board, written stroke by stroke.</span></li>
+            <li><code>blueprint<sup class="o">a</sup></code><span>White lines on Prussian blue, drawn in drafting order with dimensions.</span></li>
+          </ul>
+        </div>
+        <div class="group">
+          <h3>Characters and stories <span>7</span></h3>
+          <ul>
+            <li><code>flat-vector</code><span>Flat shapes with overshoot entrances. A growing shape changes the scene.</span></li>
+            <li><code>line-boil</code><span>Hand-drawn ink that boils, animated on twos. Faces act.</span></li>
+            <li><code>paper-cutout</code><span>Card layers with cut edges, stop motion and a parallax camera.</span></li>
+            <li><code>pixel-art</code><span>A 320 × 180 canvas, a fixed palette, dithering and typed dialogue.</span></li>
+            <li><code>midcentury-toon<sup class="o">a</sup></code><span>1950s flat colour off a broken ink line. A presenter's hands do each step.</span></li>
+            <li><code>watercolour<sup class="o">d</sup></code><span>Brush strokes paint themselves in, and washes bleed past the ink.</span></li>
+            <li><code>risograph<sup class="o">d</sup></code><span>Two or three inks that multiply, with halftone dots and offset plates.</span></li>
+          </ul>
+        </div>
+      </div>
+      <div>
+        <div class="group">
+          <h3>3D and space <span>6</span></h3>
+          <ul>
+            <li><code>isometric</code><span>A miniature world of three-tone blocks. Roofs lift off to show the inside.</span></li>
+            <li><code>iso-infographic<sup class="o">a</sup></code><span>A floating board with a route, label pins and counts that add up to a total.</span></li>
+            <li><code>toy-3d</code><span>Soft pastel Three.js objects that land with weight and a contact shadow.</span></li>
+            <li><code>teardown<sup class="o">a</sup></code><span>A real product in Three.js from its CAD files. Its layers lift apart.</span></li>
+            <li><code>desktop-flythrough<sup class="o">a</sup></code><span>Apps as paper cards on a sunlit desk. Voxel toys hop between them.</span></li>
+            <li><code>transit-map<sup class="o">a</sup></code><span>A metro map on paper. Lines grow from pen tips, and interchanges fall into place.</span></li>
+          </ul>
+        </div>
+        <div class="group">
+          <h3>Data and evidence <span>9</span></h3>
+          <ul>
+            <li><code>data-story<sup class="o">d</sup></code><span>One chart per screen, drawn mark by mark by a pencil.</span></li>
+            <li><code>data-physical<sup class="o">a</sup></code><span>Numbers built as stacks of metal, acrylic and brass on a wooden base.</span></li>
+            <li><code>briefing-board<sup class="o">a</sup></code><span>An enamel board with photos and magnets. One red stamp gives the verdict.</span></li>
+            <li><code>telestrator<sup class="o">a</sup></code><span>Footage or a photo, frozen and drawn on with rings and marker arrows.</span></li>
+            <li><code>swiss-type</code><span>A 12-column grid, kinetic type, hard snaps and one signal colour.</span></li>
+            <li><code>dark-keynote</code><span>Near-black, one giant number and slow light sweeps.</span></li>
+            <li><code>hud-terminal</code><span>Monospace on a character grid. Numbers roll and brackets lock on.</span></li>
+            <li><code>film-crt</code><span>One era of film or tape, with grain, gate weave and chroma shift.</span></li>
+            <li><code>newsreel<sup class="o">a</sup></code><span>A 1920s newsreel in a silver film gate, with place cards, an iris and wipes.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <p class="note"><sup class="o">a</sup> We adapted this style from <a href="https://github.com/lemomo-ai/lemo-opuscar">Lemo-Opuscar</a> by LemoLab (MIT). <sup class="o">d</sup> We took details for this style from Lemo-Opuscar.</p>
+  </div>
+</section>
+
+<section class="sec wrap" id="install">
+  <div class="sec-head">
+    <h2>Install</h2>
+    <p>Clone the repo into your skills folder, then run <code>doctor</code>. It shows what is missing.</p>
+    <p class="src"><a href="https://github.com/jjietay/kaleidoscope/blob/main/INSTALL.md">→ INSTALL.md</a></p>
+  </div>
+  <div class="sec-body">
+<pre><code>git clone git@github.com:jjietay/kaleidoscope.git ~/.claude/skills/kaleidoscope
+cd ~/.claude/skills/kaleidoscope
+node engine/make.mjs doctor      <span class="c"># shows what is missing</span></code></pre>
+    <p style="margin-top:24px"><code>INSTALL.md</code> has the full setup for the voice, the word timing, Manim and the reviewer agents. Then ask for a video in the conversation where the topic came up:</p>
+    <ul class="prompts">
+      <li>Make a video explaining how the EKF fuses wheel odometry and the IMU.</li>
+      <li>Make a video on I2C for the BNO085, and tell its history as a 1920s newsreel.</li>
+    </ul>
+  </div>
+</section>
+
+</main>
+
+<footer class="wrap">
+  <a class="home" href="#">Kaleidoscope</a>
+  <div>
+    <p>We adapted 11 styles from <a href="https://github.com/lemomo-ai/lemo-opuscar">Lemo-Opuscar</a> by LemoLab (MIT) and took details from it for 3 more.
+    <a href="https://github.com/vincentsch/explainroo">explainroo</a> times the words, <a href="https://github.com/resemble-ai/chatterbox">Chatterbox</a> speaks the narration,
+    and <a href="https://www.manim.community/">Manim Community</a> draws the maths scenes.</p>
+    <p><a href="https://github.com/jjietay/kaleidoscope">github.com/jjietay/kaleidoscope</a></p>
+  </div>
 </footer>
 
-</div>
 </body>
 </html>

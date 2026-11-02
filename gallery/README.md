@@ -23,6 +23,7 @@ cp gallery/build/stills/<scene>@end.png gallery/png/<name>.png
 
 `index.html` is the public gallery page: the pipeline figure, these pictures, the music previews
 and the style list. It uses only files in this folder, so the folder can be published as it is.
+`DESIGN-NOTES.md` says why the page looks the way it does, with sources. Read it before you change the page.
 
 `pipeline.html` is the source of the README figure `png/pipeline.png`. Render it with Chrome:
 
