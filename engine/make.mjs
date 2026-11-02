@@ -1035,7 +1035,7 @@ async function verify() {
   // formula scene inside the hook and every other check passed. "Different" = more than
   // 3 % of pixels off by more than 40 of 255: on these dark frames the average hides it.
   const fps = tl.fps, W4 = 160, H4 = 90, PX = W4 * H4, wrong = [];
-  const gray = (args, input) => execFileSync('ffmpeg', ['-v', 'error', ...args, '-vf', `scale=${W4}:${H4}`, '-f', 'rawvideo', '-pix_fmt', 'gray', '-'], { input, maxBuffer: 1 << 28 });
+  const gray = (args, input) => execFileSync('ffmpeg', ['-v', 'error', ...args, '-vf', `scale=${W4}:${H4}`, '-f', 'rawvideo', '-pix_fmt', 'gray', '-'], { input, maxBuffer: 1 << 30 });   // 160 x 90 grey: 1 << 28 held only about 10 min
   const differs = (x, xo, y, yo) => { let k = 0; for (let j = 0; j < PX; j++) if (Math.abs(x[xo + j] - y[yo + j]) > 40) k++; return k / PX > 0.03; };
   const vid = gray(['-i', file]);
   // Plain Manim scenes: every frame against its source frame. A Manim scene with an overlay

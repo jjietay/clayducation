@@ -1,5 +1,5 @@
 // Toy 3D parts (style: styles/toy-3d.md). Three.js through s.three().
-// import { world, showK, AX, gizmo, gizmoGrow, tube, stretch, setOpacity, makeTank, fileCube, nasTower, cart } from '/_lib/toy3d.js';
+// import { world, showK, AX, gizmo, gizmoGrow, tube, stretch, setOpacity, makeTank, fileCube, nasTower, cart, eyeBlock, flag } from '/_lib/toy3d.js';
 //
 // Two rules learned on the GPU path (see SKILL.md step 8b):
 //  - Hide an object with showK(obj, k) (a tiny scale), not with obj.visible = false. An object
@@ -110,4 +110,25 @@ export function cart(g, { color = K.worker } = {}) {
   const load = g.box(0.26, 0.26, 0.26, K.chunk); load.position.y = 0.6; grp.add(load);
   grp.userData.load = load;
   return grp;
+}
+
+// A block character with two eyes on one side (a DDS writer or reader in the DDS video).
+// dir = 1 looks to +x, -1 to -x. Base on the floor at the group origin.
+export function eyeBlock(g, color, { w = 1.6, h = 1.4, d = 1.6, dir = 1 } = {}) {
+  const { THREE } = g, grp = new THREE.Group();
+  const b = g.box(w, h, d, color); b.position.y = h / 2; grp.add(b);
+  for (const z of [-0.28, 0.28]) {
+    const e = g.ball(0.16, '#ffffff'); e.scale.set(0.5, 1, 1); e.position.set(dir * w / 2, h * 0.68, z);
+    const p = g.ball(0.075, C.ink); p.position.set(dir * (w / 2 + 0.08), h * 0.68, z);
+    grp.add(e, p);
+  }
+  return grp;
+}
+// A small flag on a pole (a heartbeat or an ACKNACK message). Pole foot at the group origin.
+export function flag(g, color) {
+  const { THREE } = g, f = new THREE.Group();
+  const pole = g.cyl(0.04, 1.2, '#5b5f73'); pole.position.y = 0.6; f.add(pole);
+  const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.lineTo(0.7, -0.22); sh.lineTo(0, -0.44); sh.lineTo(0, 0);
+  const tri = new THREE.Mesh(new THREE.ShapeGeometry(sh), g.mat(color, { side: THREE.DoubleSide })); tri.position.set(0.02, 1.2, 0); tri.castShadow = true; f.add(tri);
+  return f;
 }

@@ -2,13 +2,13 @@
 // the last 8 draw every item of the shared library (styles/library/), one scene per module.
 // The end still of each scene is a picture in png/: <style>.png, or library-<module>.png.
 import { C, K, BG, FONT, header, showHeader, label, caption, lab, pin, arrow, leader, underLeader, tick, face, roundRect, wipeIn } from '/_lib/common.js';
-import { barrel, card, drone, folderBack, folderLip, gpuBox, tankSide, tankTop, tile } from '/_lib/flat.js';
+import { barrel, card, drone, folderBack, folderLip, gpuBox, laptop, tankSide, tankTop, tile } from '/_lib/flat.js';
 import { blobRow } from '/_lib/morph.js';
 import { isoBuilding, isoFileBlock, isoPlate, tone } from '/_lib/iso.js';
-import { BOIL, INK, inkFace, inkFolder, inkJar, pencil, stamp } from '/_lib/boil.js';
+import { BOIL, INK, envelope, inkFace, inkFolder, inkJar, pencil, stamp } from '/_lib/boil.js';
 import { PAPER, circlePts, paperCard, paperGrain, paperPerson, paperPiece, paperReceipt, rectPts } from '/_lib/paper.js';
-import { PX, pxCrate, pxDialog, pxGpu, pxPadlock, pxR, pxShelf, pxText, pxWorker } from '/_lib/pixel.js';
-import { cart, fileCube, gizmo, makeTank, nasTower, world } from '/_lib/toy3d.js';
+import { PX, pxCrate, pxDialog, pxFrame, pxGpu, pxMac, pxPadlock, pxPi, pxR, pxRing, pxShelf, pxText, pxWorker } from '/_lib/pixel.js';
+import { cart, eyeBlock, fileCube, flag, gizmo, makeTank, nasTower, world } from '/_lib/toy3d.js';
 
 // ==================== adapted styles ====================
 // ---------- newsreel ----------
@@ -123,7 +123,7 @@ scene('flat', {
     s.c = s.canvas();
     s.h = header(s, { kicker: 'LIBRARY · FLAT.JS', title: 'Flat props' });
     s.names = [
-      NM(s, 'drone', 330, 540), NM(s, 'barrel', 960, 580), NM(s, 'barrel { cut: 1 }', 1590, 580),
+      NM(s, 'drone', 330, 540), NM(s, 'barrel', 900, 580), NM(s, 'laptop', 1265, 580), NM(s, 'barrel { cut: 1 }', 1620, 580),
       NM(s, 'folderBack · tile · folderLip', 360, 880), NM(s, 'tankSide', 860, 880), NM(s, 'tankTop', 1130, 880),
       NM(s, 'card', 1450, 880), NM(s, 'gpuBox', 1700, 880),
     ];
@@ -132,8 +132,9 @@ scene('flat', {
     const c = s.c; c.clearRect(0, 0, W, H);
     showHeader(s, s.h, 0.1);
     drone(c, 330, 400, 0.9, s.t, { look: [0, 0.5] });
-    barrel(c, 960, 530, 170, 220);
-    barrel(c, 1590, 530, 200, 240, { cut: 1 });
+    barrel(c, 900, 530, 170, 220);
+    laptop(c, 1265, 530, 0.7, { mood: 'happy', map: 0.7 });
+    barrel(c, 1620, 530, 200, 240, { cut: 1 });
     folderBack(c, 360, 830, 360, 220);
     for (let i = 0; i < 6; i++) tile(c, 360 - 110 + (i % 3) * 110, 650 + Math.floor(i / 3) * 90, 70);
     folderLip(c, 360, 830, 360, 40);
@@ -197,7 +198,7 @@ scene('boil', {
     s.h = header(s, { kicker: 'LIBRARY · BOIL.JS', title: 'Hand drawn', font: FONT.hand, kColor: BOIL.blue, tSize: 64 });
     s.moods = ['calm', 'happy', 'surprised', 'dead'];
     s.names = [
-      NM(s, 'inkJar', 300, 660), NM(s, 'inkJar { mood: dead }', 720, 660), NM(s, 'inkFolder', 1180, 660), NM(s, 'stamp', 1620, 600),
+      NM(s, 'inkJar', 300, 660), NM(s, 'inkJar { mood: dead }', 720, 660), NM(s, 'inkFolder', 1180, 660), NM(s, 'stamp', 1620, 560), NM(s, 'envelope · broken', 1600, 720),
       NM(s, 'pencil', 330, 880), ...s.moods.map((m, i) => NM(s, `inkFace ${m}`, 760 + i * 300, 880)),
     ];
   },
@@ -207,7 +208,9 @@ scene('boil', {
     inkJar(s, c, 300, 610, { h: 260, w: 200 });
     inkJar(s, c, 720, 610, { h: 260, w: 200, mood: 'dead', pages: 14, fill: mix(K.file, '#9a9a9a', 0.55), seed: 60 });
     inkFolder(s, c, 1180, 610, { h: 220, mood: 'happy', sheets: 14 });
-    stamp(s, c, 1620, 470, 'KILL');
+    stamp(s, c, 1620, 450, 'KILL');
+    envelope(s, c, 1510, 650, C.ucast, 95);
+    envelope(s, c, 1690, 640, C.mcast, 97, { broken: 0.35 });
     pencil(s, c, 260, 820, -0.5, 80);
     s.moods.forEach((m, i) => inkFace(s, c, 760 + i * 300, 800, 30, m, 90 + i * 5));
     showAll(s, s.names);
@@ -269,6 +272,32 @@ scene('pixel', {
   },
 });
 
+// ============================ pixel.js, network characters ============================
+scene('pixel2', {
+  bg: PX.k,
+  setup(s) {
+    s.px = s.canvas({ w: 320, h: 180, pixel: true });
+  },
+  draw(s) {
+    const c = s.px, t = s.tq(10);
+    c.clearRect(0, 0, 320, 180);
+    pxR(c, 0, 0, 320, 180, 'k');
+    pxText(c, 'LIBRARY - PIXEL.JS, NETWORKS', 12, 10, PX.y);
+    for (let y = 98; y < 110; y++) for (let x = 0; x < 320; x++) if (0.2 > bayer(x, y)) pxR(c, x, y, 1, 1, 'g1');
+    for (let k = 0; k < 3; k++) { const r = 24 + ((t * 24 + k * 8) % 24); pxRing(c, 60, 78, r, r > 42 ? PX.o : PX.y, 40, 96); }
+    pxPi(c, 60, 88);
+    pxPi(c, 130, 88, { sad: true, dim: true });
+    pxMac(c, 200, 88, { mood: 'happy', topics: 1 });
+    pxMac(c, 270, 88, { mood: 'sad' });
+    pxText(c, 'PXPI PXRING', 30, 114, PX.g3);
+    pxText(c, 'DIM', 120, 114, PX.g3);
+    pxText(c, 'PXMAC', 186, 114, PX.g3);
+    pxText(c, 'SAD', 261, 114, PX.g3);
+    pxFrame(c, 8, 128, 304, 22, 'k', 'w');
+    pxText(c, 'PXFRAME - A BOX WITH A BORDER', 16, 136, PX.w);
+  },
+});
+
 // ============================ toy3d.js ============================
 scene('toy3d', {
   bg: BG.pink,
@@ -281,8 +310,10 @@ scene('toy3d', {
     for (let i = 0; i < 9; i++) { const f = fileCube(g, shared); shared = f.userData.shared; f.position.set(0.7 + (i % 3) * 0.42, 0, -0.1 + Math.floor(i / 3) * 0.42); scene.add(f); s.cubes.push(f); }
     s.nas = nasTower(g); s.nas.position.set(5.0, 0, -0.4); scene.add(s.nas);
     s.cart = cart(g); s.cart.position.set(3.2, 0, 0.9); scene.add(s.cart);
+    s.eye = eyeBlock(g, C.viewer, { dir: -1 }); s.eye.scale.setScalar(0.8); s.eye.position.set(1.6, 0, -2.6); scene.add(s.eye);
+    s.flag = flag(g, C.mcast); s.flag.position.set(-0.2, 0, -2.4); scene.add(s.flag);
     s.h = header(s, { kicker: 'LIBRARY · TOY3D.JS · world()', title: 'Toy 3D', kColor: '#b8406a' });
-    s.nm = { tank: NM(s, 'makeTank', 0, 0), gz: NM(s, 'gizmo', 0, 0), cubes: NM(s, 'fileCube', 0, 0), nas: NM(s, 'nasTower', 0, 0), cart: NM(s, 'cart', 0, 0) };
+    s.nm = { tank: NM(s, 'makeTank', 0, 0), gz: NM(s, 'gizmo', 0, 0), cubes: NM(s, 'fileCube', 0, 0), nas: NM(s, 'nasTower', 0, 0), cart: NM(s, 'cart', 0, 0), eye: NM(s, 'eyeBlock', 0, 0), flag: NM(s, 'flag', 0, 0) };
     await g.ready();
   },
   draw(s) {
@@ -294,6 +325,8 @@ scene('toy3d', {
     pin(s.nm.cubes, g.proj(V(1.1, 0, 1.6)));
     pin(s.nm.cart, g.proj(V(3.2, 0, 2.2)));
     pin(s.nm.nas, g.proj(V(5.0, 0, 1.3)));
+    pin(s.nm.eye, g.proj(V(1.6, 1.9, -2.6)));
+    pin(s.nm.flag, g.proj(V(-0.2, 1.9, -2.4)));
     Object.values(s.nm).forEach((n, i) => lab(s, n, 0.4 + i * 0.05));
     g.render();
   },

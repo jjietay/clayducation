@@ -1,5 +1,5 @@
 // Line-boil (hand-drawn) parts (style: styles/line-boil.md). Every line boils: 3 jitter variants at 12 fps.
-// Draw from s.tq(12). import { INK, BOIL, inkLine, inkShape, ring, rrect, inkFace, pencil, stamp, inkJar, inkFolder } from '/_lib/boil.js';
+// Draw from s.tq(12). import { INK, BOIL, inkLine, inkShape, ring, rrect, inkFace, pencil, stamp, inkJar, inkFolder, envelope } from '/_lib/boil.js';
 import { K } from './common.js';
 
 export const INK = '#1c1c1c';
@@ -79,4 +79,16 @@ export function inkFolder(s, c, x, y, { h = 250, w = 300, fill = K.folder, mood 
   }
   inkShape(s, c, [[x - w / 2 - 6, y], [x - w / 2 - 6, y - h * 0.62], [x + w / 2 + 6, y - h * 0.62], [x + w / 2 + 6, y]], seed + 1, fill);
   inkFace(s, c, x, y - h * 0.38, 34, mood, seed + 2);
+}
+
+// A frame or packet as an envelope (WiFi frames in the DDS video), centre (x, y), fill col.
+// broken 0..1: a red crack, it tips over, drops 60 px and fades (a lost frame).
+export function envelope(s, c, x, y, col, seed, { k = 1, broken = 0 } = {}) {
+  if (k <= 0.01) return;
+  c.save(); c.translate(x, y); c.scale(k, k);
+  if (broken > 0) { c.rotate(broken * 0.8); c.translate(0, broken * 60); c.globalAlpha = 1 - clamp((broken - 0.6) / 0.4); }
+  inkShape(s, c, rrect(-34, -22, 68, 44, 6, 2), seed, col, { w: 3, amp: 1.4 });
+  inkLine(s, c, [[-30, -18], [0, 4], [30, -18]], seed + 1, { w: 3, amp: 1.2 });
+  if (broken > 0) inkLine(s, c, [[-8, -24], [4, -4], [-6, 8], [6, 26]], seed + 2, { w: 4, color: BOIL.red, amp: 1 });
+  c.restore();
 }

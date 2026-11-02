@@ -28,5 +28,8 @@ Paper cut out: a person with a pin joint. [pause 0.4] A receipt, and cards.
 ## pixel {hold=3 min=7}
 Pixel art: a shelf, a crate, a {GPU|G P U}, workers, and a dialogue box.
 
+## pixel2 {hold=3 min=7}
+Pixel art for networks. [pause 0.4] A small robot, a laptop, and a multicast ring.
+
 ## toy3d {hold=3 min=7}
-Toy shapes in three dimensions: the tank, frame axes, file cubes, a network drive, and a cart.
+Toy shapes in three dimensions: the tank, frame axes, file cubes, a network drive, and a cart. [pause 0.4] Then a block with eyes, and a flag.

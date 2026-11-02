@@ -1,5 +1,5 @@
 // Flat-vector props (style: styles/flat-vector.md). Canvas 2D, flat fills, 4 px ink outlines.
-// import { tile, barrel, folderBack, folderLip, drone, tankSide, tankTop, card, gpuBox } from '/_lib/flat.js';
+// import { tile, barrel, folderBack, folderLip, drone, tankSide, tankTop, card, gpuBox, laptop } from '/_lib/flat.js';
 import { C, K, roundRect, face } from './common.js';
 
 // A chunk tile: rounded square with a small white wave (a signal window, a record). Centre (x, y).
@@ -139,4 +139,28 @@ export function tankTop(c, x, y, heading = 0, sc = 1, { color = C.robot, ink = C
   if (nose) { c.fillStyle = ink; c.beginPath(); c.moveTo(30, 0); c.lineTo(18, -8); c.lineTo(18, 8); c.closePath(); c.fill(); }
   if (lidar) { c.fillStyle = lidarColor; c.beginPath(); c.arc(4, 0, 9, 0, Math.PI * 2); c.fill(); c.stroke(); }
   c.restore();
+}
+
+// The viewer's laptop as a character (the Mac in the DDS video): a face on the right half of the screen,
+// a map panel on the left that fills with map (0..1), or a terminal with lines of text (term: ['line', ...]).
+// (x, y) = bottom centre of the base. From the DDS and Foxglove video (tank series, video 5).
+export function laptop(c, x, y, sc = 1, { mood = 'calm', look = [-1, 0], blink = 0, map = 0, mapColor = C.map, screen = C.viewerLight, body = C.viewer, term = null } = {}) {
+  c.save(); c.translate(x, y); c.scale(sc, sc);
+  c.lineJoin = 'round'; c.lineWidth = 5; c.strokeStyle = C.ink;
+  c.fillStyle = body; roundRect(c, -150, -210, 300, 200, 18); c.fill(); c.stroke();
+  c.fillStyle = screen; roundRect(c, -134, -194, 268, 168, 10); c.fill();
+  c.fillStyle = body; c.beginPath(); c.moveTo(-190, 0); c.lineTo(190, 0); c.lineTo(160, -14); c.lineTo(-160, -14); c.closePath(); c.fill(); c.stroke();
+  if (map > 0) {
+    const cells = [[0, 0], [1, 0], [0, 1], [1, 1], [2, 1], [1, 2], [2, 2], [0, 2], [2, 0], [1, 3], [0, 3], [2, 3]];
+    const n = Math.round(cells.length * clamp(map));
+    c.fillStyle = mapColor;
+    for (let i = 0; i < n; i++) { const [i0, j0] = cells[i]; c.fillRect(-122 + i0 * 34, -182 + j0 * 36, 32, 34); }
+  }
+  if (term) {
+    c.fillStyle = '#1b1e2e'; roundRect(c, -134, -194, 268, 168, 10); c.fill();
+    c.fillStyle = '#9ef0c0'; c.font = '500 26px "JetBrains Mono"'; c.textAlign = 'left'; c.textBaseline = 'top';
+    term.forEach((ln, i) => c.fillText(ln, -120, -180 + i * 34));
+  }
+  c.restore();
+  if (!term) face(c, x + 62 * sc, y - 120 * sc, 22 * sc, { mood, look, blink });
 }

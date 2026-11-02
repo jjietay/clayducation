@@ -22,6 +22,11 @@ export const C = {
   ghost: '#9aa0b4',                                               // greyed, before it matters
   paperInk: '#1c1c1c',
   light: '#e8e9f3',                                               // text on dark backgrounds
+  // Networks (DDS and Foxglove video): the viewer's laptop, multicast, unicast, a WebSocket link.
+  viewer: '#3a3f6b', viewerLight: '#dfe3f5',                      // the laptop that views the robot (the Mac)
+  mcast: '#ffb000', mcastInk: '#a86f00',                          // multicast, discovery announcements
+  ucast: '#3a86ff', ucastInk: '#1f5fcc',                          // unicast
+  ws: '#7b2cbf', wsInk: '#5a189a', wsOnDark: '#b388ff',           // a bridge or WebSocket link
 };
 // Data and software roles (Zarr vs HDF5 video). Same hues as C where the meaning is close.
 export const K = {
