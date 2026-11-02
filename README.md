@@ -13,7 +13,7 @@ Every part of the video has its own animation style, and six reviewer agents che
 
 </div>
 
-## How a video is made
+## Pipeline
 
 <img src="gallery/png/pipeline.png" alt="How a video is made: (a) plan and build, (b) review and render" width="100%">
 
@@ -32,7 +32,7 @@ In Claude Code, in the conversation where the topic came up:
 
 > Make a video on I2C for the BNO085, and tell its history as a 1920s newsreel.
 
-## The styles
+## Styles
 
 | Kind | Styles |
 |---|---|
@@ -61,7 +61,7 @@ Later, in Claude Code, `/setup-kaleidoscope` changes the token budget or the voi
 
 [`INSTALL.md`](INSTALL.md) has the manual setup.
 
-## The reviewer agents
+## Reviewer agents
 
 | Agent | What it checks |
 |---|---|
