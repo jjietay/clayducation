@@ -845,7 +845,7 @@ async function sheet() {
     if (only && s.id !== only) continue;
     if (every || only) { const step = +(every || 1); for (let t = 0.2; t < s.dur; t += step) times.push([s.id, s.start + t]); }
     else for (const f of [0.3, 0.65]) times.push([s.id, s.start + s.dur * f]);
-    if (!every && !only) times.push([s.id, s.start + s.dur - 0.15]);
+    if (!every && !only) times.push([s.id, s.start + Math.max(s.dur * 0.65, s.dur - 1.4)]);   // the last picture, before the end wipe or iris
   }
   if (!times.length) die(`no scene "${only}"`);
   const per = 16, sheets = [];

@@ -33,3 +33,24 @@ Pixel art for networks. [pause 0.4] A small robot, a laptop, and a multicast rin
 
 ## toy3d {hold=3 min=7}
 Toy shapes in three dimensions: the tank, frame axes, file cubes, a network drive, and a cart. [pause 0.4] Then a block with eyes, and a flag.
+
+## riso {hold=3 min=7}
+Risograph: three inks that multiply, and halftone tints.
+
+## blueprint {hold=3 min=7}
+Whiteprint drafting: lines with a nib, arrowheads, and part balloons.
+
+## hud {hold=3 min=7}
+Terminal: brackets that lock on, and digits that roll and lock.
+
+## toon {hold=3 min=7}
+Mid century cartoon: a presenter, a step medallion, and off register dots.
+
+## whiteboard {hold=3 min=7}
+Whiteboard: a formula written in marker, and a marker box.
+
+## transit {hold=3 min=7}
+Transit map: lines with a pen tip, stops, an interchange, and a capsule.
+
+## water {hold=3 min=7}
+Watercolour: washes in three passes, and a brush arrow.

@@ -105,7 +105,7 @@ import { K, BG, header, showHeader, label, lab, makeWipe, endWipe } from '/_lib/
 import { barrel, folderBack, folderLip, tile } from '/_lib/flat.js';
 import { world, showK } from '/_lib/toy3d.js';
 ```
-One module per style (`common`, `flat`, `morph`, `iso`, `boil`, `paper`, `pixel`, `toy3d`).
+One module per style (`common`, `flat`, `morph`, `iso`, `boil`, `paper`, `pixel`, `toy3d`, `riso`, `blueprint`, `hud`, `toon`, `whiteboard`, `transit`, `watercolour`, `newsreel`).
 `styles/library/README.md` lists every item; `gallery/png/library-*.png` shows them. In Three.js, hide an
 object with `showK(obj, k)` (a tiny scale), never `visible = false`, and `await g.ready()` at
 the end of `setup`: on the GPU path an object first drawn mid-scene can miss its first frame.

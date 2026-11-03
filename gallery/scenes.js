@@ -1,7 +1,7 @@
 // Gallery: one catalogue project. The first scene shows the newsreel style,
 // the last 8 draw every item of the shared library (styles/library/), one scene per module.
 // The end still of each scene is a picture in png/: <style>.png, or library-<module>.png.
-import { C, K, BG, FONT, header, showHeader, label, caption, lab, pin, arrow, leader, underLeader, tick, face, roundRect, wipeIn } from '/_lib/common.js';
+import { C, K, BG, FONT, bez, arcPts, header, showHeader, label, caption, lab, pin, arrow, leader, underLeader, tick, face, roundRect, wipeIn } from '/_lib/common.js';
 import { barrel, card, drone, folderBack, folderLip, gpuBox, laptop, tankSide, tankTop, tile } from '/_lib/flat.js';
 import { blobRow } from '/_lib/morph.js';
 import { isoBuilding, isoFileBlock, isoPlate, tone } from '/_lib/iso.js';
@@ -9,34 +9,19 @@ import { BOIL, INK, envelope, inkFace, inkFolder, inkJar, pencil, stamp } from '
 import { PAPER, circlePts, paperCard, paperGrain, paperPerson, paperPiece, paperReceipt, rectPts } from '/_lib/paper.js';
 import { PX, pxCrate, pxDialog, pxFrame, pxGpu, pxMac, pxPadlock, pxPi, pxR, pxRing, pxShelf, pxText, pxWorker } from '/_lib/pixel.js';
 import { cart, eyeBlock, fileCube, flag, gizmo, makeTank, nasTower, world } from '/_lib/toy3d.js';
+import { NR, nHash, gate, filmLook, greasePencil, ringPts } from '/_lib/newsreel.js';
+import { RI, rInk, halftone } from '/_lib/riso.js';
+import { BP, bpLine, bpArrowHead, balloon, bpRect } from '/_lib/blueprint.js';
+import { HU, roll, hudBrackets } from '/_lib/hud.js';
+import { MC, toonDot, medallion, presenter } from '/_lib/toon.js';
+import { WBI, tk, wbLayout, wbWrite, wbMarker, wbBox } from '/_lib/whiteboard.js';
+import { TM, tmLine, tmStop, capsule } from '/_lib/transit.js';
+import { WC, wcBlob, wcRect, wcWash, wcArrow } from '/_lib/watercolour.js';
 
 // ==================== adapted styles ====================
 // ---------- newsreel ----------
 // Content: Rumelhart, Hinton and Williams, "Learning representations by back-propagating errors", Nature 323, 533-536 (9 October 1986).
-const GX = 220, GW = 1480, GH = 1080, FPS = 30;
-const hash = (n) => rng(Math.floor(n * 9973))();
-function gate(c) { c.fillStyle = '#000'; c.fillRect(0, 0, W, H); c.beginPath(); c.roundRect(GX, 0, GW, GH, 26); c.clip(); }
-function filmLook(c, f) {
-  c.globalCompositeOperation = 'multiply'; c.fillStyle = '#efe7d6'; c.fillRect(GX, 0, GW, GH);
-  c.globalCompositeOperation = 'screen'; c.fillStyle = '#17140f'; c.fillRect(GX, 0, GW, GH);
-  c.globalCompositeOperation = 'source-over';
-  const g = c.createRadialGradient(GX + GW / 2, GH / 2, GH * 0.42, GX + GW / 2, GH / 2, GH * 0.95);
-  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.5)'); c.fillStyle = g; c.fillRect(GX, 0, GW, GH);
-  c.fillStyle = `rgba(0,0,0,${Math.max(0, 0.035 * (hash(f) - 0.5) * 2 + 0.03 * Math.sin(f / FPS * 6 * Math.PI))})`; c.fillRect(GX, 0, GW, GH);
-  for (let k = 0; k < 3; k++) { const id = Math.floor((f + k * 5) / 9) * 7 + k; if (hash(id * 1.3) > 0.55) continue;
-    c.fillStyle = hash(id) > 0.5 ? 'rgba(255,250,240,.22)' : 'rgba(0,0,0,.28)'; c.fillRect(GX + hash(id * 2.1) * GW, 0, 1.5, GH); }
-  const n = Math.floor(hash(f * 0.91) * 5);
-  for (let k = 0; k < n; k++) { const q = f * 13 + k * 3.1; c.fillStyle = hash(q + 3) > 0.35 ? 'rgba(10,8,6,.55)' : 'rgba(255,252,245,.45)';
-    c.beginPath(); c.arc(GX + hash(q) * GW, hash(q + 1) * GH, 1 + hash(q + 2) * 4, 0, 2 * Math.PI); c.fill(); }
-}
-function greasePencil(c, pts, u) {
-  if (u <= 0) return; const n = Math.max(2, Math.floor(pts.length * clamp(u, 0, 1)));
-  for (const [dx, dy, a, lw] of [[0, 0, 0.92, 7], [1.6, -1.2, 0.41, 3.9]]) {
-    c.save(); c.strokeStyle = `rgba(250,248,240,${a})`; c.lineWidth = lw; c.lineCap = c.lineJoin = 'round'; c.beginPath();
-    for (let i = 0; i < n; i++) { const [x, y] = pts[i], j = (hash(i * 1.7 + x * 0.01) - 0.5) * 1.6; i ? c.lineTo(x + dx + j, y + dy + j) : c.moveTo(x + dx, y + dy); }
-    c.stroke(); c.restore(); }
-}
-const ringPts = (cx, cy, rx, ry) => [...Array(64).keys()].map((i) => { const a = -2.2 + (i / 63) * 2 * Math.PI * 1.12, r = 1 + 0.05 * Math.sin(i * 0.7); return [cx + Math.cos(a) * rx * r, cy + Math.sin(a) * ry * r]; });
+const { GX, GW, GH, FPS } = NR, hash = nHash;
 // The front page, drawn once at 1000 x 1300: invented masthead, a true headline, grey text bars.
 function makePage() { const cv = document.createElement('canvas'); cv.width = 1000; cv.height = 1300; const c = cv.getContext('2d');
   c.fillStyle = '#d9d3c6'; c.fillRect(0, 0, 1000, 1300); c.fillStyle = '#1c1a17';
@@ -329,5 +314,138 @@ scene('toy3d', {
     pin(s.nm.flag, g.proj(V(-0.2, 1.9, -2.4)));
     Object.values(s.nm).forEach((n, i) => lab(s, n, 0.4 + i * 0.05));
     g.render();
+  },
+});
+
+// Draw fn at scale k about (cx, cy), so small catalogue items fill the frame.
+const big = (c, cx, cy, k, fn) => { c.save(); c.translate(cx, cy); c.scale(k, k); c.translate(-cx, -cy); fn(); c.restore(); };
+
+// ============================ riso.js ============================
+scene('riso', {
+  bg: RI.paper,
+  setup(s) {
+    s.c = s.canvas();
+    s.h = header(s, { kicker: 'LIBRARY · RISO.JS', title: 'Risograph', font: FONT.sg, kColor: RI.blue, color: '#1c3f8f' });
+    s.names = [NM(s, "rInk 'blue' · 'pink' · 'yellow'", 520, 760), NM(s, 'halftone', 1360, 760)];
+  },
+  draw(s) {
+    const c = s.c; c.clearRect(0, 0, W, H);
+    showHeader(s, s.h, 0.1);
+    [['blue', 380], ['pink', 520], ['yellow', 660]].forEach(([ink, x]) => rInk(c, ink, 0, (c) => { c.beginPath(); c.arc(x, 520, 120, 0, 7); c.fill(); }));
+    halftone(c, 'blue', 0.26, 0, [1140, 360, 1580, 680], (x) => (x - 1140) / 440, 9);
+    halftone(c, 'pink', 1.31, 0, [1140, 360, 1580, 680], (x, y) => (y - 360) / 320 * 0.6, 9);
+    showAll(s, s.names);
+  },
+});
+
+// ============================ blueprint.js ============================
+scene('blueprint', {
+  bg: BP.sheet,
+  async setup(s) {
+    await document.fonts.load('30px "Architects Daughter"');
+    s.c = s.canvas();
+    s.h = header(s, { kicker: 'LIBRARY · BLUEPRINT.JS', title: 'Whiteprint drafting', font: 'Architects Daughter', tWeight: 400, kColor: BP.ink, color: BP.ink });
+    s.names = [NM(s, 'bpLine (drawing, with nib)', 480, 790, BP.ink), NM(s, 'bpLine · bpArrowHead', 1000, 790, BP.ink), NM(s, 'balloon', 1480, 790, BP.ink)];
+  },
+  draw(s) {
+    const c = s.c; c.clearRect(0, 0, W, H);
+    showHeader(s, s.h, 0.1);
+    big(c, 480, 520, 1.6, () => bpLine(c, bpRect(370, 450, 220, 140), 3.2, 0.7));
+    big(c, 1000, 520, 1.6, () => { bpLine(c, [[900, 590], [1100, 450]], 2.6, 1); bpArrowHead(c, [900, 590], [1100, 450], 1); });
+    big(c, 1480, 520, 2.2, () => { balloon(c, 1445, 520, 'R', 1); balloon(c, 1515, 520, 't', 1); });
+    showAll(s, s.names);
+  },
+});
+
+// ============================ hud.js ============================
+scene('hud', {
+  bg: HU.bg,
+  setup(s) {
+    s.c = s.canvas();
+    s.h = header(s, { kicker: 'LIBRARY · HUD.JS', title: 'HUD terminal', font: HU.mono, kColor: HU.hi, color: HU.txt, tSize: 56 });
+    s.num = s.text('', { x: 1300, y: 520, anchor: 'c', size: 40, font: HU.mono, weight: 500, color: HU.txt });
+    s.names = [NM(s, 'hudBrackets', 560, 760, HU.txt), NM(s, 'roll (digits lock at tLock)', 1300, 760, HU.txt)];
+  },
+  draw(s) {
+    const c = s.c; c.clearRect(0, 0, W, H);
+    showHeader(s, s.h, 0.1);
+    c.save(); c.fillStyle = HU.hi; c.beginPath(); c.arc(560, 500, 150, 0, 7); c.fill(); c.restore();
+    hudBrackets(c, 380, 320, 740, 680, HU.hi, 6, 44);
+    s.num.textContent = roll('p = (0.120, -0.340, 0.750) m', s.t, 1.5, 3);
+    showAll(s, s.names);
+  },
+});
+
+// ============================ toon.js ============================
+scene('toon', {
+  bg: MC.paper,
+  setup(s) {
+    s.c = s.canvas();
+    s.h = header(s, { kicker: 'LIBRARY · TOON.JS', title: 'Mid-century cartoon', kFont: 'Instrument Serif', tWeight: 800, kColor: MC.coralD, color: MC.ink });
+    s.h.k.style.fontStyle = 'italic';
+    s.names = [NM(s, 'presenter', 300, 920), NM(s, 'medallion', 900, 700), NM(s, 'toonDot · toonDot ring', 1380, 700)];
+  },
+  draw(s) {
+    const c = s.c, f = Math.floor(s.t * 12); c.clearRect(0, 0, W, H);
+    showHeader(s, s.h, 0.1);
+    presenter(c, [560, 560], f, 'happy');
+    big(c, 900, 520, 1.8, () => medallion(c, 900, 520, 1, 1, f));
+    big(c, 1380, 520, 2.2, () => [[1300, 500], [1380, 540], [1460, 500]].forEach(([x, y], i) => { toonDot(c, x, y, 22, C.scan, f, i + 1, true); toonDot(c, x, y, 14, K.file, f, 10 + i); }));
+    showAll(s, s.names);
+  },
+});
+
+// ============================ whiteboard.js ============================
+scene('whiteboard', {
+  bg: '#f4f3ef',
+  async setup(s) {
+    await document.fonts.load(`60px "${WBI.font}"`);
+    s.c = s.canvas();
+    s.h = header(s, { kicker: 'LIBRARY · WHITEBOARD.JS', title: 'Whiteboard marker', font: WBI.font, tWeight: 400, kColor: WBI.hl, color: WBI.ink });
+    s.lay = wbLayout(s.c, { x: 200, y: 540, size: 64, toks: [tk('score = '), tk('', WBI.ink, 'sig'), tk(' b', WBI.blue), tk('i', WBI.blue, 'sub'), tk('·(R a'), tk('i', WBI.ink, 'sub'), tk(')')] });
+    s.names = [NM(s, 'tk · wbLayout · wbWrite · wbMarker', 620, 760), NM(s, 'wbBox', 1530, 760)];
+  },
+  draw(s) {
+    const c = s.c; c.clearRect(0, 0, W, H);
+    showHeader(s, s.h, 0.1);
+    big(c, 200, 520, 1.6, () => { const p = wbWrite(c, s.lay, 0.85, 64); wbMarker(c, p, WBI.ink); });
+    wbBox(c, 1360, 400, 1700, 600, 1, WBI.hl);
+    showAll(s, s.names);
+  },
+});
+
+// ============================ transit.js ============================
+scene('transit', {
+  bg: TM.paper,
+  setup(s) {
+    s.c = s.canvas();
+    s.h = header(s, { kicker: 'LIBRARY · TRANSIT.JS', title: 'Transit map', font: 'Inter', tWeight: 600, kColor: TM.red, color: TM.ink });
+    s.names = [NM(s, 'tmLine (growing, pen tip)', 520, 760), NM(s, 'tmStop · tmStop inter · capsule', 1300, 760)];
+  },
+  draw(s) {
+    const c = s.c; c.clearRect(0, 0, W, H);
+    showHeader(s, s.h, 0.1);
+    big(c, 520, 540, 1.5, () => tmLine(c, [[330, 580], [600, 580], [720, 460]], 0.8, C.path));
+    big(c, 1300, 540, 1.5, () => { tmLine(c, [[1060, 580], [1540, 580]], 1, C.corr); tmLine(c, [[1300, 440], [1300, 580]], 1, C.odom);
+      tmStop(c, 1060, 580, C.corr, 1); tmStop(c, 1300, 580, C.corr, 1, true); tmStop(c, 1540, 580, C.corr, 1); capsule(c, 1180, 580, C.corr); });
+    showAll(s, s.names);
+  },
+});
+
+// ============================ watercolour.js ============================
+scene('water', {
+  bg: WC.paper,
+  setup(s) {
+    s.c = s.canvas();
+    s.h = header(s, { kicker: 'LIBRARY · WATERCOLOUR.JS', title: 'Watercolour', font: 'Instrument Serif', tWeight: 400, kColor: WC.ink, color: WC.ink, tSize: 64 });
+    s.names = [NM(s, 'wcWash (wcBlob)', 420, 790), NM(s, 'wcWash (wcRect)', 970, 790), NM(s, 'wcArrow', 1500, 790)];
+  },
+  draw(s) {
+    const c = s.c; c.clearRect(0, 0, W, H);
+    showHeader(s, s.h, 0.1);
+    wcWash(c, wcBlob(420, 500, 210, 210, 3), C.robot, 0.75, 4);
+    wcWash(c, wcRect(790, 300, 360, 400, 5), WC.blueW, 0.8, 6);
+    wcArrow(c, [1300, 500], [1700, 500], C.corr, 16, 1);
+    showAll(s, s.names);
   },
 });

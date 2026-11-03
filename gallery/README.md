@@ -5,7 +5,7 @@ One catalogue project (`script.md`, `scenes.js`, `storyboard.md`, `video.json`) 
 | Scenes | What they show | Picture |
 |---|---|---|
 | the first | a sample part of the newsreel style | `png/newsreel.png` |
-| the last 8 | every item of the shared drawing code in `styles/library/`, one scene per module, with its function name | `png/library-<module>.png` |
+| the last 15 | every item of the shared drawing code in `styles/library/`, one scene per module, with its function name | `png/library-<module>.png` |
 
 `png/all.png` shows these 9 pictures in one grid (3 columns of 640 × 360 tiles, the newsreel first).
 `png/contact-sheet.png` is the top of the gallery's first contact sheet (`make sheet gallery`).

@@ -234,3 +234,13 @@ export function endWipe(s, d, cx = 960, cy = 540, slide = false, dur = 0.6) {
   const k = s.p(s.dur - dur, dur, E.inOut);
   if (slide) showSlide(d, k); else showWipe(d, k, cx, cy);
 }
+
+// ---------- point lists and partial lines ----------
+// A path through points (call fill() or stroke() after it).
+export function polyPath(c, pts, close = false) { c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); if (close) c.closePath(); }
+// Stroke a polyline up to fraction u of its length. Returns the end point (the pen tip), or null.
+export function drawTo(c, pts, u) { u = clamp(u); if (u <= 0) return null; const p = polySlice(pts, u * polyLength(pts)); polyPath(c, p); c.stroke(); return p.at(-1); }
+// n + 1 points on a quadratic curve a -> b with control point m.
+export function bez(a, m, b, n = 40) { const out = []; for (let i = 0; i <= n; i++) { const u = i / n, v = 1 - u; out.push([v * v * a[0] + 2 * v * u * m[0] + u * u * b[0], v * v * a[1] + 2 * v * u * m[1] + u * u * b[1]]); } return out; }
+// n + 1 points on a circular arc.
+export function arcPts(cx, cy, r, a0 = 0, a1 = Math.PI * 2, n = 60) { const out = []; for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n; out.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); } return out; }
