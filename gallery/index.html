@@ -68,6 +68,18 @@ figcaption b { color: var(--ink); font-weight: 700; }
 .screen button { z-index: 2; position: absolute; right: 14px; bottom: 14px; font: 700 14px/1 'Plus Jakarta Sans', sans-serif; color: var(--ink);
   background: rgba(240, 231, 214, .92); border: 0; border-radius: 999px; padding: 9px 15px; cursor: pointer; }
 
+/* The badge for the new clay look: one sticker, tilted like a label stuck on by hand. */
+.new { display: inline-block; background: var(--strike); color: #fff; font-weight: 800; font-size: 15px; letter-spacing: .02em;
+  padding: 6px 12px 5px; border-radius: 8px; transform: rotate(-4deg); box-shadow: 0 6px 10px -6px rgba(20, 20, 30, .45); vertical-align: middle; }
+.hero .new { margin: 0 0 14px; }
+.p-navy .new { margin-left: 12px; transform: rotate(-4deg) translateY(-6px); }
+/* ---------- classic: cream ---------- */
+.p-cream { background: var(--cream); }
+.classic { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px 28px; }
+.classic figure { margin: 0; }
+@media (max-width: 900px) { .classic { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .classic { grid-template-columns: 1fr; } }
+
 /* ---------- part 2: sand ---------- */
 .p-sand { background: var(--sand); }
 .steps { list-style: none; counter-reset: step; padding: 0; margin: 64px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 34px 56px; }
@@ -149,7 +161,8 @@ footer a { color: var(--paper-ink); }
   <a class="repo" href="https://github.com/jjietay/kaleidoscope">jjietay/kaleidoscope</a>
   <nav aria-label="Sections">
     <a href="#how">How it works</a>
-    <a href="#frames">Frames</a>
+    <a href="#frames">Clay</a>
+    <a href="#classic">Classic</a>
     <a href="#checks">Checks</a>
     <a href="#sound">Sound</a>
     <a href="#install">Install</a>
@@ -160,7 +173,8 @@ footer a { color: var(--paper-ink); }
 <section class="wrap hero" aria-label="Introduction">
   <h1>Kaleidoscope</h1>
   <div>
-    <p class="lede">Narrated teaching videos, made in clay by code.</p>
+    <p><span class="new">New: the clay look and its mascot</span></p>
+    <p class="lede">Narrated teaching videos, made in clay by code, or in the classic 2D styles.</p>
     <p>Claude writes the script, the storyboard and the scenes from your conversation and your project. The engine speaks the script on your computer, times each word and draws every frame. A silent mascot does the physical work, and each formula acts out what the voice says.</p>
     <div class="ask">
       <p>In Claude Code, in the conversation where the topic came up, ask:</p>
@@ -204,8 +218,8 @@ footer a { color: var(--paper-ink); }
 
 <section class="part p-navy" id="frames">
   <div class="wrap">
-    <h2>Frames from a finished video</h2>
-    <p class="intro">One clay look, and 28 models that we made in code. Select a picture to see it at full size.</p>
+    <h2>The clay look <span class="new">New</span></h2>
+    <p class="intro">The new default: one soft clay look, 28 models that we made in code, and a silent mascot who does the physical work. These frames come from a finished video. Select a picture to see it at full size.</p>
     <div class="mosaic">
       <figure class="sits a"><a href="png/clay-servo.png"><img src="png/clay-servo.png" width="1280" height="720" loading="lazy" alt="A robot drives toward a flag that the mascot holds. An orange arrow e shows the gap, and a blue arrow k p e shows the push."></a>
         <figcaption><b>Follow the target.</b> The gap e and the push k<sub>p</sub>e are arrows on the robot, and the mascot holds the flag.</figcaption></figure>
@@ -217,6 +231,27 @@ footer a { color: var(--paper-ink); }
         <figcaption><b>Our own models.</b> Each one is made in code from signed distance shapes, so every video looks the same.</figcaption></figure>
       <figure class="sits small e"><a href="png/mascot.png"><img src="png/mascot.png" width="1280" height="720" loading="lazy" alt="Nine faces of the mascot: neutral, smile, surprised, confused, thinking, worried, unimpressed, understanding and sleepy."></a>
         <figcaption><b>He never speaks.</b> Nine expressions react for the viewer.</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section class="part p-cream" id="classic">
+  <div class="wrap">
+    <h2>The classic 2D styles</h2>
+    <p class="intro">The first version of Kaleidoscope drew in 29 flat styles, and they are still here. Ask for them by name, for example "tell its history as a newsreel", and Claude picks a style for each part. They use the same workflow and the same checks as clay. The guides are in <a href="https://github.com/jjietay/kaleidoscope/tree/main/styles/classic">styles/classic</a>.</p>
+    <div class="classic">
+      <figure class="sits small"><a href="png/classic/newsreel.png"><img src="png/classic/newsreel.png" width="1280" height="720" loading="lazy" alt="A 1920s newspaper in a dark film gate, with a grease-pencil ring around the headline."></a>
+        <figcaption><b>Newsreel.</b> A 1920s film gate, for the history of an idea.</figcaption></figure>
+      <figure class="sits small"><a href="png/classic/flat.png"><img src="png/classic/flat.png" width="1280" height="720" loading="lazy" alt="Flat props with faces: a drone, barrels, a laptop and a tank."></a>
+        <figcaption><b>Flat vector.</b> Objects with faces that act out a process.</figcaption></figure>
+      <figure class="sits small"><a href="png/classic/boil.png"><img src="png/classic/boil.png" width="1280" height="720" loading="lazy" alt="Hand-drawn ink jars, a folder, a pencil and envelopes."></a>
+        <figcaption><b>Line boil.</b> Ink that boils like a hand-drawn cartoon.</figcaption></figure>
+      <figure class="sits small"><a href="png/classic/pixel.png"><img src="png/classic/pixel.png" width="1280" height="720" loading="lazy" alt="Pixel art: a shelf, a crate, a GPU and two small workers with a dialogue box."></a>
+        <figcaption><b>Pixel art.</b> A small world with typed dialogue.</figcaption></figure>
+      <figure class="sits small"><a href="png/classic/riso.png"><img src="png/classic/riso.png" width="1280" height="720" loading="lazy" alt="Three overlapping ink discs and a halftone tint."></a>
+        <figcaption><b>Risograph.</b> Inks that multiply, like a printed poster.</figcaption></figure>
+      <figure class="sits small"><a href="png/classic/blueprint.png"><img src="png/classic/blueprint.png" width="1280" height="720" loading="lazy" alt="Blue drafting lines with an arrowhead and part balloons."></a>
+        <figcaption><b>Blueprint.</b> A mechanism drawn in drafting order.</figcaption></figure>
     </div>
   </div>
 </section>

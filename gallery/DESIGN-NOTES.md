@@ -14,6 +14,7 @@ colour, as two parts in a video never do.
 | opening | sky `#a9c4cf` |
 | how a video is made | sand `#e4d3b7` |
 | frames | navy `#27324a` (light text, the only dark part, so the frames stand out) |
+| classic 2D styles | cream `#f0e7d6` (six of the old styles, one frame each) |
 | checks | lilac `#b9b3cf` |
 | sound | blush `#e6bfae` |
 | install | clay `#c98f6b` |
@@ -28,7 +29,8 @@ colour, as two parts in a video never do.
 3. **One accent from the product.** Links are underlined in the pink of a cancel strike in `eqn.js`.
    Text stays dark ink, because pink text is too faint on the pastel backgrounds.
 4. **The memorable element.** Each picture sits on a soft contact shadow, like a model on the floor of
-   the clay studio. Nothing else has a shadow.
+   the clay studio. Nothing else has a shadow. The one exception to the quiet type is the pink "New" sticker on the clay
+   look: tilted like a label stuck on by hand, in the cancel pink, and used only twice.
 5. **Soft, but not one radius everywhere.** Large pictures have a 22 px radius, small ones and panels
    14 px, buttons are pills. No borders and no hairline rules.
 6. **Numbers only for a sequence.** The six pipeline steps are numbered because they run in order.
