@@ -45,15 +45,17 @@ const gpuNote = gpuName ? `NVIDIA ${gpuName.replace(/^NVIDIA /, '')}` : appleSil
 
 // ---------- questions ----------
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-async function ask(q, def, choices) {
+// Each prompt shows its options and its default; Enter takes the default.
+async function ask(q, def, choices, show) {
   if (YES) return def;
+  const opts = show || (choices ? choices.join('/') : 'a path');
   for (;;) {
-    const a = (await rl.question(`${q} [${def}]: `)).trim() || def;
+    const a = (await rl.question(`${q} (${opts}) [Enter = ${def}]: `)).trim() || def;
     if (!choices || choices.includes(a.toLowerCase())) return choices ? a.toLowerCase() : a;
     console.log(`  Type one of: ${choices.join(', ')}`);
   }
 }
-const yesNo = async (q, def) => (await ask(q, def ? 'y' : 'n', ['y', 'n', 'yes', 'no'])).startsWith('y');
+const yesNo = async (q, def) => (await ask(q, def ? 'y' : 'n', ['y', 'n', 'yes', 'no'], 'y/n')).startsWith('y');
 
 console.log(`\n${bold('Kaleidoscope setup')}\nThis installs the Kaleidoscope skill for Claude Code. It asks 4 questions,\nthen shows the plan before it changes anything.\n`);
 for (const [name, ok, note, needed] of checks) console.log(`  ${ok ? 'ok  ' : needed ? 'MISS' : 'miss'}  ${name.padEnd(7)} ${note}`);
