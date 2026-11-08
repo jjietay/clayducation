@@ -30,7 +30,9 @@ export function editDistance(a, b) {
 const SOUNDS = { row: 'rho', pie: 'pi', new: 'nu', mew: 'mu', sigh: 'xi', fee: 'phi', kai: 'chi' };
 export function extraWords(scriptText, heardWords) {
   const A = sayable(scriptText), owner = [], B = [];
-  const said = heardWords.map((h) => { const w = h.toLowerCase().replace(/[^a-z]/g, ''); return SOUNDS[w] || h; });
+  // A sound-alike counts as its Greek letter only when the script has that letter and not the word.
+  const words = new Set(scriptText.split(/\s+/).map(sayable));
+  const said = heardWords.map((h) => { const w = h.toLowerCase().replace(/[^a-z]/g, ''); return SOUNDS[w] && !words.has(w) && words.has(SOUNDS[w]) ? SOUNDS[w] : h; });
   said.forEach((h, k) => { for (const c of sayable(h)) { B.push(c); owner.push(k); } });
   const n = A.length, m = B.length, D = Array.from({ length: n + 1 }, (_, i) => new Int32Array(m + 1).fill(0).map((_, j) => (i ? (j ? 0 : i) : j)));
   for (let i = 1; i <= n; i++) for (let j = 1; j <= m; j++) D[i][j] = Math.min(D[i - 1][j] + 1, D[i][j - 1] + 1, D[i - 1][j - 1] + (A[i - 1] === B[j - 1] ? 0 : 1));
