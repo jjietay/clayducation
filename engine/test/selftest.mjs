@@ -107,6 +107,14 @@ try {
   report('labels that cross-fade on one spot are caught', fs.existsSync(ovf) && /First label.*Second label|Second label.*First label/.test(fs.readFileSync(ovf, 'utf8')), rv.out.slice(-400));
   fs.writeFileSync(path.join(dir, 'scenes.js'), before);
 
+  // ---------- the classic 2D styles load, by their path and by the path from before the move ----------
+  const vj = fs.readFileSync(path.join(dir, 'video.json'), 'utf8');
+  fs.writeFileSync(path.join(dir, 'video.json'), JSON.stringify({ title: 'selftest', _look: 'classic' }));
+  fs.writeFileSync(path.join(dir, 'scenes.js'), `import { K } from '/_lib/classic/common.js';\nimport { barrel } from '/_lib/flat.js';\nscene('clean', { bg: '#f0e7d6', setup(s) { if (!K || typeof barrel !== 'function') throw new Error('classic modules missing'); s.a = s.text('Classic', { x: 960, y: 300, size: 40, color: '#222' }); }, draw(s) {} });\n`);
+  const ck = make('check', dir);
+  report('the classic modules load by both paths', ck.code === 0 && !/classic modules missing|not found|ERROR/.test(ck.out), ck.out.slice(-400));
+  fs.writeFileSync(path.join(dir, 'scenes.js'), before); fs.writeFileSync(path.join(dir, 'video.json'), vj);
+
   // ---------- the voice stays when the script stays ----------
   const V = spawnSync(process.execPath, ['--input-type=module', '-e', `import { createHash } from 'node:crypto'; import fs from 'node:fs'; const d = ${JSON.stringify(dir)}, c = JSON.parse(fs.readFileSync(d + '/video.json', 'utf8')); process.stdout.write(createHash('sha1').update(fs.readFileSync(d + '/script.md')).update(JSON.stringify([c._tts || {}, c.fps, c.lead, c.hold, c.end])).digest('hex'));`], { encoding: 'utf8' });
   fs.writeFileSync(path.join(dir, 'build', 'voice.stamp'), V.stdout);

@@ -139,6 +139,16 @@ choose its own in `video.json`: `"_tts": {"engine": "kokoro"}`. Without a GPU, C
 the frames with SwiftShader and ffmpeg encodes with libx264; a render takes longer, and the
 frames are the same.
 
+## The classic 2D look (only when the user asks)
+
+Clay is the default for every video. Use the classic 2D styles only when the user asks for them, or
+names one of them ("tell its history as a newsreel"). The workflow is the same for both looks:
+every step below, the one script agent, `make look` after each edit and the gates. Only steps 6 and
+8 change: read `styles/classic/README.md` in place of `styles/clay.md`, and set
+`"_look": "classic"` in `video.json`. A classic video mixes styles, one per part. It has no mascot.
+Never mix clay and classic in one video. The clay measures (body shapes, holds) do not apply to it;
+every other check does, and formulas must act out the voice in both looks.
+
 ## Workflow
 
 1. **Collect context (no tool calls needed).** Note what the user already knows (level,
@@ -161,7 +171,7 @@ frames are the same.
    reads, pacing, **formulas**, writing rules, markup, voice traps. Compute each number with
    code where you can, and do not type it from memory.
 
-6. **Write `storyboard.md`.** Read `styles/clay.md`. Then:
+6. **Write `storyboard.md`.** Read `styles/clay.md` (classic: `styles/classic/README.md`). Then:
    - Split the script into **parts** (about 15 to 40 s each; a part can hold several
      `## scene` ids that share one picture).
    - For each part, write: the background, the camera, what the mascot does, the objects, how
@@ -177,7 +187,7 @@ frames are the same.
    "must" and each "should" that serves the learning goal. Check a claim before you act on it: a
    reviewer can be wrong. Do not run it a second time unless a fix changes the facts.
 
-8. **Build the scenes.** Read `reference/engine.md` and `styles/clay.md`. Each "## id" in
+8. **Build the scenes.** Read `reference/engine.md` and `styles/clay.md` (classic: the style files you chose). Each "## id" in
    `script.md` needs one `scene('id', ...)` in `scenes.js`. Show each thing when the voice says it
    (`s.p('#cue')`, `s.p('word')`). When one part holds several scene ids, the next scene starts
    from the exact last frame of the one before, so the part looks like one shot. Load fonts before
@@ -271,6 +281,7 @@ frames are the same.
 | `styles/clay.md` | at step 6: the look, the mascot and his controls, every model and its moving parts |
 | `styles/library/clay/` | the kit: `sdf.js` (shapes), `mascot.js`, `models.js`; `make bake` saves the shapes, `make clay` draws vetting sheets |
 | `styles/math-manim.md` | only for a formula that changes step by step |
+| `styles/classic/` | only when the user asks for the classic 2D look: `README.md` (choose a style per part), one guide per style, the drawing code in `styles/library/classic/` |
 | `reference/engine.md` | before step 8: the scene API and every command |
 | `SOUND.md` | when you choose the music or add sound effects, or the user asks for a new track or sound: the rules, the tracks and their recipes, the sound kit and its levels |
 | `agents/video-script.md` | the script agent (step 7), linked from `~/.claude/agents/`. You do not need to read it |

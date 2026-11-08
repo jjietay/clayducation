@@ -37,6 +37,9 @@ In Claude Code, in the conversation where the topic came up:
 One look for every video: soft 3D clay, plain backgrounds and flat text.
 [`styles/clay.md`](styles/clay.md) has the mascot, his controls and the 28 models.
 
+The older 2D styles are still there when you ask for them by name, for example "tell its history
+as a newsreel". They use the same workflow and checks; see [`styles/classic/README.md`](styles/classic/README.md).
+
 <img src="gallery/png/mascot.png" alt="The mascot's nine expressions: neutral, smile, surprised, confused, thinking, worried, unimpressed, understanding, sleepy" width="100%">
 
 ## Install
@@ -76,7 +79,7 @@ stops it now, and `make selftest` plants each one and confirms that the engine c
 | `agents/` | the script agent; the install links it into `~/.claude/agents` |
 | `engine/` | the self-test in `test/`, the command line `make.mjs`, the page runtime, fonts, the voice in `tts/`, the music in `music.mjs`, the sound effects in `sfx.mjs`, Manim in `manim/`, and the project template |
 | `reference/` | the engine API, the script rules and the fault register |
-| `styles/` | the clay look (`clay.md`), Manim for formulas, and the kit in `styles/library/` |
+| `styles/` | the clay look (`clay.md`), Manim for formulas, the kit in `styles/library/`, and the classic 2D styles in `classic/` |
 | `gallery/` | the gallery page, its pictures in `png/`, 30 s previews of the music tracks in `music/` and of the sound effects in `sfx/` |
 
 ## Credits

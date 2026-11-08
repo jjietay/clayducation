@@ -1,0 +1,23 @@
+{
+  "title": "Classic catalogue",
+  "_look": "classic",
+  "_tts": {
+    "exaggeration": 0.5,
+    "cfg_weight": 0.5,
+    "stopGap": 0.6,
+    "paragraphGap": 1,
+    "seeds": {
+      "desktop": 7
+    }
+  },
+  "fps": 30,
+  "lead": 0.6,
+  "hold": 1.5,
+  "end": 2,
+  "_render": {
+    "music": true,
+    "musicVolume": 0.37,
+    "sfx": true,
+    "sfxVolume": 1
+  }
+}
