@@ -38,6 +38,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { music } from './music.mjs';
 import { sfxTrack, lint as sfxLint, timelineWords, writeWav as writeSfxWav } from './sfx.mjs';
+import { sayable, editDistance, extraWords } from './voicecheck.mjs';
 
 const ENGINE = path.dirname(fileURLToPath(import.meta.url));
 const EXR = process.env.EXPLAINROO_HOME || path.join(os.homedir(), '.explainroo');
@@ -245,26 +246,6 @@ function init() {
 // Whisper, as for a recording. A part = the words between two [pause] marks, read in
 // one call, so the tone carries across sentences; the pause is silence we add.
 const TTS_PY = path.join(ENGINE, 'tts', '.venv', 'bin', 'python');
-// Number words, so Whisper's digits ("-1", "3") compare with the script's words.
-const NUM = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
-const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
-const numWords = (n) => (n < 20 ? NUM[n] : n < 100 ? TENS[Math.floor(n / 10)] + (n % 10 ? NUM[n % 10] : '') : String(n));
-// Letters only, numbers spelt out, "minus" and "negative" counted as one word: two texts
-// that read the same compare equal however Whisper spaces or punctuates them.
-const sayable = (text) => text.toLowerCase()
-  .replace(/(^|[^\d.])-(?=\d)/g, '$1 negative ').replace(/\bminus\b/g, 'negative')
-  .replace(/\d+(\.\d+)?/g, (m) => m.includes('.') ? m.split('.').map((x) => [...x].map((d) => NUM[d]).join('')).join('point') : numWords(+m))
-  .replace(/[^a-z]/g, '');
-function editDistance(a, b) {
-  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
-  for (let i = 1; i <= a.length; i++) {
-    const cur = [i];
-    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-    prev = cur;
-  }
-  return prev[b.length];
-}
-
 // What Whisper hears in a spoken part (cached next to it).
 async function heardWords(raw) {
   const wordsFile = raw.replace(/\.wav$/, '.words.json');
@@ -299,7 +280,7 @@ async function takeReport(part) {
     }
     first = i + 1;
   }
-  return { d, heard: heard.map((w) => w.text).join(' '), clauses };
+  return { d, extra: extraWords(part.text, heard.map((w) => w.text)), heard: heard.map((w) => w.text).join(' '), clauses };
 }
 
 async function chatterbox(dir, shadow, cfg) {
@@ -337,6 +318,10 @@ async function chatterbox(dir, shadow, cfg) {
     close(0);
     for (const [i, x] of parts.entries()) {
       x.id = `${sc.id}#${i + 1}`;
+      // The same letter spelt out two or more times ("E E E") becomes "E, E, E" below, and the
+      // voice read it as "e, ee" in video 1, which Whisper still writes as "EEE".
+      const twin = x.text.match(/\b([a-z])(?: \1\b)+/i);
+      if (twin) console.log(`WARN voice ${x.id}: "${twin[0]}" repeats one letter, and the voice reads it badly. Say a word instead, for example {EEE|triple E}.`);
       // The same short word twice ("one one") trips the voice: a comma between them fixes it.
       x.text = x.text.replace(/\b(\w+) (\1)\b/gi, '$1, $2');
       // A seed set by hand in video.json wins, then one found good before, then the default.
@@ -354,7 +339,7 @@ async function chatterbox(dir, shadow, cfg) {
   const takes = new Map(); // part id -> [{ seed, raw, report }]
   const fixed = (p) => t.seeds?.[p.id] !== undefined || t.seeds?.[p.id.split('#')[0]] !== undefined;
   let median = 0;
-  const score = (r) => (r.d >= 3 ? 1e6 + r.d : 0) + Math.max(0, ...r.clauses.map((c) => c.rate / median));
+  const score = (r) => (r.d >= 3 || r.extra?.length ? 1e6 + r.d : 0) + Math.max(0, ...r.clauses.map((c) => c.rate / median));
   for (let round = 0; ; round++) {
     fs.writeFileSync(jobs, JSON.stringify({ params, cache: path.join(dir, 'build', 'tts-cache'), scenes }, null, 1));
     const r = spawnSync(TTS_PY, [path.join(ENGINE, 'tts', 'chatterbox_voice.py'), jobs], { stdio: 'inherit' });
@@ -373,7 +358,7 @@ async function chatterbox(dir, shadow, cfg) {
     if (!retake.length || round >= t.retakes) {
       for (const p of bad) {
         const best = takes.get(p.id).find((x) => x.seed === p.seed).report;
-        if (best.d >= 3) console.log(`WARN voice ${p.id}: after ${round} retake(s) it still says something else.\n  script: ${p.text}\n  heard:  ${best.heard}\n  If only the spelling differs, ignore this. Otherwise reword the part or set a seed in video.json ("_tts": {"seeds": {"${p.id}": 20}}).`);
+        if (best.d >= 3 || best.extra?.length) console.log(`WARN voice ${p.id}: after ${round} retake(s) it still says something else${best.extra?.length ? ` (words not in the script: ${best.extra.join(', ')})` : ''}.\n  script: ${p.text}\n  heard:  ${best.heard}\n  If only the spelling differs, ignore this. Otherwise reword the part or set a seed in video.json ("_tts": {"seeds": {"${p.id}": 20}}).`);
         const why = fixed(p) ? 'its seed is set by hand in video.json, so it was not retaken' : `after ${round} retake(s)`;
         for (const c of best.clauses) if (c.rate > median * 1.3) console.log(`WARN fast ${p.id}: "${c.text}" at ${(c.rate / median).toFixed(2)} times the usual pace (${why}). Give it its own short sentence and a [pause] after it.`);
       }
