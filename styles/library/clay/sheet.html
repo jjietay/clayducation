@@ -106,12 +106,22 @@ async function modelSheet(name) {
   const m = buildModel(THREE, name), i = MODEL_NAMES.indexOf(name) + 1;
   el.style.gridTemplateColumns = 'repeat(4, 400px)';
   title(`${i}. ${m.label}`);
+  el.lastChild.style.gridColumn = '1 / -1';
   const sh = ground(m.root); scene.add(m.root, sh);
   cell(shoot(400, 440, orbit(m.root, 35, 16)), 400, 440, 'Front');
   cell(shoot(400, 440, orbit(m.root, 215, 16)), 400, 440, 'Back');
   cell(shoot(400, 440, orbit(m.root, 30, 62)), 400, 440, 'Top');
   if (m.hasPose) m.setPose(1);
   cell(shoot(400, 440, orbit(m.root, -38, 14)), 400, 440, m.moving);
+  if (m.hasPose) m.setPose(0);
+  // The size against the mascot, who stands about 8.6 units tall, at the model's left.
+  const b = new THREE.Box3().setFromObject(m.root), hero = createMascot(THREE, {});
+  hero.root.position.set(b.min.x - 2.6, 6.82, (b.min.z + b.max.z) / 2);
+  scene.add(hero.root, ground(hero.root));
+  const all = new THREE.Box3().setFromObject(m.root).union(new THREE.Box3().setFromObject(hero.root)), c = new THREE.Vector3(), sp = new THREE.Sphere(); all.getCenter(c); all.getBoundingSphere(sp);
+  const d = sp.radius / Math.sin(10 * Math.PI / 180) * 1.25;
+  cell(shoot(800, 440, { pos: [c.x + d * 0.17, c.y + d * 0.2, c.z + d * 0.96], target: [c.x, c.y, c.z], fov: 20 }), 800, 440, 'With the mascot');
+  el.lastChild.style.gridColumn = 'span 2';
 }
 sheets.group = async () => {
   el.style.gridTemplateColumns = '1600px';

@@ -14,7 +14,7 @@
 //   node make.mjs stable [dir] [--every s]  draws each sampled frame twice: a frame that differs is a GPU drop-out
 //   node make.mjs still [dir] <t|scene|scene@t|scene@end|scene@#mark|scene@word> ...
 //   node make.mjs review [dir] [--fps n]    build/review/: motion flags, measured overlaps and a grid at each cue
-//   node make.mjs bake [--only mascot|models]   compute the clay shapes once, to styles/library/clay/cache
+//   node make.mjs bake [--only mascot|models|a,b]   compute the clay shapes once, to styles/library/clay/cache
 //   node make.mjs attached                  measures that every part of every model touches the rest
 //   node make.mjs clay [sheet]              vetting sheets of the mascot and models, to styles/library/clay/sheets
 //   node make.mjs look [dir] [--scene a,b]  after each edit: measure the changed scenes, draw their near frames and moving parts
@@ -1611,8 +1611,11 @@ async function bake() {
     fs.writeFileSync(path.join(dir, `${k}.bin`), Buffer.concat([d.pos, d.nor, d.col, d.tri].map((a) => Buffer.from(a.buffer, a.byteOffset, a.byteLength))));
     man[k] = { v: d.pos.length / 3, t: d.tri.length };
   };
-  if (only !== 'models') createMascot(THREE, { step: 0.018, bodyStep: 0.03, fine: 0.012 });
-  if (only !== 'mascot') for (const n of ALL_MODELS) buildModel(THREE, n);
+  // --only takes mascot, models, or a list of model names: "--only apple,pear" bakes only those.
+  const pick = ['all', 'mascot', 'models'].includes(only) ? null : only.split(',');
+  for (const n of pick || []) if (!ALL_MODELS.includes(n)) die(`no model named "${n}"`);
+  if (only === 'all' || only === 'mascot') createMascot(THREE, { step: 0.018, bodyStep: 0.03, fine: 0.012 });
+  if (only !== 'mascot') for (const n of ALL_MODELS) if (!pick || pick.includes(n)) buildModel(THREE, n);
   fs.writeFileSync(file, JSON.stringify(man));
   console.log(`baked ${Object.keys(man).length} shapes in ${((Date.now() - t0) / 1000).toFixed(0)} s: ${dir}`);
   if (only !== 'mascot') await attached();
