@@ -21,12 +21,6 @@ function lobe(x, y, z, cx, cy, dx, dy, a, b, c) {
   return ell(px * dx + py * dy, -px * dy + py * dx, z, 0, 0, 0, a, b, c);
 }
 
-// The kit meshes each part at about 1/85 of its largest size, so a small part (a joint ball) gets
-// very fine cells and many triangles. coarse(f) adds a point in empty space in front of the
-// robot, at (0, 3, 3), where the distance never goes below 0.2. It makes no surface, but it makes
-// the part's bounds large, so the part meshes at the kit's largest step (0.032), as the tank does.
-const coarse = (f) => (x, y, z) => Math.min(f(x, y, z), Math.hypot(x, y - 3, z - 3) + 0.2);
-
 // A fish on its belly, head at +x, so the side of the fish faces the camera. o: body sizes.
 function fish(o) {
   return {
@@ -55,15 +49,15 @@ export const MODELS = {
     label: 'Face picture on an easel',
     make() {
       const m = def(), FLAT = (z) => -0.06 - z;   // the relief stays in front of the panel's back
-      m.add('frame', lean((x, y, z) => smax(rbox(x, y, z, 0, 4.9, 0, 1.5, 1.9, 0.12, 0.1), -rbox(x, y, z, 0, 4.9, 0, 1.22, 1.62, 0.5, 0.03), 0.04)), PAL.wood);
-      m.add('panel', lean((x, y, z) => rbox(x, y, z, 0, 4.9, -0.03, 1.24, 1.64, 0.05, 0.03)), C.sky);
+      m.add('frame', lean((x, y, z) => smax(rbox(x, y, z, 0, 4.9, 0, 1.5, 1.9, 0.12, 0.1), -rbox(x, y, z, 0, 4.9, 0, 1.22, 1.62, 0.5, 0.03), 0.04)), PAL.wood, { step: 0.04 });
+      m.add('panel', lean((x, y, z) => rbox(x, y, z, 0, 4.9, -0.03, 1.24, 1.64, 0.05, 0.03)), C.sky, { step: 0.05 });
       m.add('shirt', lean((x, y, z) => smax(smax(ell(x, y, z, 0, 3.4, 0, 1.0, 0.62, 0.14), 3.3 - y, 0.02), FLAT(z), 0.02)), C.shirt);
       m.add('hair', lean((x, y, z) => smax(smin(ell(x, y, z, 0, 5.2, 0, 0.8, 0.95, 0.1), ell(x, y, z, 0.08, 5.62, 0.1, 0.62, 0.24, 0.12), 0.12), FLAT(z), 0.02)), C.hair);
       m.add('face', lean((x, y, z) => smax(smin(ell(x, y, z, 0, 4.95, 0.04, 0.62, 0.8, 0.17), cone(x, y, z, 0, 4.3, 0.0, 0, 3.85, 0.0, 0.2, 0.21), 0.08), FLAT(z), 0.02)), C.skin);
       m.add('eyes', lean((x, y, z) => ell(Math.abs(x), y, z, 0.22, 5.0, 0.19, 0.075, 0.09, 0.04)), PAL.ink);
       m.add('nose', lean((x, y, z) => ell(x, y, z, 0, 4.8, 0.21, 0.07, 0.08, 0.05)), C.nose);
       m.add('smile', lean((x, y, z) => smax(torus(x, y, z, 0, 4.66, 0.17, 'z', 0.2, 0.035), y - 4.56, 0.02)), C.mouth);
-      m.add('ledge', lean((x, y, z) => rbox(x, y, z, 0, 2.92, 0.03, 1.7, 0.08, 0.29, 0.06)), PAL.wood);
+      m.add('ledge', lean((x, y, z) => rbox(x, y, z, 0, 2.92, 0.03, 1.7, 0.08, 0.29, 0.06)), PAL.wood, { step: 0.04 });
       for (const [n, sx] of [['legL', 1], ['legR', -1]]) m.add(n, lean((x, y, z) => cone(x, y, z, sx * 1.1, 0.12, -0.24, sx * 0.15, 7.3, -0.24, 0.1, 0.08)), C.easel);
       m.add('top', lean((x, y, z) => ell(x, y, z, 0, 7.3, -0.25, 0.26, 0.17, 0.18)), C.easel);
       m.add('legBack', (x, y, z) => cone(x, y, z, 0, 7.2, -1.0, 0, 0.1, -2.3, 0.08, 0.09), C.easel);
@@ -97,9 +91,9 @@ export const MODELS = {
       m.add('base', (x, y, z) => rbox(x, y, z, 0, 0.12, 0, 1.7, 0.1, 0.2, 0.09), PAL.ink);
       for (const [n, sx] of [['footL', 1], ['footR', -1]]) m.add(n, (x, y, z) => rbox(x, y, z, sx * 1.7, 0.12, 0, 0.22, 0.12, 0.9, 0.11), PAL.ink);
       m.add('post', (x, y, z) => cone(x, y, z, 0, 0.2, 0, 0, 0.8, 0, 0.17, 0.17), PAL.ink);
-      m.add('panel', (x, y, z) => rbox(x, y, z, 0, 3.2, 0, 3.02, 2.02, 0.05, 0.03), PAL.white, { pivot: [0, 3.2, 0] });
-      m.add('frame', (x, y, z) => smax(rbox(x, y, z, 0, 3.2, 0, 3.2, 2.2, 0.12, 0.11), -rbox(x, y, z, 0, 3.2, 0, 3.0, 2.0, 0.5, 0.02), 0.03), PAL.grey, { parent: 'panel' });
-      m.add('roller', (x, y, z) => rcyl(x, y, z, 0, 5.45, -0.02, 'x', 0.24, 3.4, 0.1), PAL.ink, { parent: 'panel' });
+      m.add('panel', (x, y, z) => rbox(x, y, z, 0, 3.2, 0, 3.02, 2.02, 0.05, 0.03), PAL.white, { pivot: [0, 3.2, 0], step: 0.05 });
+      m.add('frame', (x, y, z) => smax(rbox(x, y, z, 0, 3.2, 0, 3.2, 2.2, 0.12, 0.11), -rbox(x, y, z, 0, 3.2, 0, 3.0, 2.0, 0.5, 0.02), 0.03), PAL.grey, { parent: 'panel', step: 0.04 });
+      m.add('roller', (x, y, z) => rcyl(x, y, z, 0, 5.45, -0.02, 'x', 0.24, 3.4, 0.1), PAL.ink, { parent: 'panel', step: 0.04 });
       m.add('collar', (x, y, z) => rcyl(x, y, z, 0, 0.95, 0, 'y', 0.26, 0.1, 0.04), PAL.grey, { parent: 'panel' });
       return m;
     },
@@ -132,9 +126,9 @@ export const MODELS = {
   },
   humanoid: {
     label: 'Humanoid robot',
+    step: 0.038,
     make() {
-      const k = def(), O = PAL.robot, K = PAL.ink;
-      const m = { add: (n, f, c, o) => k.add(n, coarse(f), c, o) };
+      const m = def(), O = PAL.robot, K = PAL.ink;
       m.add('pelvis', (x, y, z) => rbox(x, y, z, 0, 3.38, 0, 0.76, 0.28, 0.44, 0.24), K, { pivot: [0, 3.38, 0] });
       // Legs: hip at y 3.3, knee at 1.85, ankle at 0.5. L is the robot's left, at +x. Each limb
       // stops short of its joint, so the ink ball shows and a bent joint does not fold into itself.
@@ -163,7 +157,7 @@ export const MODELS = {
         m.add(`elbow${s}`, (x, y, z) => ell(x, y, z, ax, 3.95, 0, 0.26, 0.26, 0.26), K, { parent: `fore${s}` });
         m.add(`hand${s}`, (x, y, z) => ell(x, y, z, ax, 2.86, 0.02, 0.21, 0.26, 0.22), K, { parent: `fore${s}` });
       }
-      return k;
+      return m;
     },
     pose(g) {
       g.thighL.rotation.x = -0.9; g.shinL.rotation.x = 1.0; g.footL.rotation.x = -0.1;
