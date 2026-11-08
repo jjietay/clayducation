@@ -100,6 +100,32 @@ export const MODELS = {
     pose(g) { g.panel.rotation.y = 0.87; },
     moving: 'Panel turns',
   },
+  // A screen and a flat light panel on one turning frame, for parallel shadows (a projection). The stand in the
+  // middle is fixed: a column with a round top at y 2.58 that can hold fish. The frame turns about the y axis
+  // (arms.rotation.y). The screen face is the plane z = -5.55 in the arms group, x +-3, y 1.6 to 5.6, and it faces +z;
+  // the light face is the plane z = 5.52, x +-2.6, y 1.9 to 5.3, and it faces -z. So the rays run along -z of the arms.
+  rig: {
+    label: 'Screen and light panel on a turning frame',
+    make() {
+      const m = def(), SZ = -5.6, LZ = 5.6, CY = 3.6;
+      m.add('base', (x, y, z) => rcyl(x, y, z, 0, 0.1, 0, 'y', 1.0, 0.1, 0.06), PAL.ink);
+      m.add('column', (x, y, z) => cone(x, y, z, 0, 0.18, 0, 0, 2.44, 0, 0.28, 0.24), PAL.ink);
+      m.add('top', (x, y, z) => rcyl(x, y, z, 0, 2.5, 0, 'y', 2.3, 0.08, 0.05), PAL.wood, { step: 0.04 });
+      m.add('arms', (x, y, z) => smax(rbox(x, y, z, 0, 0.45, 0, 0.13, 0.1, 5.65, 0.08), 0.45 - Math.abs(z), 0.02), PAL.ink, { pivot: [0, 0, 0], step: 0.04 });
+      m.add('ring', (x, y, z) => torus(x, y, z, 0, 0.45, 0, 'y', 0.4, 0.14), PAL.ink, { parent: 'arms' });
+      for (const [n, cz] of [['sFoot', SZ], ['lFoot', LZ]]) m.add(n, (x, y, z) => rcyl(x, y, z, 0, 0.2, cz, 'y', 0.26, 0.17, 0.06), PAL.grey, { parent: 'arms' });
+      m.add('sPost', (x, y, z) => cone(x, y, z, 0, 0.4, SZ, 0, 1.55, SZ, 0.15, 0.15), PAL.ink, { parent: 'arms' });
+      m.add('sFrame', (x, y, z) => smax(rbox(x, y, z, 0, CY, SZ, 3.2, 2.2, 0.12, 0.11), -rbox(x, y, z, 0, CY, SZ, 3.0, 2.0, 0.5, 0.02), 0.03), PAL.grey, { parent: 'arms', step: 0.04 });
+      m.add('panel', (x, y, z) => rbox(x, y, z, 0, CY, SZ, 3.02, 2.02, 0.05, 0.03), PAL.white, { parent: 'arms', step: 0.05 });
+      m.add('roller', (x, y, z) => rcyl(x, y, z, 0, CY + 2.25, SZ - 0.02, 'x', 0.24, 3.4, 0.1), PAL.ink, { parent: 'arms', step: 0.04 });
+      m.add('lPost', (x, y, z) => cone(x, y, z, 0, 0.4, LZ, 0, 1.85, LZ, 0.15, 0.15), PAL.ink, { parent: 'arms' });
+      m.add('lFrame', (x, y, z) => smax(rbox(x, y, z, 0, CY, LZ, 2.75, 1.85, 0.14, 0.08), -rbox(x, y, z, 0, CY, LZ, 2.6, 1.7, 0.5, 0.02), 0.03), PAL.ink, { parent: 'arms', step: 0.04 });
+      m.add('light', (x, y, z) => rbox(x, y, z, 0, CY, LZ, 2.62, 1.72, 0.08, 0.03), C.lens, { parent: 'arms', led: C.lens, step: 0.05 });
+      return m;
+    },
+    pose(g) { g.arms.rotation.y = 0.8; },
+    moving: 'Frame turns about the column',
+  },
   gauge: {
     label: 'Dial gauge',
     make() {
@@ -176,6 +202,7 @@ export const JOINS = {
   seabass: [['fins', 'body'], ['eyes', 'body']],
   lamp: [['hub', 'column'], [/^leg/, 'hub'], ['swivel', 'column'], ['yoke', 'swivel'], ['knobs', 'yoke'], ['knobs', 'head'], ['rim', 'head'], ['lens', 'rim']],
   screen: [[/^foot/, 'base'], ['post', 'base'], ['collar', 'post'], ['collar', 'frame'], ['panel', 'frame'], ['roller', 'frame']],
+  rig: [['column', 'base'], ['top', 'column'], ['ring', 'arms'], [/^[sl]Foot$/, 'arms'], [/^[sl]Post$/, 'arms'], ['sFrame', 'sPost'], ['panel', 'sFrame'], ['roller', 'sFrame'], ['lFrame', 'lPost'], ['light', 'lFrame']],
   gauge: [['post', 'base'], ['post', 'case'], ['bezel', 'case'], ['face', 'case'], [/^arc/, 'face'], ['ticks', 'face'], ['pin', 'face'], ['needle', 'pin']],
   humanoid: [
     [/^hip(.)$/, 'pelvis'], [/^thigh(.)$/, 'hip$1'], [/^knee(.)$/, 'thigh$1'], [/^shin(.)$/, 'knee$1'], [/^ankle(.)$/, 'shin$1'], [/^foot(.)$/, 'ankle$1'],
