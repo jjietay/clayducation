@@ -112,13 +112,15 @@ export const MODELS = {
   },
   fence: {
     label: 'Fence panel and post',
+    // A waist-high garden fence at real size (1 m is about 5 units). Copies go 4 apart along x.
+    step: 0.05,
     make() {
-      const m = def();
-      m.add('post', (x, y, z) => smin(rbox(x, y, z, 0, 1.06, 0, 0.15, 1.06, 0.15, 0.07), ell(x, y, z, 0, 2.12, 0, 0.17, 0.12, 0.17), 0.08), PAL.cream);
-      m.add('rails', (x, y, z) => Math.min(rbox(x, y, z, 1.04, 0.68, 0, 0.96, 0.08, 0.06, 0.05), rbox(x, y, z, 1.04, 1.58, 0, 0.96, 0.08, 0.06, 0.05)), PAL.white);
+      const m = def(), P = 4 / 6;
+      m.add('post', (x, y, z) => smin(rbox(x, y, z, 0, 2.2, 0, 0.3, 2.2, 0.3, 0.14), ell(x, y, z, 0, 4.4, 0, 0.34, 0.24, 0.34), 0.16), PAL.cream);
+      m.add('rails', (x, y, z) => Math.min(rbox(x, y, z, 2.1, 1.4, 0, 1.9, 0.16, 0.12, 0.1), rbox(x, y, z, 2.1, 3.3, 0, 1.9, 0.16, 0.12, 0.1)), PAL.white);
       m.add('pickets', (x, y, z) => {
-        const cx = 0.5 * clamp(Math.round(x / 0.5), 1, 3);
-        return smin(rbox(x, y, z, cx, 0.98, 0.11, 0.14, 0.86, 0.055, 0.05), cone(x, y, z, cx, 1.8, 0.11, cx, 1.98, 0.11, 0.1, 0.05), 0.06);
+        const cx = P * clamp(Math.round(x / P), 1, 5);
+        return smin(rbox(x, y, z, cx, 1.98, 0.22, 0.24, 1.72, 0.11, 0.1), cone(x, y, z, cx, 3.62, 0.22, cx, 4.08, 0.22, 0.2, 0.1), 0.12);
       }, PAL.white);
       return m;
     },
