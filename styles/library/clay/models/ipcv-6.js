@@ -10,11 +10,8 @@ const C = {
   basin: '#e8dcc3', shell: '#5d6b84', crust: '#e8d3a8', ground: '#9a6a4f', smooth: '#2f9e8f', wiggly: '#cf4f45',
 };
 
-// A large part has too many cells at the kit's finest mesh step, and a thin tube has too few. So such a
-// model is baked at 1/u of its size, and rest() scales its root group by u. f takes a world point and
-// gives a distance in baked units, so the mesh, the light and the joins all see one shape. Note: the
-// collision measures read these distances as world units, so they read 1/u of the true gap or depth.
-const grow = (f, u) => (x, y, z) => f(x * u, y * u, z * u) / u;
+// All models are at true size. A large model sets a coarse mesh step and a thin wire sets a fine one
+// (the spec's step), so the triangle counts stay near the rest of the kit.
 
 // 2D rounded box in the x-y plane, and a 2D shape pushed out along z to |z| <= hz with round edges r.
 const box2 = (px, py, cx, cy, hx, hy, r) => { const qx = Math.abs(px - cx) - hx + r, qy = Math.abs(py - cy) - hy + r; return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r; };
@@ -38,7 +35,7 @@ const PROFILES = {
   relu: (x, y) => Math.min(y - LO, (y - LO - x * (HI - LO) / 3) / Math.hypot(1, (HI - LO) / 3)),
 };
 function rampSpec(kind, label, color, k = 0.22) {
-  const u = 1.25, prof = PROFILES[kind], outer = (x, y) => box2(x, y, 0, 1.8, 3, 1.8, 0.12);
+  const prof = PROFILES[kind], outer = (x, y) => box2(x, y, 0, 1.8, 3, 1.8, 0.12);
   const f = (x, y, z) => {
     const body = extrude(smax(prof(x, y), outer(x, y), k), z, 0.6, 0.1);
     const rim = smax(extrude(smax(prof(x, y - RIM), outer(x, y), k), z, 0.6, 0.07), 0.47 - Math.abs(z), 0.05);
@@ -46,8 +43,8 @@ function rampSpec(kind, label, color, k = 0.22) {
   };
   return {
     label,
-    make() { return def().add('ramp', grow(f, u), color); },
-    rest(g) { g.ramp.scale.setScalar(u); },
+    step: 0.04,
+    make() { return def().add('ramp', f, color); },
     moving: 'No moving parts',
   };
 }
@@ -74,7 +71,7 @@ const terrD = (x) => -0.8 * dbump((x + 2.5) / 1.6, 1.6) - 1.8 * dbump((x - 2.5) 
 //   wiggly: z = 1 - (x / 4)² + 0.9 asin(0.93 sin(3 pi (x + 4) / 4)) / asin(0.93)
 // The wiggly wire goes through the same end points (-4, 0) and (4, 0), with 6 sharp bends at
 // x = -3.33, -2, -0.67, 0.67, 2, 3.33.
-const WY = 0.2, WR = 0.065, WU = 0.55;
+const WY = 0.2, WR = 0.065;
 const wireZ = {
   smooth: (x) => 1 - (x / 4) ** 2,
   wiggly: (x) => 1 - (x / 4) ** 2 + 0.9 * Math.asin(0.93 * Math.sin(3 * Math.PI * (x + 4) / 4)) / Math.asin(0.93),
@@ -92,13 +89,13 @@ function wireSpec(kind, label, color, n) {
   const feet = (x, y, z) => { let d = 9; for (const fx of feetX) d = Math.min(d, rcyl(x, y, z, fx, 0.08, zf(fx), 'y', 0.13, 0.08, 0.05)); return d; };
   return {
     label,
+    step: 0.0175,
     make() {
       const m = def();
-      m.add('wire', grow(tube, WU), color);
-      m.add('feet', grow(feet, WU), PAL.ink, { parent: 'wire' });
+      m.add('wire', tube, color);
+      m.add('feet', feet, PAL.ink);
       return m;
     },
-    rest(g) { g.wire.scale.setScalar(WU); },
     moving: 'No moving parts',
   };
 }
@@ -159,44 +156,44 @@ export const MODELS = {
   rampRelu: rampSpec('relu', 'ReLU ramp', C.relu, 0.45),
   tokenCone: {
     label: 'Cone token',
-    make() { return def().add('cone', grow((x, y, z) => smax(cone(x, y, z, 0, 0.12, 0, 0, 0.92, 0, 0.46, 0.07), -y, 0.1), 2), C.blue); },
-    rest(g) { g.cone.scale.setScalar(2); },
+    step: 0.024,
+    make() { return def().add('cone', (x, y, z) => smax(cone(x, y, z, 0, 0.12, 0, 0, 0.92, 0, 0.46, 0.07), -y, 0.1), C.blue); },
     moving: 'No moving parts',
   },
   tokenCube: {
     label: 'Cube token',
-    make() { return def().add('cube', grow((x, y, z) => rbox(x, y, z, 0, 0.45, 0, 0.45, 0.45, 0.45, 0.12), 2), C.plum); },
-    rest(g) { g.cube.scale.setScalar(2); },
+    step: 0.03,
+    make() { return def().add('cube', (x, y, z) => rbox(x, y, z, 0, 0.45, 0, 0.45, 0.45, 0.45, 0.12), C.plum); },
     moving: 'No moving parts',
   },
   bowl: {
     label: 'Error bowl',
+    step: 0.12,
     make() {
-      const m = def(), u = 4;
-      m.add('shell', grow((x, y, z) => {
+      const m = def();
+      m.add('shell', (x, y, z) => {
         const r = Math.hypot(x, z);
         return Math.max(ell(r, y, 0, 0, BYR, 0, 5.0, 3.05, 1), (y - bowlP(r) + 0.22) / bowlG(r), y - BYR);
-      }, u), C.shell);
+      }, C.shell);
       // The light inside and the round lip are one shape, so no seam shows between them.
-      m.add('basin', grow((x, y, z) => {
+      m.add('basin', (x, y, z) => {
         const r = Math.hypot(x, z), g = bowlG(r), p = bowlP(r);
         return smin(Math.max((y - p) / g, (p - 0.45 - y) / g, r - 4.6), torus(x, y, z, 0, BYR - 0.08, 0, 'y', 4.74, 0.36), 0.1);
-      }, u), C.basin, { parent: 'shell' });
-      m.add('foot', grow((x, y, z) => box2(Math.hypot(x, z), y, 2.45, 0.475, 0.45, 0.475, 0.12), u), PAL.ink, { parent: 'shell' });
+      }, C.basin);
+      m.add('foot', (x, y, z) => box2(Math.hypot(x, z), y, 2.45, 0.475, 0.45, 0.475, 0.12), PAL.ink);
       return m;
     },
-    rest(g) { g.shell.scale.setScalar(4); },
     moving: 'No moving parts',
   },
   terrain: {
     label: 'Error terrain',
+    step: 0.08,
     make() {
-      const m = def(), u = 2.5, outer = (x, y) => box2(x, y, 0, 1.6, 5, 1.6, 0.25);
-      m.add('ground', grow((x, y, z) => extrude(smax(under(y, terrH(x) - 0.12, terrD(x)), outer(x, y), 0.15), z, 1.5, 0.15), u), C.ground);
-      m.add('crust', grow((x, y, z) => { const h = terrH(x), dh = terrD(x); return extrude(smax(Math.max(under(y, h, dh), -under(y, h - 0.28, dh)), box2(x, y, 0, 1.6, 5.03, 1.6, 0.25), 0.1), z, 1.53, 0.12); }, u), C.crust, { parent: 'ground' });
+      const m = def(), outer = (x, y) => box2(x, y, 0, 1.6, 5, 1.6, 0.25);
+      m.add('ground', (x, y, z) => extrude(smax(under(y, terrH(x) - 0.12, terrD(x)), outer(x, y), 0.15), z, 1.5, 0.15), C.ground);
+      m.add('crust', (x, y, z) => { const h = terrH(x), dh = terrD(x); return extrude(smax(Math.max(under(y, h, dh), -under(y, h - 0.28, dh)), box2(x, y, 0, 1.6, 5.03, 1.6, 0.25), 0.1), z, 1.53, 0.12); }, C.crust);
       return m;
     },
-    rest(g) { g.ground.scale.setScalar(2.5); },
     moving: 'No moving parts',
   },
   wireSmooth: wireSpec('smooth', 'Smooth boundary wire', C.smooth, 48),
