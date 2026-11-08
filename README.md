@@ -47,7 +47,7 @@ npx kaleidoscope-video
 
 The setup checks your machine, asks 4 questions (folder, voice, Manim, script agent), shows the plan, and installs only what you choose. It works without a GPU: then the Kokoro voice speaks and the CPU draws the frames.
 
-Later, in Claude Code, `/setup-kaleidoscope` changes the voice, the GPU or the temperature guard.
+Later, in Claude Code, `/setup-kaleidoscope` changes the voice or the GPU.
 
 [`INSTALL.md`](INSTALL.md) has the manual setup.
 
@@ -71,7 +71,7 @@ stops it now, and `make selftest` plants each one and confirms that the engine c
 |---|---|
 | `SKILL.md` | the workflow the agent follows, step by step |
 | `bin/`, `package.json` | the setup that `npx kaleidoscope-video` runs |
-| `setup/` | the `/setup-kaleidoscope` skill: voice, GPU and temperature guard |
+| `setup/` | the `/setup-kaleidoscope` skill: voice and GPU |
 | `SOUND.md` | the background music and the sound effects: rules, approved tracks and sounds, levels |
 | `agents/` | the script agent; the install links it into `~/.claude/agents` |
 | `engine/` | the self-test in `test/`, the command line `make.mjs`, the page runtime, fonts, the voice in `tts/`, the music in `music.mjs`, the sound effects in `sfx.mjs`, Manim in `manim/`, and the project template |

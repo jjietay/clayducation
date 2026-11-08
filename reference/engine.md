@@ -159,7 +159,7 @@ one shadow-casting light, shadow map 1024.
 | `make build <dir>` | **one shot**: voice, manim, check, sheet, stable, review, in order; stops at the first ERROR. Finished steps are cached |
 | `make final <dir>` | **one shot**: render, verify |
 | `make doctor` | checks the tools, and prints this machine's voice and GPU |
-| `make config` | prints or changes this machine's settings in `config.json`: `--voice auto\|chatterbox\|kokoro`, `--gpu auto\|off`, `--guard auto\|off` |
+| `make config` | prints or changes this machine's settings in `config.json`: `--voice auto\|chatterbox\|kokoro`, `--gpu auto\|off` |
 | `make bake [--only mascot\|models]` | computes the clay shapes once, to `styles/library/clay/cache/`. About a minute on few cores. Run it after a change to the kit |
 | `make clay [sheet]` | draws vetting sheets to `styles/library/clay/sheets/`: `m-tank` one model, `body`, `hair`, `expressions`, `group`, `group2`, `stands`, `room`, or all with no name |
 | `make init <dir> --title "..."` | new project |
@@ -178,8 +178,6 @@ one shadow-casting light, shadow map 1024.
 | `make render <dir>` | `out/<slug>.mp4` (soft subtitles) + `.srt`. `--draft` half size, `--from s --to s` one part to `build/`, `--workers n`, `--remix` new audio on the last render's frames. Makes `build/music.wav` at the video's length first (cached), and `build/sfx.wav` from the `s.sfx` calls when `_render.sfx` is true |
 | `make verify <dir>` | duration, streams, loudness, black frames |
 | `make preview <dir>` | prints a URL: the video in a browser with the voice (space, arrow keys) |
-
-Heavy commands run under the temperature guard: they do not start with CPU turbo on, use few cores, pause at 85 C and stop at 92 C. `make config --guard off` turns it off.
 
 `voice` must run again after any change to `script.md`. The other commands stop with an
 error if `script.md` is newer than the timeline.

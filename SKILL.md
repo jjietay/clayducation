@@ -119,7 +119,6 @@ Each was asked for or chosen by ear. The engine does most of them by itself.
 | No overlaps | no text or graphic covers another one | `check` WARN for texts, `overlaps.md` and your frame checklist for the rest |
 | Look | one 3D clay look with the silent mascot, and our own models. Rejected: downloaded models, a dark video, text columns, colour legends, build-up slides | `make check` ERROR for a scene that is not 3D or a video with no mascot; the rest is you, see "The look the user wants" |
 | Maths | the five formula steps (need, picture, formula, meaning, test). Manim for a formula that changes step by step, with a 3D picture: `manim({ threeD: true })`, not hand-drawn canvas | `make check` WARNs on a formula alone; the rest is you, see `reference/script.md` and `styles/math-manim.md` |
-| Heat | a heavy command does not start with turbo on, runs on few cores, pauses at 85 C and stops at 92 C. The laptop shut down at 101 C | yes; the guard in `make.mjs` |
 | Quiz | none in the storyboard | you |
 | Watching | `mpv <dir>/out/<slug>.mp4` | put it in the report |
 
@@ -133,9 +132,6 @@ silicon) or Kokoro (small and fast on a CPU, at about 150 words a minute). A pro
 choose its own in `video.json`: `"_tts": {"engine": "kokoro"}`. Without a GPU, Chrome draws
 the frames with SwiftShader and ffmpeg encodes with libx264; a render takes longer, and the
 frames are the same.
-
-The `guard` line is the temperature guard. If a heavy command stops because turbo is on, ask the
-user to turn it off in a separate terminal: it needs their password, and `!` cannot ask for one.
 
 ## Workflow
 
@@ -272,7 +268,7 @@ user to turn it off in a separate terminal: it needs their password, and `!` can
 | `reference/engine.md` | before step 8: the scene API and every command |
 | `SOUND.md` | when you choose the music or add sound effects, or the user asks for a new track or sound: the rules, the tracks and their recipes, the sound kit and its levels |
 | `agents/video-script.md` | the script agent (step 7), linked from `~/.claude/agents/`. You do not need to read it |
-| `setup/SKILL.md` | the `/setup-kaleidoscope` skill, which writes `config.json` (voice, GPU, guard) with `make config` |
+| `setup/SKILL.md` | the `/setup-kaleidoscope` skill, which writes `config.json` (voice, GPU) with `make config` |
 
 ## If something fails
 

@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)), MAKE = path.join(HERE, '..', 'make.mjs');
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kaleidoscope-selftest-'));
-const make = (...a) => { const r = spawnSync(process.execPath, [MAKE, ...a], { encoding: 'utf8', env: { ...process.env, XV_GUARDED: '1' } }); return { code: r.status, out: (r.stdout || '') + (r.stderr || '') }; };
+const make = (...a) => { const r = spawnSync(process.execPath, [MAKE, ...a], { encoding: 'utf8' }); return { code: r.status, out: (r.stdout || '') + (r.stderr || '') }; };
 let failed = 0;
 // The test finds the digits from the salted hashes. A real look reads them from the images.
 const digitsOf = (records) => records.map((r) => [...'0123456789'].find((d) => createHash('sha1').update(r.salt + d).digest('hex').slice(0, 16) === r.hash)).join('');

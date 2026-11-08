@@ -24,7 +24,7 @@ cd ~/.claude/skills/kaleidoscope
 # The script agent: Claude Code reads it from ~/.claude/agents
 mkdir -p ~/.claude/agents
 for f in agents/video-*.md; do ln -sf "$PWD/$f" ~/.claude/agents/; done
-# The /setup-kaleidoscope command (voice, GPU, temperature guard)
+# The /setup-kaleidoscope command (voice, GPU)
 ln -sfn "$PWD/setup" ~/.claude/skills/setup-kaleidoscope
 
 # Word timing: explainroo (its Whisper model). doctor --fetch also gets the Kokoro voice model,

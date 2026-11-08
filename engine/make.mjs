@@ -3,7 +3,7 @@
 // scenes.js, video.json) and gives you a narrated MP4 with soft subtitles.
 //
 //   node make.mjs doctor                    check Chrome, ffmpeg, explainroo, MathJax
-//   node make.mjs config [--voice auto|chatterbox|kokoro] [--gpu auto|off] [--guard auto|off]
+//   node make.mjs config [--voice auto|chatterbox|kokoro] [--gpu auto|off]
 //   node make.mjs init <dir> --title "..."  new project with learning-pace voice settings
 //   node make.mjs build [dir]               voice, manim, check, sheet, review: every step before you look
 //   node make.mjs final [dir]               render, verify
@@ -44,10 +44,10 @@ const EXR = process.env.EXPLAINROO_HOME || path.join(os.homedir(), '.explainroo'
 const CHROME = process.env.CHROME || ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'].find((c) => spawnSync('which', [c]).status === 0);
 // The settings of this machine, written by "make config", the installer or /setup-kaleidoscope.
 // config.json is not in git. voice: chatterbox (natural, best on a GPU), kokoro (small, fast on a CPU)
-// or auto. gpu: auto or off. guard: auto keeps heavy jobs under the temperature limits; off does not.
+// or auto. gpu: auto or off.
 const CONFIG_FILE = path.join(ENGINE, '..', 'config.json');
-const CONFIG_DEFAULT = { voice: 'auto', gpu: 'auto', guard: 'auto', kokoroVoice: 'af_heart' };
-const CONFIG_CHOICES = { voice: ['auto', 'chatterbox', 'kokoro'], gpu: ['auto', 'off'], guard: ['auto', 'off'] };
+const CONFIG_DEFAULT = { voice: 'auto', gpu: 'auto', kokoroVoice: 'af_heart' };
+const CONFIG_CHOICES = { voice: ['auto', 'chatterbox', 'kokoro'], gpu: ['auto', 'off'] };
 const readConfig = () => { try { return { ...CONFIG_DEFAULT, ...JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) }; } catch { return { ...CONFIG_DEFAULT }; } };
 const CONFIG = readConfig();
 
@@ -192,7 +192,7 @@ function config() {
   const kv = opt('--kokoro-voice');
   if (kv !== undefined) { cur.kokoroVoice = kv; changed = true; }
   if (changed) fs.writeFileSync(CONFIG_FILE, JSON.stringify(cur, null, 2) + '\n');
-  console.log(`voice   ${cur.voice}${cur.voice === 'auto' ? ` (now: ${fs.existsSync(TTS_PY) ? 'chatterbox' : 'kokoro'})` : ''}${cur.voice !== 'chatterbox' ? `, Kokoro voice ${cur.kokoroVoice}` : ''}\nguard   ${cur.guard}\ngpu     ${cur.gpu}\nfile    ${CONFIG_FILE}${fs.existsSync(CONFIG_FILE) ? '' : ' (not written yet: these are the defaults)'}`);
+  console.log(`voice   ${cur.voice}${cur.voice === 'auto' ? ` (now: ${fs.existsSync(TTS_PY) ? 'chatterbox' : 'kokoro'})` : ''}${cur.voice !== 'chatterbox' ? `, Kokoro voice ${cur.kokoroVoice}` : ''}\ngpu     ${cur.gpu}\nfile    ${CONFIG_FILE}${fs.existsSync(CONFIG_FILE) ? '' : ' (not written yet: these are the defaults)'}`);
 }
 
 // ---------- doctor ----------
@@ -1659,44 +1659,6 @@ async function claySheets() {
   console.log(`${names.length} sheet(s): ${out}`);
 }
 
-// ---------- the temperature guard ----------
-// A laptop shut down at 101 C, and 4 cores with turbo on went past 95 C in about 5 s. So a heavy
-// command runs as a child on a few cores: it pauses when hot, stops at the limit, and does not
-// start with turbo on. It reads the CPU 4 times a second. Turn it off with: make config --guard off
-const HEAVY = new Set(['collide', 'look', 'selftest', 'attached', 'build', 'final', 'voice', 'manim', 'check', 'sheet', 'stable', 'still', 'review', 'render', 'verify', 'bake', 'clay']);
-const LIMITS = { pause: +process.env.XV_GUARD_PAUSE || 85, resume: +process.env.XV_GUARD_RESUME || 72, stop: +process.env.XV_GUARD_STOP || 92, gpuPause: 85, gpuResume: 70 };
-const CPU_ZONE = (() => { try { return fs.readdirSync('/sys/class/thermal').map((z) => `/sys/class/thermal/${z}`).find((z) => { try { return fs.readFileSync(`${z}/type`, 'utf8').trim() === 'x86_pkg_temp'; } catch { return false; } }); } catch { return null; } })();
-const TURBO_FILE = process.env.XV_TURBO_FILE || '/sys/devices/system/cpu/intel_pstate/no_turbo';
-function guarded() {
-  if (fs.existsSync(TURBO_FILE) && fs.readFileSync(TURBO_FILE, 'utf8').trim() !== '1') die(`CPU turbo is on, so this heavy job does not start. In a separate terminal run:\n  echo 1 | sudo tee ${TURBO_FILE}\nor run "make config --guard off" on a machine that does not need this.`);
-  const cpuC = () => +fs.readFileSync(`${CPU_ZONE}/temp`, 'utf8') / 1000;
-  const cores = `0-${Math.max(0, Math.min(8, Math.ceil(os.cpus().length / 3)) - 1)}`;
-  return new Promise((resolve) => {
-    const child = spawn('taskset', ['-c', cores, 'nice', '-n', '5', process.execPath, ...process.argv.slice(1)], { stdio: 'inherit', detached: true, env: { ...process.env, XV_GUARDED: '1' } });
-    const group = (sig) => { try { process.kill(-child.pid, sig); } catch { /* it has ended */ } };
-    let gpuC = 0, paused = false, pauses = 0, peak = 0, stopped = false;
-    const readGpu = () => { const q = spawn('nvidia-smi', ['--query-gpu=temperature.gpu', '--format=csv,noheader'], { stdio: ['ignore', 'pipe', 'ignore'] }); let o = ''; q.stdout.on('data', (d) => { o += d; }); q.on('error', () => {}); q.on('close', () => { gpuC = parseInt(o, 10) || 0; }); };
-    readGpu();
-    const timers = [setInterval(readGpu, 5000), setInterval(() => console.log(`guard: CPU ${cpuC().toFixed(0)} C, GPU ${gpuC} C`), 300000), setInterval(() => {
-      const c = cpuC(); peak = Math.max(peak, c);
-      if (c >= LIMITS.stop && !stopped) {
-        stopped = true; console.error(`guard: CPU ${c.toFixed(0)} C reached the ${LIMITS.stop} C limit, so the job stops.`);
-        group('SIGCONT'); group('SIGTERM'); setTimeout(() => group('SIGKILL'), 1000);
-      } else if (!paused && (c >= LIMITS.pause || gpuC >= LIMITS.gpuPause)) {
-        paused = true; pauses++; console.log(`guard: pause at CPU ${c.toFixed(0)} C, GPU ${gpuC} C`); group('SIGSTOP');
-      } else if (paused && c <= LIMITS.resume && gpuC <= LIMITS.gpuResume) {
-        paused = false; console.log(`guard: resume at CPU ${c.toFixed(0)} C`); group('SIGCONT');
-      }
-    }, 250)];
-    for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { group('SIGCONT'); group('SIGTERM'); });
-    child.on('exit', (code) => {
-      timers.forEach(clearInterval);
-      console.log(`guard: peak CPU ${peak.toFixed(0)} C, ${pauses} pause(s), cores ${cores}`);
-      resolve(stopped ? 3 : code ?? 1);
-    });
-  });
-}
-
 // A frame comes only from its time, so two draws of it must match. A difference means that the GPU
 // dropped something: with antialiasing on, a leg vanished from 2 frames of 8.
 async function stable() {
@@ -1726,6 +1688,5 @@ async function collide() {
 
 const commands = { collide, look, gate, built, attached, selftest, doctor, config, init, build, final, voice, subtitles: subtitlesCmd, manim, check, sheet, stable, still, review, render, verify, preview, bake, clay: claySheets };
 if (!commands[cmd]) { console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 27).map((l) => l.replace(/^\/\/ ?/, '')).join('\n')); process.exit(cmd ? 1 : 0); }
-if (HEAVY.has(cmd) && !process.env.XV_GUARDED && CONFIG.guard !== 'off' && process.env.XV_GUARD !== '0' && CPU_ZONE && spawnSync('which', ['taskset']).status === 0) process.exit(await guarded());
 await commands[cmd]();
 if (cmd !== 'preview') process.exit(0);

@@ -34,7 +34,6 @@ confirms that the engine catches it. Run it after each change to a check.
 | The mascot stood in one spot for a whole video | WARN for a scene where he does not travel | `make check` |
 | A formula was read aloud with no reason | WARN, the five steps, and the script agent | `make check`, `reference/script.md`, `agents/video-script.md` |
 | A GPU drop-out removed a leg in 2 frames of 8 | Antialiasing is off, and frames are drawn twice and compared | `make stable` |
-| The CPU reached 99 C in 5 s with turbo on | Heavy commands refuse to start with turbo on, and read the CPU 4 times a second | the guard in `make.mjs` |
 
 ## Caught by a gate
 
