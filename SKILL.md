@@ -24,8 +24,7 @@ only when the topic itself is unclear. Every check below is yours to run and to 
 ## The look the user wants (read before step 6)
 
 **Every picture is 3D, in one look, and the mascot is in every video.** Read `styles/clay.md`.
-The user chose this over the old style mix for consistency across videos. The 2D styles in
-`styles/` stay only until the first test video passes; do not use them for a new video.
+The user chose this over the old style mix for consistency across videos. The 2D styles are deleted.
 
 - **One look, many parts.** The video is split into parts of about 15 to 40 s (hook, each idea,
   your case, close). Each part has its own plain background, camera and setting. Next to each
@@ -280,7 +279,8 @@ user to turn it off in a separate terminal: it needs their password, and `!` can
 - Claude Code reads agent files (`~/.claude/agents/video-*.md`) when a session starts. After you
   add or change an agent, the change applies only in a new session. In the old session, start a
   `general-purpose` agent and give it the text of `agents/video-script.md`.
-- If `make check` says "not in 3D" for an old project, leave out `"_look": "clay"` in its `video.json`.
+- An old 2D project imports modules that are deleted, so it does not build now. Get them from the git
+  history before 2026-11-08 if the user wants to change one.
 - "the clay shapes are missing": run `make bake`. It takes about a minute on few cores.
 
 - `make doctor` checks Node 22+, ffmpeg, Chrome, explainroo at `~/.explainroo` (Whisper),

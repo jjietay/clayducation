@@ -209,7 +209,6 @@ footer p + p { margin-top: 10px; }
     <a class="opt" href="#frames">Frames</a>
     <a class="opt" href="#review">Review</a>
     <a class="opt" href="#music">Sound</a>
-    <a class="opt" href="#styles">Styles</a>
     <a href="#install">Install</a>
   </nav>
 </header>
@@ -224,10 +223,10 @@ footer p + p { margin-top: 10px; }
 <section class="opening wrap" aria-label="Introduction">
   <div class="text">
     <p class="lede">Kaleidoscope makes a narrated video that teaches one topic. Every picture is 3D, in one clay look, and the same silent mascot does the work in every video.</p>
-    <p>Claude writes the script, the storyboard and the scenes from what your conversation and your project already show. The engine speaks the script on your own computer, times each word and draws every frame with code. It uses no video model. Six reviewer agents then check the video in two rounds before it renders.</p>
+    <p>Claude writes the script, the storyboard and the scenes from what your conversation and your project already show. The engine speaks the script on your own computer, times each word and draws every frame with code. It uses no video model. One agent checks the script before the voice is made, and the engine measures every frame before any build.</p>
     <div class="ask">
       <p class="label">In Claude Code, in the conversation where the topic came up, ask:</p>
-      <blockquote>Make a video on I2C for the BNO085, and tell its history as a 1920s newsreel.</blockquote>
+      <blockquote>Make a video on why computed torque control works.</blockquote>
     </div>
     <div class="actions">
       <a class="button" href="#install">Install</a>
@@ -235,8 +234,8 @@ footer p + p { margin-top: 10px; }
     </div>
   </div>
   <figure class="plate">
-    <a href="png/newsreel.png"><img src="png/newsreel.png" width="1920" height="1080" alt="A 1920s newspaper in a dark film gate. The headline reads: Machine learns by sending errors back. A white grease-pencil ring circles it."></a>
-    <figcaption><span class="fig">Fig. 1</span>The <code>newsreel</code> style, end frame. A paper spins in, and a grease pencil rings the headline. The story is Rumelhart, Hinton and Williams, <i>Nature</i> 323, 1986.</figcaption>
+    <a href="png/clay-cancel.png"><img src="png/clay-cancel.png" width="1280" height="720" alt="The clay mascot pushes a cart on a spring. Above, the friction and spring terms of the formula are struck out in red."></a>
+    <figcaption><span class="fig">Fig. 1</span>A frame from <i>Why computed torque works</i>. The mascot holds the cart while β cancels the friction and the spring terms.</figcaption>
   </figure>
 </section>
 
@@ -252,10 +251,10 @@ footer p + p { margin-top: 10px; }
       <figcaption><span class="fig">Fig. 2</span>(a) Plan and build, from your topic to checked frames. (b) Look, build and render, a look after each edit, then the gates. Select the figure to see it at full size.</figcaption>
     </figure>
     <ol class="ledger">
-      <li><span class="k">script.md<br>storyboard.md<br>scenes.js<small>Claude writes</small></span><span class="v">One part for each idea, one style for each part, one scene for each part. Claude checks every fact before it writes the script.</span></li>
+      <li><span class="k">script.md<br>storyboard.md<br>scenes.js<small>Claude writes</small></span><span class="v">One part for each idea, one scene for each part, all in one clay look. Claude checks every fact before it writes the script.</span></li>
       <li><span class="k">Chatterbox or Kokoro<small>voice</small></span><span class="v">Speaks the script. Chatterbox runs best on a GPU. Kokoro is small and fast on a CPU.</span></li>
       <li><span class="k">Whisper<small>word timing</small></span><span class="v">Gives each word and each <code>[#cue]</code> a time in seconds. If a sentence does not match the script, the engine speaks it again.</span></li>
-      <li><span class="k">headless Chrome<small>frames</small></span><span class="v">Draws each frame from the timeline with <b>canvas</b>, <b>Three.js</b> or <b>Manim</b>.</span></li>
+      <li><span class="k">headless Chrome<small>frames</small></span><span class="v">Draws each frame from the timeline: the clay world in <b>Three.js</b>, the text in HTML, and <b>Manim</b> for a formula that changes step by step.</span></li>
       <li><span class="k">make check<small>automatic checks</small></span><span class="v">Tests overlap, the safe area, text size and pacing. Claude also looks at every changed part, frame by frame.</span></li>
       <li><span class="k">make look<small>after each edit</small></span><span class="v">Measures each changed scene on every frame and draws its near frames and moving parts. Claude reads each image before any build.</span></li>
       <li><span class="k">make final<small>render</small></span><span class="v">Chrome draws on the GPU and NVENC encodes, or the CPU does both when there is no GPU. The mix puts the music and the sound effects under the voice. <code>verify</code> checks the duration, the loudness and black frames. The result is an MP4 with soft subtitles and 48 kHz sound.</span></li>
@@ -266,47 +265,25 @@ footer p + p { margin-top: 10px; }
 <div class="band" id="frames">
   <section class="sec plain wrap">
     <div class="sec-head">
-      <h2>Frames from the gallery project</h2>
+      <h2>Frames from a finished video</h2>
       <p class="src"><a href="https://github.com/jjietay/kaleidoscope/tree/main/styles/library">→ styles/library/</a></p>
     </div>
     <div class="sec-body">
-      <p class="intro">Every style draws with the same shared code in <code>styles/library/</code>. Each picture below is the end frame of one scene, with one module of that code. Select a picture to see it at full size.</p>
+      <p class="intro">Every picture uses one clay look and models that we made in code. The mascot does the physical work, and each formula acts out what the voice says. Select a picture to see it at full size.</p>
     </div>
   </section>
   <div class="wrap">
     <div class="frames">
-      <figure class="big"><a href="png/library-common.png"><img src="png/library-common.png" width="1920" height="1080" alt="Common parts: six faces, an arrow, two leader lines and a tick, each with its function name" loading="lazy"></a>
-        <figcaption><span class="mono">common.js</span>Every style uses these headers, labels, arrows and faces.</figcaption></figure>
-      <figure class="big"><a href="png/library-flat.png"><img src="png/library-flat.png" width="1920" height="1080" alt="Flat props: a drone, barrels, a laptop with a map, a folder of tiles, a tank, cards and a GPU box, some with faces" loading="lazy"></a>
-        <figcaption><span class="mono">flat.js</span>The tank, the drone, the files and the boxes have faces.</figcaption></figure>
-      <figure><a href="png/library-morph.png"><img src="png/library-morph.png" width="1920" height="1080" alt="Shape morph on navy: pink blobs join into one bar, then split into chunks" loading="lazy"></a>
-        <figcaption><span class="mono">morph.js</span>Shapes join into one bar or split into chunks.</figcaption></figure>
-      <figure><a href="png/library-iso.png"><img src="png/library-iso.png" width="1920" height="1080" alt="Isometric buildings: one closed, one with the roof lifted to show pink blocks inside" loading="lazy"></a>
-        <figcaption><span class="mono">iso.js</span>A roof lifts to show what happens inside a building.</figcaption></figure>
-      <figure><a href="png/library-boil.png"><img src="png/library-boil.png" width="1920" height="1080" alt="Hand-drawn ink jars, a folder, a pencil, a stamp, two envelopes (one lost) and ink faces" loading="lazy"></a>
-        <figcaption><span class="mono">boil.js</span>The ink lines change shape slightly 12 times a second, like a hand-drawn cartoon.</figcaption></figure>
-      <figure><a href="png/library-paper.png"><img src="png/library-paper.png" width="1920" height="1080" alt="Paper cut-out shapes, a receipt, cards and two paper people, one holding a stop sign" loading="lazy"></a>
-        <figcaption><span class="mono">paper.js</span>Card shapes have rough edges, and arms turn on split pins.</figcaption></figure>
-      <figure><a href="png/library-pixel.png"><img src="png/library-pixel.png" width="1920" height="1080" alt="Pixel art: a shelf, a crate, a GPU, two small workers and a dialogue box" loading="lazy"></a>
-        <figcaption><span class="mono">pixel.js</span>A 320 × 180 pixel canvas, scaled 6 times, shows typed dialogue.</figcaption></figure>
-      <figure><a href="png/library-pixel2.png"><img src="png/library-pixel2.png" width="1920" height="1080" alt="Pixel art for networks: the robot computer and the laptop as small characters, one dimmed, one sad, and a multicast ring" loading="lazy"></a>
-        <figcaption><span class="mono">pixel.js</span>Network characters: the robot computer, the laptop and a multicast ring.</figcaption></figure>
-      <figure><a href="png/library-toy3d.png"><img src="png/library-toy3d.png" width="1920" height="1080" alt="Toy 3D: a soft tank, an axis gizmo, file cubes, a cart, a server tower, a block with eyes and a flag" loading="lazy"></a>
-        <figcaption><span class="mono">toy3d.js</span>Soft Three.js objects drop, land and cast a contact shadow.</figcaption></figure>
-      <figure><a href="png/library-riso.png"><img src="png/library-riso.png" width="1920" height="1080" alt="Risograph: three overlapping ink discs and a halftone tint" loading="lazy"></a>
-        <figcaption><span class="mono">riso.js</span>Three inks that multiply, and halftone tints on one plate.</figcaption></figure>
-      <figure><a href="png/library-blueprint.png"><img src="png/library-blueprint.png" width="1920" height="1080" alt="Whiteprint drafting: a rectangle drawing on with a nib, a line with an arrowhead and two part balloons" loading="lazy"></a>
-        <figcaption><span class="mono">blueprint.js</span>Blue lines on cream that draw on with a nib, arrowheads and part balloons.</figcaption></figure>
-      <figure><a href="png/library-hud.png"><img src="png/library-hud.png" width="1920" height="1080" alt="HUD terminal: corner brackets locked on a yellow disc and a row of rolling digits" loading="lazy"></a>
-        <figcaption><span class="mono">hud.js</span>Brackets that lock on, and digits that roll and then lock.</figcaption></figure>
-      <figure><a href="png/library-toon.png"><img src="png/library-toon.png" width="1920" height="1080" alt="Mid-century cartoon: a presenter pointing, a numbered medallion and off-register dots" loading="lazy"></a>
-        <figcaption><span class="mono">toon.js</span>A presenter whose hand does each step, a step medallion and off-register dots.</figcaption></figure>
-      <figure><a href="png/library-whiteboard.png"><img src="png/library-whiteboard.png" width="1920" height="1080" alt="Whiteboard: a formula written in marker with the marker beside it, and a marker box" loading="lazy"></a>
-        <figcaption><span class="mono">whiteboard.js</span>Formulas written term by term in marker, and a marker box.</figcaption></figure>
-      <figure><a href="png/library-transit.png"><img src="png/library-transit.png" width="1920" height="1080" alt="Transit map: a line growing with a pen tip, stops, an interchange and a capsule" loading="lazy"></a>
-        <figcaption><span class="mono">transit.js</span>Lines that grow from a pen tip, stops, an interchange and a capsule.</figcaption></figure>
-      <figure><a href="png/library-watercolour.png"><img src="png/library-watercolour.png" width="1920" height="1080" alt="Watercolour: a round wash, a square wash and a brush arrow" loading="lazy"></a>
-        <figcaption><span class="mono">watercolour.js</span>Washes painted in three passes, and a brush arrow.</figcaption></figure>
+      <figure class="big"><a href="png/clay-servo.png"><img src="png/clay-servo.png" width="1280" height="720" alt="A robot drives toward a flag that the mascot holds. An orange arrow e shows the gap, and a blue arrow k p e shows the push." loading="lazy"></a>
+        <figcaption><span class="mono">g.arrow</span>The gap e and the push k<sub>p</sub>e are arrows on the robot, and the mascot holds the target.</figcaption></figure>
+      <figure class="big"><a href="png/clay-formula.png"><img src="png/clay-formula.png" width="1280" height="720" alt="The formula m x double dot equals m v, with both m terms struck out in red." loading="lazy"></a>
+        <figcaption><span class="mono">eqn.js</span>The mass cancels: both terms are struck out, then fly together and burst.</figcaption></figure>
+      <figure><a href="png/clay-key.png"><img src="png/clay-key.png" width="1280" height="720" alt="The mascot leans over a table and presses a key on a laptop." loading="lazy"></a>
+        <figcaption><span class="mono">hold</span>He presses a key, and β is switched off.</figcaption></figure>
+      <figure><a href="png/clay-room.png"><img src="png/clay-room.png" width="900" height="506" alt="A clay room with the mascot and several models." loading="lazy"></a>
+        <figcaption><span class="mono">models.js</span>28 models, made in code from signed distance shapes.</figcaption></figure>
+      <figure><a href="png/mascot.png"><img src="png/mascot.png" width="1280" height="720" alt="Nine faces of the mascot: neutral, smile, surprised, confused, thinking, worried, unimpressed, understanding, sleepy." loading="lazy"></a>
+        <figcaption><span class="mono">mascot.js</span>He never speaks. Nine expressions react for the viewer.</figcaption></figure>
     </div>
   </div>
 </div>
@@ -318,10 +295,10 @@ footer p + p { margin-top: 10px; }
     <p class="src"><a href="https://github.com/jjietay/kaleidoscope/tree/main/agents">→ agents/</a></p>
   </div>
   <div class="sec-body">
-    <p>Claude reads contact sheets like this one, the near frames of each edited part, and a dense strip of each thing that moves. <code>make build</code> and <code>make final</code> stop until that is done. <code>make selftest</code> plants each fault that a video has had, and confirms that the engine catches it.</p>
+    <p>Claude reads strips like this one, the near frames of each edited part, and a dense strip of each thing that moves. <code>make build</code> and <code>make final</code> stop until that is done. <code>make selftest</code> plants each fault that a video has had, and confirms that the engine catches it.</p>
     <figure class="plate sheet">
-      <a href="png/contact-sheet.png"><img src="png/contact-sheet.png" width="1960" height="620" alt="A contact sheet: eight frames from the gallery project in a grid, each labelled with its scene name and time" loading="lazy"></a>
-      <figcaption><span class="fig">Fig. 3</span>The top of the gallery project's first contact sheet, made with <code>make sheet gallery</code>. Each frame shows its scene and its time.</figcaption>
+      <a href="png/check-strip.png"><img src="png/check-strip.png" width="1280" height="638" alt="A movement strip: twelve frames of the mascot as he holds a cart, walks to a robot and pushes it, each labelled with its time, and a CHECK digit at the top right" loading="lazy"></a>
+      <figcaption><span class="fig">Fig. 3</span>A movement strip from <code>make build</code>. Its CHECK digit, with the digits of all other strips, opens <code>make final</code>.</figcaption>
     </figure>
     <ul class="ledger">
       <li><span class="k">video-script</span><span class="v">Before the voice is made: every fact worked out again, and every formula explained.</span></li>
@@ -351,76 +328,10 @@ footer p + p { margin-top: 10px; }
   </div>
 </section>
 
-<section class="sec wrap" id="styles">
-  <div class="sec-head">
-    <h2>The older 2D styles</h2>
-    <p>Claude picks a style for each part from the type of idea in it. Two parts in a row never use the same style.</p>
-    <p class="src"><a href="https://github.com/jjietay/kaleidoscope/blob/main/styles/README.md">→ styles/README.md</a></p>
-  </div>
-  <div class="sec-body">
-    <div class="index">
-      <div>
-        <div class="group">
-          <h3>Maths and diagrams <span>7</span></h3>
-          <ul>
-            <li><code>math-manim</code><span>The 3Blue1Brown look, drawn by Manim. The plane moves and formulas morph.</span></li>
-            <li><code>signal-graph</code><span>Nodes and edges. Pulses travel along the edges, and edge width shows weight.</span></li>
-            <li><code>pixel-grid</code><span>A zoomed-in pixel grid with values. A kernel window slides over it.</span></li>
-            <li><code>single-line</code><span>One line draws everything at a steady speed and never lifts.</span></li>
-            <li><code>shape-morph</code><span>No cuts. Each idea grows out of the previous shape.</span></li>
-            <li><code>whiteboard<sup class="o">a</sup></code><span>Dry-erase marker on a glossy board, written stroke by stroke.</span></li>
-            <li><code>blueprint<sup class="o">a</sup></code><span>White lines on Prussian blue, drawn in drafting order with dimensions.</span></li>
-          </ul>
-        </div>
-        <div class="group">
-          <h3>Characters and stories <span>7</span></h3>
-          <ul>
-            <li><code>flat-vector</code><span>Flat shapes with overshoot entrances. A growing shape changes the scene.</span></li>
-            <li><code>line-boil</code><span>Hand-drawn ink that boils, animated on twos. Faces act.</span></li>
-            <li><code>paper-cutout</code><span>Card layers with cut edges, stop motion and a parallax camera.</span></li>
-            <li><code>pixel-art</code><span>A 320 × 180 canvas, a fixed palette, dithering and typed dialogue.</span></li>
-            <li><code>midcentury-toon<sup class="o">a</sup></code><span>1950s flat colour off a broken ink line. A presenter's hands do each step.</span></li>
-            <li><code>watercolour<sup class="o">d</sup></code><span>Brush strokes paint themselves in, and washes bleed past the ink.</span></li>
-            <li><code>risograph<sup class="o">d</sup></code><span>Two or three inks that multiply, with halftone dots and offset plates.</span></li>
-          </ul>
-        </div>
-      </div>
-      <div>
-        <div class="group">
-          <h3>3D and space <span>6</span></h3>
-          <ul>
-            <li><code>isometric</code><span>A miniature world of three-tone blocks. Roofs lift off to show the inside.</span></li>
-            <li><code>iso-infographic<sup class="o">a</sup></code><span>A floating board with a route, label pins and counts that add up to a total.</span></li>
-            <li><code>toy-3d</code><span>Soft pastel Three.js objects that land with weight and a contact shadow.</span></li>
-            <li><code>teardown<sup class="o">a</sup></code><span>A real product in Three.js from its CAD files. Its layers lift apart.</span></li>
-            <li><code>desktop-flythrough<sup class="o">a</sup></code><span>Apps as paper cards on a sunlit desk. Voxel toys hop between them.</span></li>
-            <li><code>transit-map<sup class="o">a</sup></code><span>A metro map on paper. Lines grow from pen tips, and interchanges fall into place.</span></li>
-          </ul>
-        </div>
-        <div class="group">
-          <h3>Data and evidence <span>9</span></h3>
-          <ul>
-            <li><code>data-story<sup class="o">d</sup></code><span>One chart per screen, drawn mark by mark by a pencil.</span></li>
-            <li><code>data-physical<sup class="o">a</sup></code><span>Numbers built as stacks of metal, acrylic and brass on a wooden base.</span></li>
-            <li><code>briefing-board<sup class="o">a</sup></code><span>An enamel board with photos and magnets. One red stamp gives the verdict.</span></li>
-            <li><code>telestrator<sup class="o">a</sup></code><span>Footage or a photo, frozen and drawn on with rings and marker arrows.</span></li>
-            <li><code>swiss-type</code><span>A 12-column grid, kinetic type, hard snaps and one signal colour.</span></li>
-            <li><code>dark-keynote</code><span>Near-black, one giant number and slow light sweeps.</span></li>
-            <li><code>hud-terminal</code><span>Monospace on a character grid. Numbers roll and brackets lock on.</span></li>
-            <li><code>film-crt</code><span>One era of film or tape, with grain, gate weave and chroma shift.</span></li>
-            <li><code>newsreel<sup class="o">a</sup></code><span>A 1920s newsreel in a silver film gate, with place cards, an iris and wipes.</span></li>
-          </ul>
-        </div>
-      </div>
-    </div>
-    <p class="note"><sup class="o">a</sup> We adapted this style from <a href="https://github.com/lemomo-ai/lemo-opuscar">Lemo-Opuscar</a> by LemoLab (MIT). <sup class="o">d</sup> We took details for this style from Lemo-Opuscar.</p>
-  </div>
-</section>
-
 <section class="sec wrap" id="install">
   <div class="sec-head">
     <h2>Install</h2>
-    <p>One command checks your computer, asks 5 questions, shows the plan and installs only what you choose. A GPU is not necessary.</p>
+    <p>One command checks your computer, asks 4 questions, shows the plan and installs only what you choose. A GPU is not necessary.</p>
     <p class="src"><a href="https://github.com/jjietay/kaleidoscope/blob/main/INSTALL.md">→ INSTALL.md</a></p>
   </div>
   <div class="sec-body">
@@ -434,7 +345,7 @@ footer p + p { margin-top: 10px; }
     <p style="margin-top:24px"><code>INSTALL.md</code> has the manual setup. Then ask for a video in the conversation where the topic came up:</p>
     <ul class="prompts">
       <li>Make a video explaining how the EKF fuses wheel odometry and the IMU.</li>
-      <li>Make a video on I2C for the BNO085, and tell its history as a 1920s newsreel.</li>
+      <li>Make a video on why computed torque control works.</li>
     </ul>
   </div>
 </section>
@@ -444,7 +355,7 @@ footer p + p { margin-top: 10px; }
 <footer class="wrap">
   <a class="home" href="#">Kaleidoscope</a>
   <div>
-    <p>Kaleidoscope is under the <a href="https://github.com/jjietay/kaleidoscope/blob/main/LICENSE">MIT licence</a>. We adapted 11 styles from <a href="https://github.com/lemomo-ai/lemo-opuscar">Lemo-Opuscar</a> by LemoLab (MIT) and took details from it for 3 more.
+    <p>Kaleidoscope is under the <a href="https://github.com/jjietay/kaleidoscope/blob/main/LICENSE">MIT licence</a>.
     <a href="https://github.com/vincentsch/explainroo">explainroo</a> times the words, <a href="https://github.com/resemble-ai/chatterbox">Chatterbox</a> speaks the narration,
     and <a href="https://www.manim.community/">Manim Community</a> draws the maths scenes.</p>
     <p><a href="https://github.com/jjietay/kaleidoscope">github.com/jjietay/kaleidoscope</a></p>

@@ -5,9 +5,9 @@
 A Claude Code skill that makes a narrated teaching video about a topic.<br>
 Every picture is 3D, in one clay look, with the same silent mascot in every video. One agent checks the script before the voice is made.
 
-<img src="gallery/png/all.png" alt="Sample frames of the adapted styles and the drawing library" width="100%">
+<img src="gallery/png/clay-cancel.png" alt="The clay mascot pushes a cart on a spring while two terms of the formula above are struck out" width="100%">
 
-<sub>Code draws every frame in all 29 styles, without a video model, and makes the music and the sound effects. The voice runs on your own computer, with or without a GPU.</sub>
+<sub>Code draws every frame, without a video model, from 28 clay models of our own, and makes the music and the sound effects. The voice runs on your own computer, with or without a GPU.</sub>
 
 <a href="https://jjietay.github.io/kaleidoscope/"><b>Open the gallery page</b></a>
 
@@ -19,10 +19,10 @@ Every picture is 3D, in one clay look, with the same silent mascot in every vide
 
 ## What makes it different
 
-| A new style for each part | Characters that act | Checked before render |
+| A mascot who does the work | Formulas that act | Checked before render |
 |:---:|:---:|:---:|
-| <img src="gallery/png/newsreel.png" width="260"> | <img src="gallery/png/library-flat.png" width="260"> | <img src="gallery/png/contact-sheet.png" width="260"> |
-| Each idea gets the style that explains it best, for example a newsreel for the history of an idea and Manim for a formula. | Objects can have faces and move like real objects. The tank rolls in, and a block drops and settles. | Claude reads contact sheets like this one. Then a fact checker, a first-time learner and four picture checkers review the video. |
+| <img src="gallery/png/clay-push.png" width="260"> | <img src="gallery/png/clay-formula.png" width="260"> | <img src="gallery/png/check-strip.png" width="260"> |
+| The same silent mascot is in every video. He pulls, pushes and holds the things that the voice talks about. | When the voice says a term moves, it moves. When it says the mass cancels, the two terms are struck out and fly together. | The engine measures every frame. Claude reads strips of every movement like this one before the render can start. |
 
 ## Try it
 
@@ -30,18 +30,14 @@ In Claude Code, in the conversation where the topic came up:
 
 > Make a video explaining how the EKF fuses wheel odometry and the IMU.
 
-> Make a video on I2C for the BNO085, and tell its history as a 1920s newsreel.
+> Make a video on why computed torque control works.
 
-## Styles
+## The look
 
-| Kind | Styles |
-|---|---|
-| Maths and diagrams | `math-manim` `signal-graph` `pixel-grid` `single-line` `shape-morph` `whiteboard` `blueprint` |
-| Characters and stories | `flat-vector` `line-boil` `paper-cutout` `pixel-art` `midcentury-toon` `watercolour` `risograph` |
-| 3D and space | `isometric` `iso-infographic` `toy-3d` `teardown` `desktop-flythrough` `transit-map` |
-| Data and evidence | `data-story` `data-physical` `briefing-board` `telestrator` `swiss-type` `dark-keynote` `hud-terminal` `film-crt` `newsreel` |
+One look for every video: soft 3D clay, plain backgrounds and flat text.
+[`styles/clay.md`](styles/clay.md) has the mascot, his controls and the 28 models.
 
-[`styles/README.md`](styles/README.md) says which style fits which kind of idea.
+<img src="gallery/png/mascot.png" alt="The mascot's nine expressions: neutral, smile, surprised, confused, thinking, worried, unimpressed, understanding, sleepy" width="100%">
 
 ## Install
 
@@ -80,13 +76,11 @@ stops it now, and `make selftest` plants each one and confirms that the engine c
 | `agents/` | the script agent; the install links it into `~/.claude/agents` |
 | `engine/` | the self-test in `test/`, the command line `make.mjs`, the page runtime, fonts, the voice in `tts/`, the music in `music.mjs`, the sound effects in `sfx.mjs`, Manim in `manim/`, and the project template |
 | `reference/` | the engine API, the script rules and the fault register |
-| `styles/` | one guide per style, the clay kit and the shared drawing code in `styles/library/`, and the credits |
-| `gallery/` | one sample project, with its pictures in `png/`, 30 s previews of the music tracks in `music/` and of the sound effects in `sfx/` |
+| `styles/` | the clay look (`clay.md`), Manim for formulas, and the kit in `styles/library/` |
+| `gallery/` | the gallery page, its pictures in `png/`, 30 s previews of the music tracks in `music/` and of the sound effects in `sfx/` |
 
 ## Credits
 
 Kaleidoscope is under the MIT licence: see [`LICENSE`](LICENSE).
-We adapted 11 styles from [Lemo-Opuscar](https://github.com/lemomo-ai/lemo-opuscar) by LemoLab and took details from it for 3 more.
-Its MIT licence is in [`styles/LICENSE-opuscar`](styles/LICENSE-opuscar).
 [explainroo](https://github.com/vincentsch/explainroo) times the words, [Chatterbox](https://github.com/resemble-ai/chatterbox) speaks the narration,
 and [Manim Community](https://www.manim.community/) draws the maths scenes. The fonts use the SIL Open Font License.

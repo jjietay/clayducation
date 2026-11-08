@@ -55,7 +55,7 @@ async function ask(q, def, choices) {
 }
 const yesNo = async (q, def) => (await ask(q, def ? 'y' : 'n', ['y', 'n', 'yes', 'no'])).startsWith('y');
 
-console.log(`\n${bold('Kaleidoscope setup')}\nThis installs the Kaleidoscope skill for Claude Code. It asks 5 questions,\nthen shows the plan before it changes anything.\n`);
+console.log(`\n${bold('Kaleidoscope setup')}\nThis installs the Kaleidoscope skill for Claude Code. It asks 4 questions,\nthen shows the plan before it changes anything.\n`);
 for (const [name, ok, note, needed] of checks) console.log(`  ${ok ? 'ok  ' : needed ? 'MISS' : 'miss'}  ${name.padEnd(7)} ${note}`);
 console.log(`  info  ${'gpu'.padEnd(7)} ${gpuNote}\n`);
 if (checks.some(([, ok, , needed]) => needed && !ok)) {

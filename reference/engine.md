@@ -101,14 +101,11 @@ skill's own `engine/fonts/`: `Limelight` (Art Deco titles) and `Oswald` (200 to 
 
 The engine serves the skill's `styles/library/` folder at `/_lib/`. Import from it in `scenes.js`:
 ```js
-import { K, BG, header, showHeader, label, lab, makeWipe, endWipe } from '/_lib/common.js';
-import { barrel, folderBack, folderLip, tile } from '/_lib/flat.js';
-import { world, showK } from '/_lib/toy3d.js';
+import { BG } from '/_lib/clay.js';
+import { eqn, rays } from '/_lib/eqn.js';
 ```
-**New videos use the clay kit: read `styles/clay.md`.** `s.clay()` needs no import. Older modules, one per style (`common`, `flat`, `morph`, `iso`, `boil`, `paper`, `pixel`, `toy3d`, `riso`, `blueprint`, `hud`, `toon`, `whiteboard`, `transit`, `watercolour`, `newsreel`).
-`styles/library/README.md` lists every item; `gallery/png/library-*.png` shows them. In Three.js, hide an
-object with `showK(obj, k)` (a tiny scale), never `visible = false`, and `await g.ready()` at
-the end of `setup`: on the GPU path an object first drawn mid-scene can miss its first frame.
+**Read `styles/clay.md` first.** `s.clay()` needs no import. `styles/library/README.md` lists every item.
+End `setup` with `await g.ready()`: on the GPU path an object first drawn mid-scene can miss its first frame.
 
 ## Patterns
 

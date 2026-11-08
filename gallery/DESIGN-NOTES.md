@@ -22,11 +22,10 @@ The old page had several of these: a centred hero, a row of pill badges, four pa
 
 ## Techniques used on this page
 
-1. **Real content first.** The first screen shows a real frame that the engine drew (the newsreel), not an illustration of the idea. Good tool sites lead with output: the Manim example gallery puts the rendered picture before the code, and the 3Blue1Brown home page is mostly lesson pictures with short labels.
+1. **Real content first.** The first screen shows a real frame that the engine drew (a clay frame from a finished video), not an illustration of the idea. Good tool sites lead with output: the Manim example gallery puts the rendered picture before the code, and the 3Blue1Brown home page is mostly lesson pictures with short labels.
    Sources: [Manim example gallery](https://docs.manim.community/en/stable/examples.html), [3Blue1Brown](https://www.3blue1brown.com/), [925 Studios](https://www.925studios.co/blog/ai-slop-web-design-guide) ("replace stock imagery with real product screenshots").
 
-2. **A concept that comes from the product.** Lemo-Opuscar presents its styles as award nominees, so the page has its own voice. This page borrows from the newsreel style that it shows: a left-aligned masthead with a double rule and a dateline, like the newspaper in the frame, and numbered figure captions, like the owner's paper-style pipeline figure with its (a) and (b) panels.
-   Source: [Lemo-Opuscar gallery](https://lemomo-ai.github.io/lemo-opuscar/).
+2. **A concept that comes from the product.** The page reads like a printed report: a left-aligned masthead with a double rule and a dateline, and numbered figure captions, like the owner's paper-style pipeline figure with its (a) and (b) panels.
 
 3. **Left-aligned, asymmetric layout.** No centred hero, no badge row, no stat banner. The text column and the picture column have different widths (5 : 7). Section headings sit in a narrow left column and the content sits in a wide right column, as in a printed report.
    Source: [Krebs](https://adriankrebs.ch/blog/design-slop/) (centred hero, badge above the H1, stat rows).
@@ -40,7 +39,7 @@ The old page had several of these: a centred hero, a row of pill badges, four pa
 6. **Restrained colour with fixed roles.** Warm paper, warm ink, hairline rules and one signal red. The red is the colour of the fix loop in the pipeline figure, and it marks links and figure numbers only. No gradients, no glows. The frames give the page its colour. One dark band (like a light table) holds the sample frames so that the light frames stand out.
    Sources: [925 Studios](https://www.925studios.co/blog/ai-slop-web-design-guide) (colours named by purpose), [Stripe style reference (Refero)](https://styles.refero.design/style/48e5de76-05d5-4c4e-a269-c7c245b291ec) (restrained colour, hairline rules).
 
-7. **Rules and rows, not cards.** Lists are lists. The pipeline steps, the checks and the music tracks are rows split by 1 px rules. The 29 styles are an index with one line each, like the plain dated list on Bartosz Ciechanowski's archive page, not a cloud of chips.
+7. **Rules and rows, not cards.** Lists are lists. The pipeline steps, the checks and the music tracks are rows split by 1 px rules. Each item is one line, like the plain dated list on Bartosz Ciechanowski's archive page, not a cloud of chips.
    Sources: [Ciechanowski archives](https://ciechanow.ski/archives/), [Krebs](https://adriankrebs.ch/blog/design-slop/) (identical feature cards, coloured card borders).
 
 8. **Varied rhythm.** The sample frames sit in a row of two large pictures and then rows of three. Sections change between paper and the dark band. Spacing changes with the weight of the content.
