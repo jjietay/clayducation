@@ -112,7 +112,13 @@ Small objects are larger than real size, so they stay readable. Set `k` for each
 Add it to `MODELS` in `styles/library/clay/models.js`. Each part is a distance function in model
 space, built from `rbox`, `rcyl`, `ell`, `cone`, `torus` and `smin`. Give a moving part a `pivot` and a
 `parent`, and give a part that travels away from its place `free: true`, so it leaves no saved shadow
-behind. Then run `make bake` and `make clay m-<name>`, and read the sheet. Keep the forms large and
+behind. **Mesh step.** The mesh step comes from the size of each part (at most 0.032), so a large flat face
+gets many triangles and a thin tube can get too few. Set `step` on the model (`step: 0.06`) or on one
+part (`m.add(name, f, color, { step: 0.015 })`) to choose it. Always build a model at its true size.
+Never bake a part small and scale its group up in `rest` to save triangles: the collision measures use
+the distance field times the root scale only, so a scaled group gives wrong depths and gaps.
+
+Then run `make bake` and `make clay m-<name>`, and read the sheet. Keep the forms large and
 round, with few small details. Never download a model: the user wants consistency.
 
 ## Formulas act out the voice
