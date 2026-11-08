@@ -3,7 +3,7 @@
 # Kaleidoscope
 
 A Claude Code skill that makes a narrated teaching video about a topic.<br>
-Every picture is 3D, in one clay look, with the same silent mascot in every video. One agent checks the script before the voice is made.
+<b>New:</b> soft 3D clay with a silent mascot who does the work. The classic 2D styles are still there.<br>One agent checks the script before the voice is made.
 
 <img src="gallery/png/clay-cancel.png" alt="The clay mascot pushes a cart on a spring while two terms of the formula above are struck out" width="100%">
 
@@ -32,15 +32,29 @@ In Claude Code, in the conversation where the topic came up:
 
 > Make a video on why computed torque control works.
 
-## The look
+> Make a video on how backpropagation was discovered, and tell its history as a newsreel.
 
-One look for every video: soft 3D clay, plain backgrounds and flat text.
-[`styles/clay.md`](styles/clay.md) has the mascot, his controls and the 28 models.
+## Two looks
 
-The older 2D styles are still there when you ask for them by name, for example "tell its history
-as a newsreel". They use the same workflow and checks; see [`styles/classic/README.md`](styles/classic/README.md).
+### New: clay, with a mascot
+
+The default for every video: soft 3D clay, plain backgrounds and flat text, 28 models that we made in
+code, and one silent mascot who pulls, pushes and holds the things that the voice talks about.
+[`styles/clay.md`](styles/clay.md) has the mascot, his controls and every model.
 
 <img src="gallery/png/mascot.png" alt="The mascot's nine expressions: neutral, smile, surprised, confused, thinking, worried, unimpressed, understanding, sleepy" width="100%">
+
+### Classic: 29 flat styles
+
+The first version's 2D styles, one style for each part of a video. Ask for them by name, for example
+"tell its history as a newsreel". They use the same workflow and the same checks as clay; see
+[`styles/classic/README.md`](styles/classic/README.md).
+
+| Newsreel | Flat vector | Line boil |
+|:---:|:---:|:---:|
+| <img src="gallery/png/classic/newsreel.png" width="260"> | <img src="gallery/png/classic/flat.png" width="260"> | <img src="gallery/png/classic/boil.png" width="260"> |
+| **Pixel art** | **Risograph** | **Blueprint** |
+| <img src="gallery/png/classic/pixel.png" width="260"> | <img src="gallery/png/classic/riso.png" width="260"> | <img src="gallery/png/classic/blueprint.png" width="260"> |
 
 ## Install
 
