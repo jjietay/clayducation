@@ -105,6 +105,11 @@ it in the right way. See them in `make clay m-<name>`.
 
 Small objects are larger than real size, so they stay readable. Set `k` for each scene.
 
+**Large objects stay near real size against the mascot.** He is 8.6 units tall for about 1.7 m, so
+1 m is about 5 units. A door, a fence, a table, a seesaw or a robot keeps its real size against him;
+only small things (fruit, tokens, beads, boards) are made larger. The user found a fence that came only
+to his knee. Each model sheet shows the model next to the mascot: look at that cell.
+
 **Colour roles, the same in every video** (`PAL`): robot orange, map yellow, target green.
 
 ## Add a model

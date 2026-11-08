@@ -57,4 +57,5 @@ No code checks these yet. Look for them in the strips.
 - The sound of the voice: nobody has heard it until the user does.
 - A patch that fails in a chained shell command: stop on the first failure, and confirm that the edit applied.
 - A label that fades out on the same spot where a new label fades in. Below 0.3 opacity the overlap measure ignores it, but the eye still sees two words on top of each other. Move one label aside as it fades.
+- A fence that came only to the mascot's knee. Large objects keep their real size against him (`styles/clay.md`, "Models"); read the "With the mascot" cell of each model sheet.
 - A scene where the voice names a limit or a result and the mascot stands and watches. Give him the work that shows it, for example holding the drifting cart, or pushing a robot that does not move.

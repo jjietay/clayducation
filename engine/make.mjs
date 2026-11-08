@@ -934,8 +934,9 @@ async function check() {
     for (const l of looks.filter((x) => x.texAlone)) layout.add(`${l.id}: a formula with no picture. Show what it does with an object, and name each term on that object (reference/script.md, "Formulas")`);
     // The clay look (styles/clay.md): every scene in 3D, and the mascot in the video.
     if (JSON.parse(fs.readFileSync(path.join(dir, 'video.json'), 'utf8'))._look === 'clay') {
-      const flat = looks.filter((x) => !x.has3d).map((x) => x.id);
-      if (flat.length) problems.add(`not in 3D: ${flat.join(', ')}. Use s.clay(), or manim({ threeD: true }) for a Manim scene whose picture is 3D`);
+      // A Manim scene passes: a curve or a plot is a Manim part on its dark background (the user asked).
+      const flat = looks.filter((x) => !x.has3d && !x.manim).map((x) => x.id);
+      if (flat.length) problems.add(`not in 3D: ${flat.join(', ')}. Use s.clay(), or manim() for a part whose picture is a curve or a plot`);
       if (!looks.some((x) => x.mascot)) problems.add('the mascot is in no scene. Add g.mascot() (styles/clay.md)');
       const none = looks.filter((x) => !x.mascot && !x.manim).map((x) => x.id);
       if (none.length) layout.add(`the mascot is not in: ${none.join(', ')}`);
