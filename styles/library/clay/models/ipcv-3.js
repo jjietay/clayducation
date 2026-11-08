@@ -7,15 +7,6 @@ import { def, stand, PAL } from '../models.js';
 const C = { classA: '#3d63b8', classB: '#8e3f8f', sand: '#d9c08a', arch: '#2f9e8f', column: '#cf4f45' };
 const DEG = Math.PI / 180;
 
-// A small part gets a fine mesh step, so it costs many triangles. shrink() makes the part s times
-// smaller about the point p. The rest pose then scales its group up by s again, so it shows at full
-// size with fewer triangles. The distance stays correct, because the field is divided by s.
-const shrink = (f, p, s) => (x, y, z) => f(p[0] + (x - p[0]) * s, p[1] + (y - p[1]) * s, p[2] + (z - p[2]) * s) / s;
-
-// The same for a whole model: each part is baked s times smaller about the origin, and the rest pose
-// scales each top group up by s. A top group must then have its pivot at the origin.
-function shrinkModel(m, s) { for (const p of m.parts) { p.f = shrink(p.f, [0, 0, 0], s); if (p.pivot) p.pivot = p.pivot.map((v) => v / s); } return m; }
-
 // Turns a field about the z axis by angle a about the point (cx, cy).
 const turnZ = (f, a, cx, cy) => { const c = Math.cos(a), s = Math.sin(a); return (x, y, z) => { const px = x - cx, py = y - cy; return f(cx + c * px + s * py, cy - s * px + c * py, z); }; };
 
@@ -33,12 +24,11 @@ function beadSpec(color, label) {
 }
 
 // The abacus: frame and rods in model space, beads at the left end of each rod.
-const AB = { postX: 2.4, postR: 0.17, rodY: [2.45, 1.45], bx: 0.16, by: 0.32, pitch: 0.32, s: 3.2 };
+const AB = { postX: 2.4, postR: 0.17, rodY: [2.45, 1.45], bx: 0.16, by: 0.32, pitch: 0.32 };
 AB.inner = AB.postX - AB.postR;                       // the inner face of a post
 AB.slide = 2 * AB.inner - 10 * AB.pitch;              // how far a bead can slide, from end to end
 
-// The sand heap: a bell profile that meets the floor at radius R. It is baked SH times smaller.
-const SH = 2;
+// The sand heap: a bell profile that meets the floor at radius R.
 function heap(x, y, z) {
   const H = 1.2, R = 1.8, lift = 0.24, sg = R / Math.sqrt(2 * Math.log((H + lift) / lift)), r = Math.hypot(x, z);
   const e = Math.exp(-r * r / (2 * sg * sg)), h = (H + lift) * e - lift, dh = (H + lift) * e * r / (sg * sg);
@@ -47,7 +37,7 @@ function heap(x, y, z) {
 }
 
 // The Gaussian arch: the curve y = AH exp(-x² / 2), with sigma = 1 model unit, from x = -AW to AW.
-const AH = 2.8, AW = 2.55, AY = 1.19, ARCH = [], BS = 1.3;   // BS: the whole model is baked BS times smaller
+const AH = 2.8, AW = 2.55, AY = 1.19, ARCH = [];
 for (let i = 0; i <= 80; i++) { const x = -AW + (2 * AW * i) / 80; ARCH.push([x, AY + 0.26 + AH * Math.exp(-x * x / 2)]); }
 function archField(x, y, z) {
   let d = 9;
@@ -80,17 +70,16 @@ export const MODELS = {
         const bars = Math.min(rbox(x, y, z, 0, 3.32, 0, X + 0.2, 0.18, 0.22, 0.1), rbox(x, y, z, 0, 0.6, 0, X + 0.2, 0.16, 0.22, 0.1));
         const feet = Math.min(rbox(x, y, z, -X, 0.14, 0, 0.32, 0.14, 0.78, 0.1), rbox(x, y, z, X, 0.14, 0, 0.32, 0.14, 0.78, 0.1));
         return smin(smin(posts, bars, 0.1), feet, 0.12);
-      }, PAL.wood);
+      }, PAL.wood, { step: 0.04 });
       for (const [r, cy] of AB.rodY.entries()) {
         m.add(`rod${r}`, (x, y, z) => rcyl(x, y, z, 0, cy, 0, 'x', 0.06, X, 0.03), PAL.ink);
         for (let i = 0; i < 10; i++) {
           const cx = -AB.inner + AB.bx + i * AB.pitch, pv = [cx, cy, 0];
-          m.add(`b${r}-${i}`, shrink((x, y, z) => ell(x, y, z, cx, cy, 0, AB.bx, AB.by, AB.by), pv, AB.s), r ? C.classB : C.classA, { pivot: pv, free: true });
+          m.add(`b${r}-${i}`, (x, y, z) => ell(x, y, z, cx, cy, 0, AB.bx, AB.by, AB.by), r ? C.classB : C.classA, { pivot: pv, free: true, step: 0.03 });
         }
       }
       return m;
     },
-    rest(g) { for (const k in g) if (/^b\d-\d$/.test(k)) g[k].scale.setScalar(AB.s); },
     pose(g) { for (let i = 3; i < 10; i++) g[`b0-${i}`].position.x += AB.slide; for (let i = 7; i < 10; i++) g[`b1-${i}`].position.x += AB.slide; },
     moving: 'Beads slide: 7 of 10 and 3 of 10',
   },
@@ -98,10 +87,9 @@ export const MODELS = {
     label: 'Cone of sand (Parzen window)',
     make() {
       const m = def();
-      m.add('heap', shrink(heap, [0, 0, 0], SH), C.sand);
+      m.add('heap', heap, C.sand, { step: 0.06 });
       return m;
     },
-    rest(g) { g.heap.scale.setScalar(SH); },
     moving: 'No moving parts',
   },
   hoop: {
@@ -121,16 +109,17 @@ export const MODELS = {
   },
   bellslider: {
     label: 'Gaussian arch on a track',
+    step: 0.042,
     make() {
       const m = def();
       m.add('sleepers', (x, y, z) => { const i = clamp(Math.round((x + 5) / 2), 0, 5) * 2 - 5; return rbox(x, y, z, i, 0.07, 0, 0.24, 0.07, 0.9, 0.06); }, PAL.ink);
       for (const sz of [-1, 1]) m.add(`rail${sz}`, (x, y, z) => rbox(x, y, z, 0, 0.24, sz * 0.52, 6, 0.1, 0.11, 0.07), PAL.ink);
-      m.add('carriage', (x, y, z) => rbox(x, y, z, 0, 0.95, 0, 1.25, 0.24, 0.72, 0.18), PAL.cream, { free: true });
-      for (const sx of [-1, 1]) for (const sz of [-1, 1]) m.add(`wheel${sx}${sz}`, (x, y, z) => rcyl(x, y, z, sx * 0.78, 0.58, sz * 0.52, 'z', 0.24, 0.1, 0.05), PAL.ink, { parent: 'carriage' });
+      m.add('carriage', (x, y, z) => rbox(x, y, z, 0, 0.95, 0, 1.25, 0.24, 0.72, 0.18), PAL.cream, { pivot: [0, 0.58, 0], free: true });
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) m.add(`wheel${sx}${sz}`, (x, y, z) => rcyl(x, y, z, sx * 0.78, 0.58, sz * 0.52, 'z', 0.24, 0.1, 0.05), PAL.ink, { parent: 'carriage', step: 0.014 });
       m.add('arch', archField, C.arch, { parent: 'carriage', pivot: [0, AY, 0] });
-      return shrinkModel(m, BS);
+      return m;
     },
-    rest(g) { for (const k of ['sleepers', 'rail-1', 'rail1', 'carriage']) g[k].scale.setScalar(BS); g.carriage.position.x = -3; },
+    rest(g) { g.carriage.position.x = -3; },
     pose(g) { g.carriage.position.x = 2; g.arch.scale.x = 1.4; },
     moving: 'Carriage slides, arch widens',
   },
