@@ -467,7 +467,7 @@ export function buildModel(THREE, name) {
   const root = new THREE.Group(), groups = {};
   for (const p of d.parts) {
     const base = new THREE.Color(p.color), deep = base.clone().multiplyScalar(0.42).lerp(new THREE.Color('#3a2a26'), 0.12);
-    const g = bake(THREE, `m-${name}-${p.name}`, p.f, () => autoBox(p.f), 0, worldFor(p), (x, y, z, n, A, o) => { o[0] = mix(deep.r, base.r, A); o[1] = mix(deep.g, base.g, A); o[2] = mix(deep.b, base.b, A); });
+    const g = bake(THREE, `m-${name}-${p.name}`, p.f, () => { const b = autoBox(p.f), st = p.step ?? spec.step; if (st) b.step = st; return b; }, 0, worldFor(p), (x, y, z, n, A, o) => { o[0] = mix(deep.r, base.r, A); o[1] = mix(deep.g, base.g, A); o[2] = mix(deep.b, base.b, A); });
     const parent = p.parent ? groups[p.parent] : null, pv = p.pivot || parent?.userData.pv || [0, 0, 0], ppv = parent?.userData.pv || [0, 0, 0];
     const grp = new THREE.Group(); grp.userData.pv = pv; grp.userData.f = p.f; grp.userData.part = p.name; grp.position.set(pv[0] - ppv[0], pv[1] - ppv[1], pv[2] - ppv[2]);
     g.translate(-pv[0], -pv[1], -pv[2]);
