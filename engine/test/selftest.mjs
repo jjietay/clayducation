@@ -115,6 +115,37 @@ try {
   report('the classic modules load by both paths', ck.code === 0 && !/classic modules missing|not found|ERROR/.test(ck.out), ck.out.slice(-400));
   fs.writeFileSync(path.join(dir, 'scenes.js'), before); fs.writeFileSync(path.join(dir, 'video.json'), vj);
 
+  // ---------- the ID pass: exact masks of text, drawings and models ----------
+  {
+    const vjNow = fs.readFileSync(path.join(dir, 'video.json'), 'utf8'), srcNow = fs.readFileSync(path.join(dir, 'scenes.js'), 'utf8');
+    const sc = (id, start, voice) => ({ id, index: 0, start, dur: 1, lead: 0, text: 'x', transition: 'none', marks: {}, attrs: {},
+      words: voice.split(' ').map((text, k) => ({ text, start: 0.05 + k * 0.1, end: 0.14 + k * 0.1 })) });
+    const box = (x) => `{ bg: '#f0e7d6', setup(s) { s.c = s.canvas(); }, draw(s) { s.c.clearRect(0, 0, 1920, 1080); s.c.fillStyle = '#1f5fbf'; s.c.fillRect(${x}, 500, 160, 160); } }`;
+    const ID = {
+      classicMoves: [box('200 + 1200 * s.t'), 'The box moves across.'],
+      classicStill: [box('600'), 'The box moves across.'],
+      gapTexts: ["{ bg: '#f0e7d6', setup(s) { s.a = s.text('Left', { x: 800, y: 300, anchor: 'r', size: 48, color: '#222' }); s.b = s.text('Right', { x: 806, y: 300, anchor: 'l', size: 48, color: '#222' }); }, draw(s) {} }", 'A short test line.'],
+      inkOnDrawing: ["{ bg: '#f0e7d6', setup(s) { s.c = s.canvas(); s.c.fillStyle = '#1f5fbf'; s.c.fillRect(700, 400, 500, 300); s.l = s.text('Label', { x: 950, y: 550, size: 48, color: '#f5f5f5' }); }, draw(s) {} }", 'A short test line.'],
+      lowContrast: ["{ bg: '#f0e7d6', setup(s) { s.a = s.text('Faint', { x: 960, y: 300, size: 48, color: '#e6dccb' }); }, draw(s) {} }", 'A short test line.'],
+    };
+    fs.writeFileSync(path.join(dir, 'video.json'), JSON.stringify({ title: 'selftest', _look: 'classic' }));
+    fs.writeFileSync(path.join(dir, 'scenes.js'), Object.entries(ID).map(([id, [code]]) => `scene('${id}', ${code});`).join('\n') + '\n');
+    writeTimeline(Object.entries(ID).map(([id, [, voice]], i) => sc(id, i, voice)));
+    const r = make('collide', dir), err = (id) => r.out.split('\n').filter((l) => l.startsWith('ERROR') && l.includes(`, ${id}:`)), warn = (id, re) => r.out.split('\n').some((l) => l.startsWith('WARN') && l.includes(`, ${id}:`) && re.test(l));
+    report('a canvas drawing that moves counts as motion', !err('classicMoves').some((l) => /nothing moves/.test(l)), err('classicMoves').join('\n') || r.out.slice(-600));
+    report('a canvas drawing that stays still is still caught', err('classicStill').some((l) => /nothing moves/.test(l)), r.out.slice(-600));
+    report('a 6 px gap between two texts is reported', warn('gapTexts', /^WARN gap .* px from/), r.out.slice(-600));
+    report('text that lies on a drawing is reported', warn('inkOnDrawing', /lies on drawing/), r.out.slice(-600));
+    report('text with low contrast is reported', warn('lowContrast', /contrast of only/), r.out.slice(-600));
+    // A model behind another model of the same size.
+    fs.writeFileSync(path.join(dir, 'video.json'), JSON.stringify({ title: 'selftest', _look: 'clay' }));
+    fs.writeFileSync(path.join(dir, 'scenes.js'), `import { BG } from '/_lib/clay.js';\nscene('hidden', ${world("s.a = await s.g.model('crate', { x: 0, z: 0 }); s.b = await s.g.model('crate', { x: 0, z: -4 });")} draw(s) { s.hero.place(-9, 0); s.g.render(); } });\n`);
+    writeTimeline([sc('hidden', 0, 'A short test line.')]);
+    const h = make('collide', dir);
+    report('a model that another model hides is reported', h.out.split('\n').some((l) => /^WARN hidden .* crate 2 is \d+ % hidden/.test(l)), h.out.slice(-600));
+    fs.writeFileSync(path.join(dir, 'video.json'), vjNow); fs.writeFileSync(path.join(dir, 'scenes.js'), srcNow); writeTimeline(one);
+  }
+
   // ---------- the voice stays when the script stays ----------
   const V = spawnSync(process.execPath, ['--input-type=module', '-e', `import { createHash } from 'node:crypto'; import fs from 'node:fs'; const d = ${JSON.stringify(dir)}, c = JSON.parse(fs.readFileSync(d + '/video.json', 'utf8')); process.stdout.write(createHash('sha1').update(fs.readFileSync(d + '/script.md')).update(JSON.stringify([c._tts || {}, c.fps, c.lead, c.hold, c.end])).digest('hex'));`], { encoding: 'utf8' });
   fs.writeFileSync(path.join(dir, 'build', 'voice.stamp'), V.stdout);

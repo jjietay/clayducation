@@ -1220,6 +1220,12 @@ async function review() {
       if (i % (fps * 5) === 0) process.stdout.write(`\rtrace ${fmt(i / fps)} / ${fmt(tl.duration)} s   `);
     }
     process.stdout.write('\n');
+    // The ID pass over the whole video: drawings that move join the strips, and ink.md lists the rest.
+    const ink = await idPass(page, tl, tl.scenes.map((x) => x.id), frames);
+    write('ink.md', `# Ink\n\nFrom exact masks of each text, formula, drawing and model, on every sixth frame. These are WARNs: look at each one.\n\n`
+      + (ink.warns.length ? ink.warns.map((w) => `- ${w}`).join('\n') : 'Nothing to report.')
+      + `\n\n## The 20 tightest gaps\n\n` + (ink.tight.length ? ink.tight.map((g) => `- ${fmt(g.t)} s, ${g.scene}: ${g.v} px between ${g.a} and ${g.b}`).join('\n') : 'None under 60 px.') + '\n');
+    for (const w of ink.warns) console.log(`WARN ${w}`);
     const cueMap = await page.evaluate('window.__cues');
     // Manim scenes keep their own cue log and trace (from xv.py).
     for (const s of tl.scenes) {
@@ -1508,6 +1514,60 @@ function overlapsOf(frames, fps) {
   return Object.values(ov).filter((e) => e.textOnText || e.to - e.from >= 1.5 / fps).sort((x, y) => x.from - y.from);
 }
 // Every frame of some scenes: what collides, what overlaps, what moves, and the page errors.
+// ---------- the ID pass (engine/runtime.js, "the ID pass") ----------
+// On every sixth frame (--id-every n; XV_ID=0 turns it off): exact masks of each text, formula, drawing
+// and model. Motion that only the pixels show joins the frame's moved parts, so the voice check and the
+// movement strips see a moving drawing too. Gaps, text on a drawing, hidden models and low contrast are
+// WARNs: crowding is the user's judgement, so the 20 tightest moments go on a sheet for the reader.
+async function idPass(page, tl, ids, frames) {
+  const every = +(opt('--id-every') ?? 6), res = { warns: [], tight: [] };
+  if (process.env.XV_ID === '0' || !(every > 0)) return res;
+  const runs = {}, pairs = {};
+  for (const sc of tl.scenes.filter((x) => ids.includes(x.id))) {
+    await page.evaluate('__idReset()');
+    const n = Math.round(sc.dur * tl.fps), step = every / tl.fps;
+    for (let i = 0; i < n; i += every) {
+      const t = sc.start + i / tl.fps;
+      await page.evaluate(`seek(${t})`);
+      const plan = await page.evaluate('__idPlan()');
+      try {
+        for (let k = 0; k < plan.shots; k++) {
+          await page.evaluate(`__idShow(${k})`);
+          await page.evaluate(`__idTake(${k}, "data:image/jpeg;base64,${(await page.shot({ format: 'jpeg', quality: 92 })).toString('base64')}")`);
+        }
+      } finally { await page.evaluate('__idShow(-1)'); }
+      if (plan.text) await page.evaluate(`__idFrame("data:image/jpeg;base64,${(await page.shot({ format: 'jpeg', quality: 92 })).toString('base64')}")`);
+      const r = await page.evaluate('__idMeasure()');
+      // A change since two captures ago: the frames in that window moved.
+      if (r.moved.length) for (const f of frames) if (f.scene === sc.id && f.t > t - 2 * step && f.t <= t + 1e-6) {
+        f.moved ??= { roots: [], parts: [] }; f.moved.parts = [...(f.moved.parts || []), ...r.moved.filter((x) => !f.moved.parts?.includes(x))];
+      }
+      for (const w of r.warns) {
+        const key = `${sc.id}|${w.kind}|${w.a}|${w.b || ''}`, e = runs[key];
+        if (e && t - e.to <= step + 1e-6) { e.to = t; e.v = w.kind === 'contrast' ? Math.min(e.v, w.v) : Math.max(e.v, w.v); e.n++; }
+        else (runs[key] = { scene: sc.id, ...w, from: t, to: t, n: 1, done: e ? [...(e.done || []), e] : [] });
+      }
+      for (const g of r.gaps) { const key = `${sc.id}|${g.a}|${g.b}`; if (!pairs[key] || g.v < pairs[key].v) pairs[key] = { scene: sc.id, t, ...g }; }
+    }
+  }
+  const all = Object.values(runs).flatMap((e) => [...e.done, e]).filter((e) => e.n >= 2);
+  const say = { ink: (e) => `${e.a} lies on ${e.b} (${e.v} px²)`, hidden: (e) => `${e.a} is ${e.v} % hidden by other models`, contrast: (e) => `${e.a} has a contrast of only ${e.v} : 1 with the pixels around it (aim for 3 : 1 or more)` };
+  res.warns = all.sort((a, b) => a.from - b.from).map((e) => `${e.kind} ${fmt(e.from)} to ${fmt(e.to)} s, ${e.scene}: ${say[e.kind](e)}`);
+  res.tight = Object.values(pairs).sort((a, b) => a.v - b.v).slice(0, 20);
+  for (const g of res.tight.filter((x) => x.v < 12)) res.warns.push(`gap ${fmt(g.t)} s, ${g.scene}: ${g.a} is ${g.v} px from ${g.b}`);
+  return res;
+}
+// The tightest gaps as one image for a look, with both things outlined.
+async function tightGrid(page, tight, stampOf) {
+  if (!tight.length) return null;
+  const cells = [];
+  for (const g of tight.slice(0, 9)) {
+    await page.evaluate(`seek(${g.t})`); await page.evaluate(`__idMark(${JSON.stringify(g.boxes)})`);
+    cells.push({ label: `${g.scene} ${fmt(g.t)} s: ${g.v} px, ${g.a} / ${g.b}`.slice(0, 90), img: (await page.shot({ format: 'jpeg', quality: 85 })).toString('base64') });
+    await page.evaluate('__idMark(null)');
+  }
+  return { file: `${stampOf(tight[0].t)}-tightest-gaps.jpg`, cols: 3, w: 640, h: 360, title: 'the tightest gaps: is any of them too close?', cells };
+}
 async function measureScenes(page, tl, ids, dir) {
   const frames = [], hit = {};
   for (const sc of tl.scenes.filter((x) => ids.includes(x.id))) for (let i = 0, n = Math.round(sc.dur * tl.fps); i < n; i++) {
@@ -1518,8 +1578,9 @@ async function measureScenes(page, tl, ids, dir) {
   const faults = Object.values(hit).sort((a, b) => a.from - b.from).map((e) => `collision ${fmt(e.from)} to ${fmt(e.to)} s, ${e.scene}: ${e.what}`);
   faults.push(...stillFormulas(dir, frames), ...formulasRunTogether(frames));
   for (const e of overlapsOf(frames, tl.fps)) faults.push(`overlap ${fmt(e.from)} to ${fmt(e.to)} s, ${e.scene}: ${e.a} and ${e.b}`);
+  const ink = await idPass(page, tl, ids, frames);
   for (const e of await page.evaluate('window.__errors')) faults.push(e.split('\n')[0]);
-  return { frames, faults };
+  return { frames, faults, warns: ink.warns, tight: ink.tight };
 }
 async function look() {
   const dir = projectDir(positional()[0]), tl = timeline(dir), cur = sourceHashes(dir, tl), base = path.dirname(lookFile(dir, 'x')), ok = opt('--ok'), movOk = opt('--moving-ok');
@@ -1545,9 +1606,10 @@ async function look() {
   const ids = opt('--scene')?.split(',') || changedSince(cur, readJson(lookFile(dir, 'passed.json'))?.hashes);
   if (!ids.length) { fs.writeFileSync(lookFile(dir, 'pending.json'), JSON.stringify({ hashes: cur, scenes: [], faults: [], checks: [] })); return console.log('look: no scene changed since the last look.'); }
   for (const f of fs.readdirSync(base)) if (f.endsWith('.jpg')) fs.rmSync(path.join(base, f));
-  const grids = [], list = [], checks = [];
+  const grids = [], list = [], checks = [], warns = [];
   const faults = await withPage(dir, async (page) => {
-    const { frames, faults } = await measureScenes(page, tl, ids, dir);
+    const { frames, faults, warns: inkWarns, tight } = await measureScenes(page, tl, ids, dir);
+    warns.push(...inkWarns);
     for (const l of (await (async () => { const out = new Set(); for (const f of frames.filter((_, i) => i % 15 === 0)) { await page.evaluate(`seek(${f.t})`); for (const x of await page.evaluate('layoutIssues()')) out.add(`${f.scene}: ${x}`); } return out; })())) faults.push(l);
     faults.push(...voiceWithoutMotion(dir, tl, frames, ids));
     const shot = async (t) => { await page.evaluate(`seek(${t})`); return (await page.shot({ format: 'jpeg', quality: 85 })).toString('base64'); };
@@ -1566,6 +1628,8 @@ async function look() {
       for (let k = 0; k < 12; k++) { const t = Math.min(sc.start + sc.dur - 0.03, v.a + ((v.b - v.a) * k) / 11); cells.push({ label: `${fmt(t)} s`, img: await shot(t) }); }
       const file = `${stamp(v.a)}-${v.scene}-moving-${list.length}.jpg`; grids.push({ file, cols: 4, w: 480, h: 270, title: `${v.thing} moves, ${v.scene}, ${fmt(v.a)} to ${fmt(v.b)} s`, cells }); list.push(file);
     }
+    const tg = await tightGrid(page, tight, stamp);
+    if (tg) { grids.push(tg); list.push(tg.file); }
     // Time order, and each image gets its digit in the order that the list prints.
     grids.sort((a, b) => (a.file < b.file ? -1 : 1));
     for (const g of grids) g.check = checkDigit(checks, g.file);
@@ -1573,6 +1637,7 @@ async function look() {
     return faults;
   });
   fs.writeFileSync(lookFile(dir, 'pending.json'), JSON.stringify({ hashes: cur, scenes: ids, faults, checks }));
+  for (const w of warns) console.log(`WARN ${w}`);
   for (const f of faults) console.log(`ERROR ${f}`);
   console.log(`look: ${ids.length} scene(s), ${faults.length} fault(s). Read each image, in order:`);
   for (const f of list.sort()) console.log(path.join(base, f));
@@ -1685,7 +1750,9 @@ async function stable() {
 // The collision measures alone, fast, for one scene or all: run it after each edit, before any build.
 async function collide() {
   const dir = projectDir(positional()[0]), tl = timeline(dir), ids = opt('--scene')?.split(',') || tl.scenes.map((x) => x.id);
-  const faults = await withPage(dir, async (page) => { const m = await measureScenes(page, tl, ids, dir); return [...m.faults, ...voiceWithoutMotion(dir, tl, m.frames, ids)]; });
+  let warns = [];
+  const faults = await withPage(dir, async (page) => { const m = await measureScenes(page, tl, ids, dir); warns = m.warns; return [...m.faults, ...voiceWithoutMotion(dir, tl, m.frames, ids)]; });
+  for (const w of warns) console.log(`WARN ${w}`);
   for (const f of faults) console.log(`ERROR ${f}`);
   console.log(`collide: ${faults.length} fault(s)`);
   process.exit(faults.length ? 1 : 0);

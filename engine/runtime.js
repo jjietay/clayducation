@@ -533,6 +533,167 @@ window.__traceFrame = function () {
   return { scene: current.id, items, acting: !!current._cancelNow || !!current.root.querySelector('[data-acting="1"]'), cancelling: !!current._cancelNow || !!current.root.querySelector('[data-cancelling="1"]'), hits: current._collide?.(items) || [], moved: current._movers?.() || null };
 };
 
+// ---------- the ID pass: exact masks of what each thing paints ----------
+// make.mjs shows a few things at a time on a key colour, captures the stage at full size and gives
+// the capture back here; clay draws its own ID image of its models. Each mask is a quarter of the
+// stage (480 x 270). From the masks: the gap between a text and each thing near it, text that lies
+// on a drawing, a model that others hide, text contrast, and motion of drawings that no trace sees.
+const IW = 480, IH = 270, IQ = 4;
+let idLayers = [], idShots = [], idFrame = null, idHist = new Map();
+const idCss = document.createElement('style');
+idCss.textContent = '#stage.xv-id{background:#f0f!important}#stage.xv-id *{visibility:hidden!important}'
+  + '#stage.xv-id [data-idshow],#stage.xv-id [data-idshow] *{visibility:visible!important}'
+  + '#stage.xv-id [data-idshow]:not(canvas){opacity:1!important}'
+  + '#stage.xv-id [data-idshow]:not(canvas),#stage.xv-id [data-idshow] *:not(canvas){color:#000!important;fill:#000!important;stroke:#000!important;text-shadow:none!important}';
+document.head.appendChild(idCss);
+const idCanvas = document.createElement('canvas'); idCanvas.width = IW; idCanvas.height = IH;
+const idCtx = idCanvas.getContext('2d', { willReadFrequently: true });
+const idDecode = async (url) => {
+  const bmp = await createImageBitmap(await (await fetch(url)).blob());
+  idCtx.imageSmoothingEnabled = true; idCtx.imageSmoothingQuality = 'high';
+  idCtx.clearRect(0, 0, IW, IH); idCtx.drawImage(bmp, 0, 0, IW, IH);
+  return idCtx.getImageData(0, 0, IW, IH).data;
+};
+const qbox = (b) => [Math.max(0, Math.floor(b[0] / IQ) - 1), Math.max(0, Math.floor(b[1] / IQ) - 1), Math.min(IW - 1, Math.ceil(b[2] / IQ) + 1), Math.min(IH - 1, Math.ceil(b[3] / IQ) + 1)];
+const meet = (a, b, pad) => a[0] - pad < b[2] && b[0] - pad < a[2] && a[1] - pad < b[3] && b[1] - pad < a[3];
+
+window.__idReset = () => { idHist = new Map(); };
+// Which things are on screen, and which of them can share one capture (their boxes do not meet).
+window.__idPlan = function () {
+  idLayers = []; idShots = []; idFrame = null;
+  if (!current) return { shots: 0, text: false };
+  const root = current.root;
+  const add = (node, k, kind, color) => {
+    const r = node.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1 || seenOpacity(node, root) <= 0.3) return;
+    idLayers.push({ node, k, kind, color, box: [r.left, r.top, r.right, r.bottom] });
+  };
+  for (const n of root.querySelectorAll('[data-text="1"], [data-tex], [data-tr]')) {
+    if (n.dataset.pass === '1') continue;
+    const kind = n.dataset.tex ? 'tex' : n.dataset.text === '1' ? 'text' : 'traced';
+    add(n, trKeys.get(n) || (kind === 'tex' ? `tex "${n.dataset.tex.slice(0, 30)}"` : kind === 'text' ? `text "${n.textContent.trim().slice(0, 30)}"` : n.dataset.tr || n.tagName.toLowerCase()), kind, getComputedStyle(n).color);
+  }
+  let c = 0;
+  for (const n of root.querySelectorAll('canvas, svg')) if (n.dataset.clay !== '1' && !n.closest('[data-text="1"], [data-tex], [data-tr]')) add(n, `drawing ${++c}`, 'drawing');
+  for (const l of idLayers) {
+    const shot = idShots.find((s) => s.every((o) => !meet(o.box, l.box, 3) && !o.node.contains(l.node) && !l.node.contains(o.node)));
+    if (shot) shot.push(l); else idShots.push([l]);
+  }
+  return { shots: idShots.length, text: idLayers.some((l) => l.kind === 'text' || l.kind === 'tex') };
+};
+// Show only capture i on the key colour; -1 shows the frame as it is again.
+window.__idShow = function (i) {
+  for (const n of document.querySelectorAll('[data-idshow]')) n.removeAttribute('data-idshow');
+  stage.classList.toggle('xv-id', i >= 0);
+  if (i >= 0) for (const l of idShots[i]) l.node.setAttribute('data-idshow', '1');
+};
+// A capture of group i: a pixel is ink when it is far from the key colour. A canvas that paints its
+// own background (paper, film) also leaves out its most common colour.
+window.__idTake = async function (i, url) {
+  const px = await idDecode(url), far = (o, r, g, b) => Math.max(Math.abs(px[o] - r), Math.abs(px[o + 1] - g), Math.abs(px[o + 2] - b)) > 48;
+  for (const l of idShots[i]) {
+    const [x0, y0, x1, y1] = l.q = qbox(l.box), m = new Uint8Array(IW * IH);
+    let bg = null;
+    if (l.kind === 'drawing') {
+      const count = new Map(); let total = 0;
+      for (let y = y0; y <= y1; y += 2) for (let x = x0; x <= x1; x += 2) { const o = (y * IW + x) * 4; const k = (px[o] >> 4) << 8 | (px[o + 1] >> 4) << 4 | (px[o + 2] >> 4); count.set(k, (count.get(k) || 0) + 1); total++; }
+      let best = 0, key = 0; for (const [k, n] of count) if (n > best) { best = n; key = k; }
+      const rgb = [((key >> 8) & 15) * 16 + 8, ((key >> 4) & 15) * 16 + 8, (key & 15) * 16 + 8];
+      if (best > total * 0.35 && Math.max(Math.abs(rgb[0] - 255), rgb[1], Math.abs(rgb[2] - 255)) > 48) bg = rgb;
+    }
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const o = (y * IW + x) * 4;
+      if (far(o, 255, 0, 255) && (!bg || far(o, bg[0], bg[1], bg[2]))) m[y * IW + x] = 1;
+    }
+    l.mask = m;
+  }
+};
+window.__idFrame = async (url) => { idFrame = await idDecode(url); };
+// Outlined boxes over the stage, for the "tightest gaps" sheet. null removes them.
+window.__idMark = function (boxes) {
+  for (const n of document.querySelectorAll('.xv-mark')) n.remove();
+  for (const [x0, y0, x1, y1] of boxes || []) {
+    const d = el('div', {}, stage); d.className = 'xv-mark';
+    d.style.cssText = `position:absolute;left:${x0 - 4}px;top:${y0 - 4}px;width:${x1 - x0 + 8}px;height:${y1 - y0 + 8}px;border:3px solid #d6336c;border-radius:6px;z-index:99;pointer-events:none`;
+  }
+};
+// Chamfer distance (3-4) from a mask, in thirds of a mask pixel.
+const chamfer = (m) => {
+  const d = new Uint16Array(IW * IH);
+  for (let i = 0; i < d.length; i++) d[i] = m[i] ? 0 : 65000;
+  for (let y = 0; y < IH; y++) for (let x = 0; x < IW; x++) {
+    const i = y * IW + x; let v = d[i];
+    if (x > 0) v = Math.min(v, d[i - 1] + 3);
+    if (y > 0) { v = Math.min(v, d[i - IW] + 3); if (x > 0) v = Math.min(v, d[i - IW - 1] + 4); if (x < IW - 1) v = Math.min(v, d[i - IW + 1] + 4); }
+    d[i] = v;
+  }
+  for (let y = IH - 1; y >= 0; y--) for (let x = IW - 1; x >= 0; x--) {
+    const i = y * IW + x; let v = d[i];
+    if (x < IW - 1) v = Math.min(v, d[i + 1] + 3);
+    if (y < IH - 1) { v = Math.min(v, d[i + IW] + 3); if (x < IW - 1) v = Math.min(v, d[i + IW + 1] + 4); if (x > 0) v = Math.min(v, d[i + IW - 1] + 4); }
+    d[i] = v;
+  }
+  return d;
+};
+const lum = (r, g, b) => { const f = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+// All measures of this frame. Lengths come back in stage px.
+window.__idMeasure = function () {
+  const L = idLayers.filter((l) => l.mask), out = { warns: [], gaps: [], moved: [] };
+  if (current?._idPass) {
+    const r = current._idPass(IW, IH);
+    r.names.forEach((k, i) => {
+      const m = new Uint8Array(IW * IH); let x0 = IW, y0 = IH, x1 = 0, y1 = 0, n = 0, s = 0;
+      for (let p = 0; p < m.length; p++) { if (r.visible[p] === i + 1) { m[p] = 1; n++; const x = p % IW, y = (p / IW) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } if (r.sil[i][p]) s++; }
+      if (n) L.push({ k, kind: 'model', mask: m, q: [x0, y0, x1, y1], box: [x0 * IQ, y0 * IQ, (x1 + 1) * IQ, (y1 + 1) * IQ] });
+      // A model that other models hide: less than half of its own outline shows.
+      if (s >= 150 && n / s < 0.5) out.warns.push({ kind: 'hidden', a: k, v: Math.round(100 * (1 - n / s)) });
+    });
+  }
+  const isText = (l) => l.kind === 'text' || l.kind === 'tex';
+  const texts = L.filter(isText), ink = new Uint8Array(IW * IH);
+  for (const l of texts) for (let p = 0; p < ink.length; p++) if (l.mask[p]) ink[p] = 1;
+  for (const a of texts) {
+    for (const b of L) {
+      if (a === b || (isText(b) && L.indexOf(b) < L.indexOf(a)) || (a.node && b.node && (a.node.contains(b.node) || b.node.contains(a.node)))) continue;
+      if (!meet(a.q, b.q, 16)) continue;
+      let over = 0;
+      for (let y = a.q[1]; y <= a.q[3]; y++) for (let x = a.q[0]; x <= a.q[2]; x++) { const p = y * IW + x; if (a.mask[p] && b.mask[p]) over++; }
+      // Text on a 3D model is clay's own check, and text on text is the box check: report text on a drawing.
+      if (over >= 4) { if (b.kind === 'drawing' || b.kind === 'traced') out.warns.push({ kind: 'ink', a: a.k, b: b.k, v: over * IQ * IQ }); continue; }
+      if (over) continue;
+      const d = (b.dt ??= chamfer(b.mask)); let best = 65000;
+      for (let y = a.q[1]; y <= a.q[3]; y++) for (let x = a.q[0]; x <= a.q[2]; x++) { const p = y * IW + x; if (a.mask[p] && d[p] < best) best = d[p]; }
+      const gap = Math.round((best / 3 - 1) * IQ);
+      if (gap <= 60) out.gaps.push({ a: a.k, b: b.k, v: Math.max(0, gap), boxes: [a.box, b.box] });
+    }
+    // Contrast of the text against the pixels just around it (not other text).
+    if (idFrame && a.color) {
+      const c = a.color.match(/[\d.]+/g)?.map(Number);
+      const d = (a.dt ??= chamfer(a.mask)), ring = [];
+      for (let y = a.q[1]; y <= a.q[3]; y++) for (let x = a.q[0]; x <= a.q[2]; x++) { const p = y * IW + x; if (d[p] >= 4 && d[p] <= 9 && !ink[p]) ring.push(lum(idFrame[p * 4], idFrame[p * 4 + 1], idFrame[p * 4 + 2])); }
+      if (c && ring.length >= 20) {
+        ring.sort((u, v) => u - v);
+        const L1 = lum(c[0], c[1], c[2]), L2 = ring[ring.length >> 1], ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+        if (ratio < 3) out.warns.push({ kind: 'contrast', a: a.k, v: Math.round(ratio * 10) / 10 });
+      }
+    }
+  }
+  // Motion of things that no trace follows: a drawing or a traced element whose pixels changed since
+  // two captures ago, in a patch thicker than one mask pixel (hand-drawn line boil is thinner).
+  for (const l of L) {
+    if (l.kind !== 'drawing' && l.kind !== 'traced') continue;
+    const h = idHist.get(l.k) || [], old = h[0];
+    if (old) {
+      const x = new Uint8Array(IW * IH); for (let p = 0; p < x.length; p++) x[p] = l.mask[p] !== old[p] ? 1 : 0;
+      let n = 0;
+      for (let y = 1; y < IH - 1; y++) for (let xx = 1; xx < IW - 1; xx++) { const p = y * IW + xx; if (x[p] && x[p - 1] && x[p + 1] && x[p - IW] && x[p + IW]) n++; }
+      if (n >= 8) out.moved.push(l.k);
+    }
+    h.push(l.mask); if (h.length > 2) h.shift(); idHist.set(l.k, h);
+  }
+  return out;
+};
+
 // ---------- preview in a normal browser ----------
 if (!RENDER) {
   document.body.style.background = '#111';

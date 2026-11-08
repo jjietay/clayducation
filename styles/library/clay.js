@@ -37,6 +37,7 @@ function renderer(W, H) {
   shared.setPixelRatio(2); shared.setSize(W, H, false);
   shared.outputColorSpace = THREE.SRGBColorSpace; shared.toneMapping = THREE.NoToneMapping;
   shared.domElement.style.cssText = `position:absolute;left:0;top:0;width:${W}px;height:${H}px;z-index:0`;
+  shared.domElement.dataset.clay = '1';   // the ID pass reads models from clay itself, not from this canvas
   return shared;
 }
 
@@ -178,6 +179,40 @@ function selfHits(m) {
   return hits;
 }
 
+// See s._idPass. Index i + 1 in the red and green bytes marks model i; 0 is nothing.
+const idMats = new Map();
+let idTarget = null;
+function idPass(R, scene, camera, models, w, h) {
+  if (!idTarget || idTarget.width !== w) idTarget = new THREE.WebGLRenderTarget(w, h);
+  const owner = new Map(), seen = {};
+  const names = models.map((m) => { const b = m.hero ? 'mascot' : m.name; seen[b] = (seen[b] || 0) + 1; return seen[b] > 1 ? `${b} ${seen[b]}` : b; });
+  models.forEach((m, i) => m.root.traverse((o) => { if (o.isMesh || o.isLine || o.isPoints) owner.set(o, i); }));
+  const saved = [];
+  scene.traverse((o) => { if (o.isMesh || o.isLine || o.isPoints || o.isSprite) saved.push([o, o.material, o.visible]); });
+  const mat = (i, side) => {
+    const k = `${i}|${side}`;
+    if (!idMats.has(k)) { const c = new THREE.Color(); c.setRGB(((i + 1) & 255) / 255, ((i + 1) >> 8) / 255, 0, THREE.LinearSRGBColorSpace); idMats.set(k, new THREE.MeshBasicMaterial({ color: c, side, toneMapped: false })); }
+    return idMats.get(k);
+  };
+  for (const [o, m] of saved) { const i = owner.get(o); if (i === undefined) o.visible = false; else o.material = mat(i, (Array.isArray(m) ? m[0] : m)?.side ?? THREE.FrontSide); }
+  const bg = scene.background, env = scene.environment, before = R.getRenderTarget(), buf = new Uint8Array(w * h * 4);
+  scene.background = new THREE.Color(0, 0, 0); scene.environment = null;
+  const read = () => { R.setRenderTarget(idTarget); R.clear(); R.render(scene, camera); R.readRenderTargetPixels(idTarget, 0, 0, w, h, buf); };
+  const flip = (fn) => { for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const o = ((h - 1 - y) * w + x) * 4; fn(y * w + x, buf[o] | (buf[o + 1] << 8)); } };
+  try {
+    read();
+    const visible = new Uint16Array(w * h); flip((p, v) => { visible[p] = v; });
+    const sil = models.map((_, i) => {
+      for (const [o, , v] of saved) { const j = owner.get(o); if (j !== undefined) o.visible = j === i && v; }
+      read(); const m = new Uint8Array(w * h); flip((p, v) => { m[p] = v === i + 1 ? 1 : 0; }); return m;
+    });
+    return { names, visible, sil };
+  } finally {
+    for (const [o, m, v] of saved) { o.material = m; o.visible = v; }
+    scene.background = bg; scene.environment = env; R.setRenderTarget(before);
+  }
+}
+
 export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
   // Read the stage size now: a scene may use s.H or s.W for its own things later.
   const W = s.W, H = s.H, R = renderer(W, H), scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(fov, W / H, 0.1, 400);
@@ -227,6 +262,9 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
     return [...out, ...objectHits(models), ...(s._heroModel ? selfHits(s._heroModel) : []), ...(third ? textHits(scene, camera, items, s.W, s.H) : [])];
   };
   s._movers = () => moved(s._hero, models, camera, s.W, s.H);
+  // The ID pass (engine/runtime.js): each model drawn in its own flat colour, and each model alone for
+  // its full outline. Shadows and anything that is not a model stay out. The frame on screen does not change.
+  s._idPass = (w, h) => idPass(R, scene, camera, models, w, h);
   const g = {
     THREE, scene, camera, renderer: R,
     // A soft contact shadow under an object that stands on the floor at y = 0.

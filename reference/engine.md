@@ -169,15 +169,25 @@ one shadow-casting light, shadow map 1024.
 | `make sheet <dir>` | contact sheets, 3 frames a scene. `--scene id` one frame a second, `--every 2` whole video |
 | `make stable <dir>` | draws one frame a second twice, and gives an ERROR when two draws differ, because that means a GPU drop-out. `--every 0.2` samples more. Part of `make build` |
 | `make look <dir> [--scene a,b]` | **after each edit.** Measures each changed scene on every frame, and draws its near frames and moving parts to `build/look/`. Each image has a CHECK digit. `--ok <digits>`: the digits of all images, in order; `make build` needs this. `--moving-ok <digits>`: the same for the strips of a build; `make final` needs this. `"_gate": false` in `video.json` turns the gates off for an old project |
-| `make collide <dir> [--scene a,b]` | only the measures of `make look`: the mascot against every object, each object against each other, text against 3D ink, walks, reach, and the voice against motion. `make review` runs them too, and a fault stops the build |
+| `make collide <dir> [--scene a,b]` | only the measures of `make look`: the mascot against every object, each object against each other, text against 3D ink, walks, reach, and the voice against motion, then the ID pass (below). `make review` runs them too, and a fault stops the build |
 | `make selftest` | plants each fault in `reference/faults.md`, and confirms that the engine catches it. Run it after each change to a check |
 | `make attached` | measures every join in every model. `make bake` runs it too |
 | `make still <dir> 12.5 intro@end idea@#step idea@lambda` | full-size PNGs in `build/stills/` |
-| `make review <dir>` | `build/review/`: a grid at each cue with the spoken words (`cues.md`), a dense strip of every measured movement (`moving.md`, `moving/`), collisions (`collisions.md`), motion flags and movements (`motion.md`), measured overlaps (`overlaps.md`), all text on screen (`onscreen.md`) |
+| `make review <dir>` | `build/review/`: a grid at each cue with the spoken words (`cues.md`), a dense strip of every measured movement (`moving.md`, `moving/`), collisions (`collisions.md`), motion flags and movements (`motion.md`), measured overlaps (`overlaps.md`), all text on screen (`onscreen.md`), the ID pass (`ink.md`) |
 | `make subtitles <dir>` | `build/subtitles.srt` again from `build/timeline.json`, with no new voice run. One line per cue, at most 42 characters. Then `make render <dir> --remix` puts it in the MP4 |
 | `make render <dir>` | `out/<slug>.mp4` (soft subtitles) + `.srt`. `--draft` half size, `--from s --to s` one part to `build/`, `--workers n`, `--remix` new audio on the last render's frames. Makes `build/music.wav` at the video's length first (cached), and `build/sfx.wav` from the `s.sfx` calls when `_render.sfx` is true |
 | `make verify <dir>` | duration, streams, loudness, black frames |
 | `make preview <dir>` | prints a URL: the video in a browser with the voice (space, arrow keys) |
+
+The ID pass runs inside `collide`, `look` and `review`, on every sixth frame (`--id-every n`;
+`XV_ID=0` turns it off). It makes an exact mask of each text, formula, drawing (a canvas or a scene's
+own svg) and model: the page shows a few things at a time on a magenta key colour and captures the
+stage at full size, and clay draws each model in its own flat colour. From the masks: the gap between
+each text and each thing near it, text that lies on a drawing, a model that others hide by half or
+more, text contrast under 3 : 1, and motion of drawings, which joins the frame's moved parts (the voice
+check and the movement strips use it). All but the motion are WARNs. `look` adds one image of the
+tightest gaps, with both things outlined. A style that paints several things into one canvas gives
+one mask for that canvas: draw separate things to separate layers when their gaps matter.
 
 `voice` must run again after any change to `script.md`. The other commands stop with an
 error if `script.md` is newer than the timeline.

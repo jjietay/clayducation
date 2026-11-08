@@ -73,7 +73,9 @@ If a storyboard breaks one of these, change the storyboard before you write code
 - **No overlaps.** No visual may cover another: text on text, text on a graphic, or a
   graphic that hides another graphic. Each label, formula, arrow and object gets its own
   space. `check` WARNs on overlapping texts, and `review` writes every measured overlap to
-  `overlaps.md`. Crowding is the user's judgement, so look for it in the frames at full size.
+  `overlaps.md`. Crowding is the user's judgement, so look for it in the frames at full size. The ID
+  pass helps: `make look` adds an image of the tightest gaps, and WARNs for text closer than 12 px
+  to another thing, text on a drawing, low text contrast and a model that others hide.
   Fix every overlap before `make final`.
 - **Subtitles have one line.** Each cue is at most 42 characters and no two cues show at
   the same time, so a player never shows two lines. The engine does this; `verify` reports
