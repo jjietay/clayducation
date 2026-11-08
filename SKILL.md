@@ -14,12 +14,38 @@ The engine is in `~/.claude/skills/kaleidoscope/engine/`. In this file, `make` m
 node ~/.claude/skills/kaleidoscope/engine/make.mjs <command> <project-dir>
 ```
 
-## One shot (the user asked for this)
+## Step 0: ask first (every time the skill starts)
 
-When the user says "generate" or asks for a video, **do every step below without stopping,
-and come back only with the finished, checked video**. Do not ask "shall I continue?", do
-not show drafts, do not wait between steps. Ask at most one question, only at step 2, and
-only when the topic itself is unclear. Every check below is yours to run and to act on.
+Whether the user typed `/kaleidoscope` or asked for a video in words, the first thing you do is
+ask the questions below with AskUserQuestion, with clickable options. Leave out each question that
+the user's message or this conversation already answers (for example "as a newsreel" answers the
+look, and "for my exam" answers who it is for). Put the recommended option first and mark it
+"(Recommended)". The tool takes at most 4 questions in one call: ask the first four together, and
+music in a second call right after, unless a skipped question leaves room for it in the first.
+If the topic itself is unclear, ask about it in the same call.
+
+| Question | Header | Options (first = default) |
+|---|---|---|
+| Which look should the video use? | Look | **Clay 3D**: one soft clay look, with the silent mascot doing the work · **Classic 2D, mixed**: a different 2D style for each part · **Classic 2D, one style**: the user names it (newsreel, whiteboard, ...) |
+| Who is the video for? | Viewer | **Exam revision**: the lecture's notation, worked numbers, exam traps · **First-time learner**: intuition first, fewer symbols · **Expert refresher**: fast and dense |
+| How long and how deep? | Length | **Standard**: 5 to 6 min · **Short overview**: 2 to 4 min · **Deep**: 8 to 9 min, every step of the derivation |
+| When should I check with you? | Checkpoint | **One shot**: come back with the finished video · **After the storyboard**: show the plan and wait for approval · **After the first look**: show the first frames and wait |
+| Which music? | Music | **Calm** (`current`): soft pad, no beat · **Lo-fi** (`lofi`): light beat, more energy · **None** |
+
+Put a recommended option first when the conversation suggests one (an exam the next week: Exam
+revision and Deep). Write the answers into `video.json` at step 4: `"_look"` (`clay` or `classic`),
+`"_brief": { "viewer": ..., "length": ..., "checkpoint": ..., "style": ... }` and
+`"_render": { "music": "current" | "lofi" | false }`. Every later step, and a rebuild, reads them
+there and does not ask again. If the user dismisses the questions, use the first option of each.
+
+## One shot, unless the user chose a checkpoint
+
+After step 0, **do every step below without stopping, and come back only with the finished,
+checked video**. Do not ask "shall I continue?", do not show drafts, do not wait between steps.
+Every check below is yours to run and to act on. The only stops are the checkpoint that the user
+chose: "After the storyboard" stops after step 7 (show the storyboard and the script agent's
+verdict, then wait), and "After the first look" stops at the first `make look` of step 9 (show its
+images, then wait).
 
 ## The look the user wants (read before step 6)
 
@@ -157,8 +183,9 @@ every other check does, and formulas must act out the voice in both looks.
    words they use, projects), what this conversation or project shows about the topic,
    and whether a real "your case" exists ("none" if not).
 
-2. **Ask one time, only if you must** (see "One shot"). Otherwise choose sensible defaults
-   and say what you chose in the report. Defaults: 16:9, 2 to 4 minutes, intermediate depth.
+2. **Use the answers of step 0.** The viewer sets the depth and the notation (write it as "the
+   viewer" in the storyboard, so the script agent reads it), and the length sets the minutes. Say
+   in the report what was chosen.
 
 3. **Check the facts.** Read the user's code, datasheets or docs that the video depends on.
    For maths, derive or check every formula and every example number.
@@ -168,6 +195,7 @@ every other check does, and formulas must act out the voice in both looks.
    ```bash
    make init <dir> --title "Eigenvectors and eigenvalues"
    ```
+   Then write the step 0 answers into `video.json` (`_look`, `_brief`, `_render.music`).
 
 5. **Write `script.md`.** Read `reference/script.md` first: learning order, how the voice
    reads, pacing, **formulas**, writing rules, markup, voice traps. Compute each number with

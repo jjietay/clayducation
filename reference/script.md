@@ -45,7 +45,8 @@ What the user rejected, so never do it again:
 - **In core scenes, show at most one new thing every 2 s.**
 - **Say each key definition twice**: once in the mechanism, once in the recap, with the same words.
 - Never only read a formula aloud. Follow "Formulas" below.
-- Length: 2 to 4 minutes for one concept. If the topic needs more, make two videos.
+- Length: from `_brief.length` in `video.json` (step 0 of SKILL.md): short 2 to 4 minutes, standard 5 to 6,
+  deep 8 to 9. A topic that needs more than the length allows becomes two videos.
 
 ## Formulas
 
