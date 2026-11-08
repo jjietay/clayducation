@@ -116,7 +116,8 @@ If a storyboard breaks one of these, change the storyboard before you write code
   `make look`, read every image it lists, fix what you see, and look again. Only then build. Never edit
   and build blindly, because a build is long and a look takes seconds. Each image has a CHECK digit at its
   top right, and the gates open only with the digits of all images, in order:
-  1. Edit. If you changed `script.md`, run `make voice`.
+  1. Edit. If you changed `script.md`, run `make voice`. If the video has Manim parts and you changed
+     `manim_scenes.py` or the voice, run `make manim`: `make look` draws the Manim frames, it does not make them.
   2. `make look <dir>`: it measures each changed scene on every frame, and draws its near frames and its
      moving parts. Read them all. Then `make look <dir> --ok <digits>`. `make build` stops without this.
   3. `make build <dir>`. It stops on any collision.

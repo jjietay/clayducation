@@ -937,13 +937,7 @@ async function check() {
     // Sound effects: too many, two accents close together, an accent on a word.
     if (renderCfg(dir).sfx) for (const w of sfxLint(Object.values(await page.evaluate('window.__sfx || {}')), timelineWords(tl))) layout.add(`sfx ${w}`);
   });
-  // Word timing: when Whisper matches too few words of a scene, the engine guesses the word
-  // times, and the cues of that scene bunch together (video 3: six cues in 0.5 s, rate 0.46).
-  for (const s of tl.scenes) {
-    const f = path.join(dir, 'build', 'voice', `${s.id}.json`);
-    const rate = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')).matchRate : undefined;
-    if (typeof rate === 'number' && rate < 0.9) problems.add(`scene ${s.id}: only ${Math.round(rate * 100)} % of the words were matched in the audio, so its cue times are guesses. Listen to build/voice/${s.id}, then make that scene's voice again (new seed) or split its long paragraph.`);
-  }
+  for (const m of voiceMatchIssues(dir, tl)) problems.add(m);
   const script = fs.readFileSync(path.join(dir, 'script.md'), 'utf8');
   if (/[\u2013\u2014]/.test(script.replace(/^>.*$/gm, ''))) problems.add('script.md has an en or em dash in narration. The voice reads them badly: use a full stop or a comma.');
   for (const w of formulaRuns(script)) layout.add(w);
@@ -1228,9 +1222,7 @@ async function review() {
     }
     const errors = new Set((await page.evaluate('window.__errors')).map((e) => e.split('\n')[0]));
     // The mascot against every object, and object against object (styles/library/clay.js).
-    const hit = {};
-    for (const f of frames) for (const h of f.hits || []) { const e = (hit[`${f.scene}|${h}`] ??= { scene: f.scene, what: h, from: f.t, to: f.t }); e.to = f.t; }
-    collisions = Object.values(hit).sort((a, b) => a.from - b.from);
+    collisions = hitRuns(frames);
     write('collisions.md', `# Collisions\n\nThe mascot against every object on every frame, and each object against each other object on every third frame.\n\n` + (collisions.length ? collisions.map((e) => `- ${fmt(e.from)} to ${fmt(e.to)} s, ${e.scene}: ${e.what}`).join('\n') : 'No collisions.') + '\n');
     for (const e of collisions.slice(0, 25)) console.log(`ERROR collision ${fmt(e.from)} to ${fmt(e.to)} s, ${e.scene}: ${e.what}`);
     if (collisions.length > 25) console.log(`ERROR ${collisions.length - 25} more collisions in ${path.join(out, 'collisions.md')}`);
@@ -1556,18 +1548,53 @@ async function tightGrid(page, tight, stampOf) {
   }
   return { file: `${stampOf(tight[0].t)}-tightest-gaps.jpg`, cols: 3, w: 640, h: 360, title: 'the tightest gaps: is any of them too close?', cells };
 }
+// The frames of one fault, as runs: a gap of more than 0.5 s starts a new run. A fault at 0.8 s and
+// another at 11.9 s once printed as one fault "0.8 to 11.9 s".
+function hitRuns(frames) {
+  const open = {}, out = [];
+  for (const f of frames) for (const h of f.hits || []) {
+    const k = `${f.scene}|${h}`, e = open[k];
+    if (e && f.t - e.to <= 0.5) e.to = f.t; else { if (e) out.push(e); open[k] = { scene: f.scene, what: h, from: f.t, to: f.t }; }
+  }
+  return [...out, ...Object.values(open)].sort((a, b) => a.from - b.from);
+}
+// Word timing: when Whisper matches too few words of a scene, the engine guesses the word
+// times, and the cues of that scene bunch together (video 3: six cues in 0.5 s, rate 0.46).
+// check stops on it, and look reports it too, so it is fixed before the images are read.
+function voiceMatchIssues(dir, tl, ids) {
+  const out = [];
+  for (const s of tl.scenes) {
+    if (ids && !ids.includes(s.id)) continue;
+    const f = path.join(dir, 'build', 'voice', `${s.id}.json`);
+    const rate = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')).matchRate : undefined;
+    if (typeof rate === 'number' && rate < 0.9) out.push(`scene ${s.id}: only ${Math.round(rate * 100)} % of the words were matched in the audio, so its cue times are guesses. Listen to build/voice/${s.id}, then make that scene's voice again (new seed) or split its long paragraph.`);
+  }
+  return out;
+}
+// One line for one error, however many frames it happened on: a Manim scene with no frames gave
+// 300 lines, one for each frame.
+function groupErrors(list) {
+  const seen = new Map();
+  for (const e of list) {
+    const line = e.split('\n')[0], m = line.match(/^scene (\S+) at ([\d.]+) s: (.*)$/);
+    const key = m ? `${m[1]}|${m[3]}` : line, t = m ? +m[2] : null;
+    const g = seen.get(key) || { line, id: m?.[1], msg: m?.[3], from: t, to: t, n: 0 };
+    if (t !== null) { g.from = Math.min(g.from, t); g.to = Math.max(g.to, t); }
+    g.n++; seen.set(key, g);
+  }
+  return [...seen.values()].map((g) => (g.id && g.n > 1 ? `scene ${g.id} at ${g.from.toFixed(2)} to ${g.to.toFixed(2)} s (${g.n} frames): ${g.msg}` : g.line));
+}
 async function measureScenes(page, tl, ids, dir) {
-  const frames = [], hit = {};
+  const frames = [];
   for (const sc of tl.scenes.filter((x) => ids.includes(x.id))) for (let i = 0, n = Math.round(sc.dur * tl.fps); i < n; i++) {
     const t = sc.start + i / tl.fps, f = await page.evaluate(`seek(${t}).then(() => __traceFrame())`);
     frames.push({ t, ...f });
-    for (const h of f.hits || []) { const e = (hit[`${f.scene}|${h}`] ??= { scene: f.scene, what: h, from: t, to: t }); e.to = t; }
   }
-  const faults = Object.values(hit).sort((a, b) => a.from - b.from).map((e) => `collision ${fmt(e.from)} to ${fmt(e.to)} s, ${e.scene}: ${e.what}`);
+  const faults = hitRuns(frames).map((e) => `collision ${fmt(e.from)} to ${fmt(e.to)} s, ${e.scene}: ${e.what}`);
   faults.push(...stillFormulas(dir, frames), ...formulasRunTogether(frames));
   for (const e of overlapsOf(frames, tl.fps)) faults.push(`overlap ${fmt(e.from)} to ${fmt(e.to)} s, ${e.scene}: ${e.a} and ${e.b}`);
   const ink = await idPass(page, tl, ids, frames);
-  for (const e of await page.evaluate('window.__errors')) faults.push(e.split('\n')[0]);
+  faults.push(...groupErrors(await page.evaluate('window.__errors')));
   return { frames, faults, warns: ink.warns, tight: ink.tight };
 }
 async function look() {
@@ -1600,6 +1627,7 @@ async function look() {
     warns.push(...inkWarns);
     for (const l of (await (async () => { const out = new Set(); for (const f of frames.filter((_, i) => i % 15 === 0)) { await page.evaluate(`seek(${f.t})`); for (const x of await page.evaluate('layoutIssues()')) out.add(`${f.scene}: ${x}`); } return out; })())) faults.push(l);
     faults.push(...voiceWithoutMotion(dir, tl, frames, ids));
+    faults.push(...voiceMatchIssues(dir, tl, ids));
     const shot = async (t) => { await page.evaluate(`seek(${t})`); return (await page.shot({ format: 'jpeg', quality: 85 })).toString('base64'); };
     for (const id of ids) {
       const sc = tl.scenes.find((x) => x.id === id), inS = (t) => Math.min(sc.start + sc.dur - 0.03, Math.max(sc.start + 0.03, t));

@@ -18,6 +18,8 @@ confirms that the engine catches it. Run it after each change to a check.
 | His hands were in the air beside a cart, a robot and a pole that he pushed or held | When a hold is complete (k ≥ 0.95), the hand's own shape must touch the part that it holds | `holds` in `clay.js`, `hold` in `mascot.js` |
 | A change to `video.json` or to the checks did not close the gate | The gate also follows `video.json` and `make.mjs` | `sourceHashes` in `make.mjs` |
 | A canvas drawing moved, and the voice check said that nothing moved; it had no movement strip | The ID pass: exact masks of each drawing, and a change thicker than a line boil counts as motion | `idPass` in `make.mjs`, `__idMeasure` in `runtime.js` |
+| The mascot's walk added its arm swing to the frame before, so a scene with no pose call drew a T-pose that depended on frame order | The mascot's state after setup is put back before every draw | `_afterSetup`, `_beforeDraw` in `runtime.js` and `clay.js`; `make stable` |
+| A voice that matched 84 % of its words passed the look and stopped the build | `look` reports a low voice match too | `voiceMatchIssues` in `make.mjs` |
 | Signal balls went through the mascot | `g.ball`: the kit registers each prop, so the measures see it | `clay.js` |
 | The mascot's straight raised arm looked like a salute | A straight arm at shoulder height or above is a fault, on every frame | `clay.js` |
 | Two formulas ran together on one line and read as one wrong formula | Two rows on one line need a gap of 40 px | `formulasRunTogether` in `make.mjs` |

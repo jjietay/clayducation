@@ -281,6 +281,11 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
       if (shadow) m.shadow = g.ground(m.root);
       m.root.userData.thing = 'mascot';
       s._heroModel = { name: 'mascot', root: m.root, hero: m, groups: Object.fromEntries(m.shapes.map((x) => [x.userData.part, x])) };
+      // The pose at the end of setup is the start of every frame: the walk adds to the arms, so a scene
+      // that does not set a pose each frame would otherwise draw a pose that depends on the frame before.
+      const saved = [];
+      (s._afterSetup ??= []).push(() => m.root.traverse((o) => saved.push([o, o.position.clone(), o.quaternion.clone(), o.scale.clone()])));
+      (s._beforeDraw ??= []).push(() => { for (const [o, p, q, k] of saved) { o.position.copy(p); o.quaternion.copy(q); o.scale.copy(k); } });
       models.push(s._heroModel);
       m.place(x, z);
       s.hasMascot = true; s.clayCount++; s._hero = m;

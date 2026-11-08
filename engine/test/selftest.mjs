@@ -146,6 +146,15 @@ try {
     fs.writeFileSync(path.join(dir, 'video.json'), vjNow); fs.writeFileSync(path.join(dir, 'scenes.js'), srcNow); writeTimeline(one);
   }
 
+  // ---------- a scene that only walks the mascot draws the same frame in any order ----------
+  {
+    const srcNow = fs.readFileSync(path.join(dir, 'scenes.js'), 'utf8');
+    fs.writeFileSync(path.join(dir, 'scenes.js'), `import { BG } from '/_lib/clay.js';\nscene('clean', ${world('')} draw(s) { s.hero.route(s.t, [[0, -8, 0, 1.57], [2, -4, 0, 1.57]]); s.g.render(); } });\n`);
+    const st = make('stable', dir, '--every', '0.1');
+    report('a walk with no pose call draws the same frame in any order', / 0 differ/.test(st.out), st.out.slice(-400));
+    fs.writeFileSync(path.join(dir, 'scenes.js'), srcNow);
+  }
+
   // ---------- the voice stays when the script stays ----------
   const V = spawnSync(process.execPath, ['--input-type=module', '-e', `import { createHash } from 'node:crypto'; import fs from 'node:fs'; const d = ${JSON.stringify(dir)}, c = JSON.parse(fs.readFileSync(d + '/video.json', 'utf8')); process.stdout.write(createHash('sha1').update(fs.readFileSync(d + '/script.md')).update(JSON.stringify([c._tts || {}, c.fps, c.lead, c.hold, c.end])).digest('hex'));`], { encoding: 'utf8' });
   fs.writeFileSync(path.join(dir, 'build', 'voice.stamp'), V.stdout);

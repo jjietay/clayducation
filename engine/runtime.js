@@ -443,6 +443,10 @@ window.seek = async function (T) {
     // still loading used to draw a half-built scene (a Manim scene with no frame list).
     s.setupDone ??= Promise.resolve(s.def.setup?.(s));
     await s.setupDone;
+    // A frame must come only from its time. Kits that keep state between frames (the mascot's walk
+    // adds its swing to the arms) save it once after setup and put it back before every draw.
+    if (!s._saved) { s._saved = true; for (const f of s._afterSetup || []) f(); }
+    for (const f of s._beforeDraw || []) f();
     s._t = T - s.start;
     s._T = T;
     s._trace = {}; s._cancelNow = false;
@@ -566,7 +570,7 @@ window.__idPlan = function () {
   const add = (node, k, kind, color) => {
     const r = node.getBoundingClientRect();
     if (r.width < 1 || r.height < 1 || seenOpacity(node, root) <= 0.3) return;
-    idLayers.push({ node, k, kind, color, box: [r.left, r.top, r.right, r.bottom] });
+    idLayers.push({ node, k, kind, color, eqn: node.dataset?.eqn, box: [r.left, r.top, r.right, r.bottom] });
   };
   for (const n of root.querySelectorAll('[data-text="1"], [data-tex], [data-tr]')) {
     if (n.dataset.pass === '1') continue;
@@ -655,6 +659,7 @@ window.__idMeasure = function () {
   for (const a of texts) {
     for (const b of L) {
       if (a === b || (isText(b) && L.indexOf(b) < L.indexOf(a)) || (a.node && b.node && (a.node.contains(b.node) || b.node.contains(a.node)))) continue;
+      if (a.eqn && a.eqn === b.eqn) continue;   // the terms of one formula sit close on purpose
       if (!meet(a.q, b.q, 16)) continue;
       let over = 0;
       for (let y = a.q[1]; y <= a.q[3]; y++) for (let x = a.q[0]; x <= a.q[2]; x++) { const p = y * IW + x; if (a.mask[p] && b.mask[p]) over++; }
