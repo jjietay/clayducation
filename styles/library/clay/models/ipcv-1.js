@@ -4,7 +4,7 @@ import { smin, smax, ell, cone, rbox, rcyl, torus, mix, clamp } from '../sdf.js'
 import { def, stand, PAL } from '../models.js';
 
 // Colours of this video. Blue is the class "male" and plum is the class "female".
-const BLUE = '#3d63b8', PLUM = '#8e3f8f';
+const BLUE = '#3d63b8', PLUM = '#8e3f8f', GREY = '#9a968e';
 const FRAME = '#5b6474', FROST = '#c2d4e4', SLATE = '#4a5466';
 
 function pawnSpec(color, label) {
@@ -65,6 +65,8 @@ export const MODELS = {
   },
   pawnA: pawnSpec(BLUE, 'Student token, blue'),
   pawnB: pawnSpec(PLUM, 'Student token, plum'),
+  // The student seen unclearly: same token in grey, before any decision.
+  pawnQ: pawnSpec(GREY, 'Student token, grey (class unknown)'),
   stadiometer: {
     label: 'Height-measuring post',
     make() {
