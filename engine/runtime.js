@@ -431,7 +431,7 @@ window.SCENES = TL.scenes.map((s) => ({ id: s.id, start: s.start, dur: s.dur, at
 window.seek = async function (T) {
   await ready;
   T = clamp(T, 0, TL.duration - 1e-6);
-  const s = list.find((x) => T >= x.start && T < x.start + x.dur) || list[list.length - 1];
+  const s = list.find((x) => T >= x.start - 1e-6 && T < x.start + x.dur - 1e-6) || list[list.length - 1];
   if (!s) return;
   if (current !== s) {
     if (current) current.root.style.display = 'none';
@@ -457,7 +457,7 @@ window.__looks = () => list.map((s) => ({
   // A formula with nothing else in the picture: no 3D object and no drawing.
   texAlone: !!s.root.querySelector('[data-tex]') && !s.manim && (s.has3d ? s.clayCount === 0 : !s.root.querySelector('canvas, svg:not([data-tex] svg)')),
 }));
-window.sceneAt = (T) => (list.find((x) => T >= x.start && T < x.start + x.dur) || list[list.length - 1])?.id;
+window.sceneAt = (T) => (list.find((x) => T >= x.start - 1e-6 && T < x.start + x.dur - 1e-6) || list[list.length - 1])?.id;
 
 // Two boxes overlap when they share more than OVERLAP_PX in both directions.
 // A few pixels of touch is fine (descenders, tight rows); more covers letters.
