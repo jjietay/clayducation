@@ -54,18 +54,26 @@ Later, in Claude Code, `/setup-kaleidoscope` changes the voice or the GPU.
 
 [`INSTALL.md`](INSTALL.md) has the manual setup.
 
+## Before it starts
+
+When the skill starts, Claude asks up to five questions with clickable options, and skips any that your
+request already answers: the look (clay, or the classic 2D styles), who the video is for, the length,
+when to check with you (one shot, after the storyboard, or after the first frames), and the music.
+
 ## How a video gets checked
 
 The engine measures, and a reader looks. A long build starts only after both.
 
 | Step | Stops on |
 |---|---|
-| `make look` after each edit | a collision on any frame of a changed scene, text covered by a 3D thing, a loose hand, a walk that goes wrong, a sentence that says something moves when nothing moves |
+| `make look` after each edit | a collision on any frame of a changed scene, text covered by a 3D thing, a loose hand, a walk that goes wrong, a sentence that says something moves when nothing moves, a voice whose words were not matched |
 | `make build` | a changed scene with no look, then any collision or scene error |
 | `make final` | a source that changed after the look or the build, an open overlap, or movement strips that nobody read |
 
 Each image from a look has a CHECK digit, and the gates open only with the digits of all images, so a look
-must read each one. [`reference/faults.md`](reference/faults.md) lists every fault that has happened and what
+must read each one. An ID pass also makes an exact mask of every text, drawing and model: it sees drawings
+that move, warns about text closer than 12 px to anything, text on a drawing, low contrast and hidden models,
+and adds one image of the tightest gaps. [`reference/faults.md`](reference/faults.md) lists every fault that has happened and what
 stops it now, and `make selftest` plants each one and confirms that the engine catches it.
 
 ## Repo layout

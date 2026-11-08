@@ -225,7 +225,11 @@ footer a { color: var(--paper-ink); }
   <div class="wrap split">
     <div>
       <h2>Checked before render</h2>
-      <p class="intro narrow">The engine measures every frame: hands that miss what they hold, objects that pass through each other, text under a 3D thing, a formula that sits still while the voice says it moves. Claude reads the near frames of each edited part and a strip of each thing that moves. <code>make build</code> and <code>make final</code> stop until that is done.</p>
+      <p class="intro narrow">The engine measures every frame: hands that miss what they hold, objects that pass through each other, text under a 3D thing, a formula that sits still while the voice says it moves. An exact mask of every text, drawing and model shows the tightest gaps, text on a drawing, low contrast and drawings that move. Claude reads the near frames of each edited part and a strip of each thing that moves. <code>make build</code> and <code>make final</code> stop until that is done.</p>
+      <div class="agent">
+        <h3>Five questions first</h3>
+        <p>When the skill starts, you choose with a click: clay or the classic 2D styles, who the video is for, the length, when Claude checks with you, and the music.</p>
+      </div>
       <div class="agent">
         <h3>One script agent</h3>
         <p>Before the voice is made, it works out every fact again and checks that every formula is explained. It is in <a href="https://github.com/jjietay/kaleidoscope/tree/main/agents">agents/</a>.</p>
