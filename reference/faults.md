@@ -34,6 +34,7 @@ confirms that the engine catches it. Run it after each change to a check.
 | The mascot stood in one spot for a whole video | WARN for a scene where he does not travel | `make check` |
 | A formula was read aloud with no reason | WARN, the five steps, and the script agent | `make check`, `reference/script.md`, `agents/video-script.md` |
 | A GPU drop-out removed a leg in 2 frames of 8 | Antialiasing is off, and frames are drawn twice and compared | `make stable` |
+| The voice said "PC removes" for "P C A removes" (a distance of one letter) | A spoken letter of a spelt-out name that has no match in the take is a bad take | `missingLetters` in `engine/voicecheck.mjs`, `make voice` |
 | `{p(ω_i|x)|p of omega i, given x}` was split at its first bar, so the voice read "x)|p of …" ("XTP") and the subtitle showed "p(ω_i" | `make voice` stops on a brace with two bars; write "∣" (U+2223) in the shown part | `twoBars` in `engine/voicecheck.mjs` |
 | The voice said "XTP of omega i" for "p of omega i" three times, and the letter distance (2) passed it | Each heard word is lined up with the script; a word with 2 or more letters, and 60 % or more, unmatched is a bad take and gets retaken | `extraWords` in `engine/voicecheck.mjs`, `make voice` |
 | A scene's first frame showed the end of the scene before, because a start was a float sum | The scene of a frame is found with a 1e-6 s tolerance | `seek` and `sceneAt` in `engine/runtime.js`, `make verify` |

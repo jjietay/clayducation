@@ -38,7 +38,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { music } from './music.mjs';
 import { sfxTrack, lint as sfxLint, timelineWords, writeWav as writeSfxWav } from './sfx.mjs';
-import { sayable, editDistance, extraWords, twoBars } from './voicecheck.mjs';
+import { sayable, editDistance, extraWords, missingLetters, twoBars } from './voicecheck.mjs';
 
 const ENGINE = path.dirname(fileURLToPath(import.meta.url));
 const EXR = process.env.EXPLAINROO_HOME || path.join(os.homedir(), '.explainroo');
@@ -280,7 +280,7 @@ async function takeReport(part) {
     }
     first = i + 1;
   }
-  return { d, extra: extraWords(part.text, heard.map((w) => w.text)), heard: heard.map((w) => w.text).join(' '), clauses };
+  return { d, extra: [...extraWords(part.text, heard.map((w) => w.text)), ...missingLetters(part.text, heard.map((w) => w.text)).map((w) => `missing ${w}`)], heard: heard.map((w) => w.text).join(' '), clauses };
 }
 
 async function chatterbox(dir, shadow, cfg) {
@@ -360,7 +360,7 @@ async function chatterbox(dir, shadow, cfg) {
     if (!retake.length || round >= t.retakes) {
       for (const p of bad) {
         const best = takes.get(p.id).find((x) => x.seed === p.seed).report;
-        if (best.d >= 3 || best.extra?.length) console.log(`WARN voice ${p.id}: after ${round} retake(s) it still says something else${best.extra?.length ? ` (words not in the script: ${best.extra.join(', ')})` : ''}.\n  script: ${p.text}\n  heard:  ${best.heard}\n  If only the spelling differs, ignore this. Otherwise reword the part or set a seed in video.json ("_tts": {"seeds": {"${p.id}": 20}}).`);
+        if (best.d >= 3 || best.extra?.length) console.log(`WARN voice ${p.id}: after ${round} retake(s) it still says something else${best.extra?.length ? ` (words that do not match the script: ${best.extra.join(', ')})` : ''}.\n  script: ${p.text}\n  heard:  ${best.heard}\n  If only the spelling differs, ignore this. Otherwise reword the part or set a seed in video.json ("_tts": {"seeds": {"${p.id}": 20}}).`);
         const why = fixed(p) ? 'its seed is set by hand in video.json, so it was not retaken' : `after ${round} retake(s)`;
         for (const c of best.clauses) if (c.rate > median * 1.3) console.log(`WARN fast ${p.id}: "${c.text}" at ${(c.rate / median).toFixed(2)} times the usual pace (${why}). Give it its own short sentence and a [pause] after it.`);
       }
