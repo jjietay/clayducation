@@ -4,357 +4,284 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kaleidoscope</title>
-<meta name="description" content="A Claude Code skill that makes narrated teaching videos. Every picture is 3D, in one clay look with one silent mascot. Code draws every frame and measures it, and each edit gets a look before any build.">
+<meta name="description" content="A Claude Code skill that makes narrated teaching videos. Every picture is soft 3D clay, with one silent mascot who does the work. Code draws and measures every frame.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
 <!-- Design notes: DESIGN-NOTES.md in this folder. -->
 <style>
+/* The page is built like one of the videos: each section is a part with its own plain clay
+   background (the BG colours in styles/library/clay.js), and two parts next to each other never
+   share a colour. Text is dark ink on every background except navy. */
 :root {
-  --paper: #f4efe5;
-  --paper-2: #ebe4d6;
-  --ink: #1e1b16;
-  --ink-2: #4f483d;
-  --muted: #7a7062;
-  --rule: #d6ccba;
-  --red: #c8434a;
-  --night: #1c1a16;
-  --night-ink: #ece5d8;
-  --night-muted: #a39a8a;
-  --night-rule: #3a362f;
-  --serif: "Newsreader", Georgia, "Times New Roman", serif;
-  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
-  --gutter: clamp(16px, 4vw, 40px);
+  --sky: #a9c4cf; --sand: #e4d3b7; --navy: #27324a; --lilac: #b9b3cf; --blush: #e6bfae; --clay: #c98f6b; --cream: #f0e7d6;
+  --ink: #26262a; --ink-2: #3d3a44; --paper-ink: #f3ede2; --paper-ink-2: #c9c6d6;
+  --strike: #d6336c;            /* the pink of a cancel strike in eqn.js */
+  --plate: 22px; --plate-sm: 14px;
+  --wrap: 1180px; --gutter: clamp(16px, 4vw, 40px);
 }
-* { box-sizing: border-box; margin: 0; padding: 0; }
-html { -webkit-text-size-adjust: 100%; }
-body {
-  background: var(--paper); color: var(--ink);
-  font-family: var(--sans); font-size: 17px; line-height: 1.55;
-  -webkit-font-smoothing: antialiased;
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--sky); color: var(--ink); font: 400 17px/1.6 'Plus Jakarta Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+img, video { display: block; max-width: 100%; height: auto; }
+a { color: inherit; text-decoration: underline; text-decoration-color: var(--strike); text-decoration-thickness: 3px; text-underline-offset: 4px; }
+a:hover { text-decoration-thickness: 5px; }
+:focus-visible { outline: 3px solid var(--strike); outline-offset: 3px; border-radius: 4px; }
+code, pre { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: .86em; }
+code { background: rgba(38, 38, 42, .08); padding: .08em .35em; border-radius: 6px; }
+.wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 var(--gutter); }
+.part { padding: clamp(64px, 9vw, 120px) 0; }
+.part h2 { font-size: clamp(34px, 4.6vw, 54px); line-height: 1.04; font-weight: 800; letter-spacing: -.02em; margin: 0 0 18px; max-width: 16ch; }
+.part .intro { font-size: clamp(18px, 1.6vw, 21px); line-height: 1.55; max-width: 60ch; margin: 0 0 40px; color: var(--ink-2); }
+.part .intro a { white-space: nowrap; }
+
+/* A picture sits on a soft contact shadow, like a model in the clay studio. */
+.sits { margin: 0 0 40px; }
+.sits > a, .sits > .screen { position: relative; display: block; }
+.sits > a::after, .sits > .screen::after { content: ""; position: absolute; left: 7%; right: 7%; bottom: -26px; height: 30px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(20, 20, 30, .32), rgba(20, 20, 30, 0)); z-index: 0; pointer-events: none; }
+.sits img, .sits video { position: relative; z-index: 1; border-radius: var(--plate); }
+.sits.small img { border-radius: var(--plate-sm); }
+figcaption { font-size: 15px; line-height: 1.5; color: var(--ink-2); margin-top: 36px; max-width: 62ch; }
+figcaption b { color: var(--ink); font-weight: 700; }
+
+/* ---------- part 1: sky ---------- */
+.top { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; align-items: center; padding-top: 22px; }
+.top .repo { font-weight: 700; text-decoration: none; }
+.top nav { display: flex; flex-wrap: wrap; gap: 4px 22px; font-weight: 500; }
+.top nav a { text-decoration-color: transparent; }
+.top nav a:hover, .top nav a:focus-visible { text-decoration-color: var(--strike); }
+.hero { display: grid; grid-template-columns: 5fr 7fr; gap: 0 clamp(32px, 5vw, 64px); align-items: start; padding: clamp(36px, 6vw, 80px) var(--gutter) clamp(72px, 9vw, 120px); }
+.hero h1 { grid-column: 1 / -1; }
+.hero h1 { font-size: clamp(52px, 12.5vw, 172px); line-height: .88; font-weight: 800; letter-spacing: -.05em; margin: 0 0 clamp(24px, 3vw, 40px); }
+.hero .lede { font-size: clamp(20px, 2vw, 25px); line-height: 1.4; font-weight: 500; margin: 0 0 18px; max-width: 26ch; }
+.hero p { max-width: 46ch; margin: 0 0 16px; }
+.ask { margin: 28px 0 30px; padding: 18px 22px; background: var(--cream); border-radius: var(--plate-sm); max-width: 46ch; }
+.ask p { margin: 0 0 6px; font-size: 15px; color: var(--ink-2); }
+.ask q { display: block; font-weight: 700; font-size: 18px; quotes: none; }
+.actions { display: flex; flex-wrap: wrap; gap: 14px 26px; align-items: center; }
+.button { display: inline-block; background: var(--ink); color: var(--paper-ink); text-decoration: none; font-weight: 700; padding: 13px 24px; border-radius: 999px; }
+.button:hover { background: #000; }
+.screen { position: relative; }
+.screen video { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--sand); }
+.screen button { z-index: 2; position: absolute; right: 14px; bottom: 14px; font: 700 14px/1 'Plus Jakarta Sans', sans-serif; color: var(--ink);
+  background: rgba(240, 231, 214, .92); border: 0; border-radius: 999px; padding: 9px 15px; cursor: pointer; }
+
+/* ---------- part 2: sand ---------- */
+.p-sand { background: var(--sand); }
+.steps { list-style: none; counter-reset: step; padding: 0; margin: 64px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 34px 56px; }
+.steps li { counter-increment: step; display: grid; grid-template-columns: 46px 1fr; gap: 0 14px; align-content: start; }
+.steps li::before { content: counter(step); grid-row: span 2; width: 38px; height: 38px; border-radius: 50%; background: var(--cream);
+  display: grid; place-items: center; font-weight: 800; font-size: 16px; box-shadow: 0 6px 10px -6px rgba(20, 20, 30, .35); }
+.steps h3 { margin: 4px 0 4px; font-size: 18px; font-weight: 800; }
+.steps p { margin: 0; color: var(--ink-2); max-width: 52ch; }
+
+/* ---------- part 3: navy ---------- */
+.p-navy { background: var(--navy); color: var(--paper-ink); }
+.p-navy .intro, .p-navy figcaption { color: var(--paper-ink-2); }
+.p-navy figcaption b { color: var(--paper-ink); }
+.p-navy .sits > a::after { background: radial-gradient(closest-side, rgba(0, 0, 0, .55), rgba(0, 0, 0, 0)); }
+.mosaic { display: grid; grid-template-columns: repeat(12, 1fr); gap: 20px 32px; align-items: start; }
+.mosaic figure { margin: 0; }
+.mosaic .a { grid-column: 1 / span 7; }
+.mosaic .b { grid-column: 8 / span 5; margin-top: 80px; }
+.mosaic .c { grid-column: 1 / span 4; }
+.mosaic .d { grid-column: 5 / span 4; margin-top: 48px; }
+.mosaic .e { grid-column: 9 / span 4; }
+
+/* ---------- part 4: lilac ---------- */
+.p-lilac { background: var(--lilac); }
+.split { display: grid; grid-template-columns: 4fr 8fr; gap: clamp(28px, 5vw, 64px); align-items: start; }
+.part .intro.narrow { font-size: 17px; margin-bottom: 0; }
+.agent { margin-top: 26px; padding: 18px 22px; background: rgba(240, 231, 214, .55); border-radius: var(--plate-sm); }
+.agent h3 { margin: 0 0 4px; font-size: 17px; font-weight: 800; }
+.agent p { margin: 0; color: var(--ink-2); }
+
+/* ---------- part 5: blush ---------- */
+.p-blush { background: var(--blush); }
+.tracks { list-style: none; padding: 0; margin: 0; display: grid; gap: 18px; }
+.tracks li { display: grid; grid-template-columns: 200px 1fr minmax(240px, 300px); gap: 10px 28px; align-items: center; padding: 22px 24px;
+  background: rgba(240, 231, 214, .6); border-radius: var(--plate-sm); }
+.tracks h3 { margin: 0; font-size: 22px; font-weight: 800; }
+.tracks h3 small { display: block; font-size: 14px; font-weight: 500; color: var(--ink-2); margin-top: 2px; }
+.tracks p { margin: 0; color: var(--ink-2); }
+.tracks audio { width: 100%; }
+
+/* ---------- part 6: clay ---------- */
+.p-clay { background: var(--clay); }
+.p-clay pre { margin: 0 0 28px; background: var(--ink); color: var(--paper-ink); padding: 22px 26px; border-radius: var(--plate-sm); font-size: 18px; overflow-x: auto; }
+.p-clay pre code { background: none; padding: 0; }
+.p-clay .intro { color: var(--ink); }
+.settings { list-style: none; padding: 0; margin: 0 0 32px; display: grid; gap: 10px; }
+.settings li { display: grid; grid-template-columns: 90px 1fr; gap: 16px; }
+.settings b { font-weight: 800; }
+.prompts { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 10px; }
+.prompts li { background: var(--cream); border-radius: var(--plate-sm); padding: 14px 18px; font-weight: 700; max-width: 56ch; }
+
+/* ---------- footer: navy ---------- */
+footer { background: var(--navy); color: var(--paper-ink-2); padding: 44px 0 56px; font-size: 15px; }
+footer p { margin: 0 0 8px; max-width: 80ch; }
+footer a { color: var(--paper-ink); }
+
+@media (max-width: 900px) {
+  .hero, .split { grid-template-columns: 1fr; }
+  .hero { row-gap: 48px; }
+  .hero h1 { margin-bottom: 0; }
+  .steps { grid-template-columns: 1fr; }
+  .mosaic { grid-template-columns: 1fr 1fr; }
+  .mosaic .a, .mosaic .b { grid-column: span 2; margin-top: 0; }
+  .mosaic .c, .mosaic .d, .mosaic .e { grid-column: span 1; margin-top: 0; }
+  .mosaic .e { grid-column: span 2; }
+  .tracks li { grid-template-columns: 1fr; }
 }
-img { display: block; max-width: 100%; height: auto; }
-a { color: inherit; text-decoration-line: underline; text-decoration-thickness: 1px;
-    text-underline-offset: 3px; text-decoration-color: var(--rule); }
-a:hover { text-decoration-color: var(--red); color: var(--red); }
-a:focus-visible { outline: 2px solid var(--red); outline-offset: 3px; border-radius: 2px; }
-code, .mono { font-family: var(--mono); font-size: 0.86em; }
-.wrap { max-width: 1240px; margin: 0 auto; padding: 0 var(--gutter); }
-
-/* Top line */
-.top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
-       padding-top: 22px; padding-bottom: 22px; font-size: 15px; }
-.top .repo { font-family: var(--mono); font-size: 14px; text-decoration: none; color: var(--ink); }
-.top .repo:hover { color: var(--red); }
-.top nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 22px; }
-.top nav a { text-decoration: none; color: var(--ink-2); }
-.top nav a:hover { color: var(--red); }
-
-/* Masthead */
-.masthead { padding-top: 28px; }
-.masthead h1 {
-  font-family: var(--serif); font-weight: 500; font-variation-settings: "opsz" 72;
-  font-size: clamp(54px, 13vw, 168px); line-height: 0.9; letter-spacing: -0.025em;
-  margin-left: -0.04em;
-}
-.dateline { margin-top: 22px; border-top: 3px solid var(--ink); }
-.dateline::before { content: ""; display: block; border-top: 1px solid var(--ink); margin-top: 3px; }
-.dateline p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 24px;
-              padding: 9px 0 10px; border-bottom: 1px solid var(--ink);
-              font-family: var(--mono); font-size: 13px; color: var(--ink-2); }
-.nw { white-space: nowrap; }
-
-/* Opening */
-.opening { display: grid; grid-template-columns: 5fr 7fr; gap: 56px; padding-top: 40px; padding-bottom: 88px; }
-.lede { font-family: var(--serif); font-size: 27px; line-height: 1.28; font-variation-settings: "opsz" 36; }
-.opening .text > p + p { margin-top: 18px; color: var(--ink-2); max-width: 34em; }
-.ask { margin-top: 32px; padding-top: 18px; border-top: 1px solid var(--rule); }
-.ask .label { font-size: 14px; color: var(--muted); }
-.ask blockquote { margin-top: 8px; font-family: var(--mono); font-size: 15px; line-height: 1.55;
-                  padding-left: 16px; border-left: 2px solid var(--red); }
-.actions { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 12px 26px; align-items: center; font-size: 16px; }
-.button { display: inline-block; padding: 10px 18px; background: var(--ink); color: var(--paper);
-          text-decoration: none; border-radius: 3px; font-weight: 500; }
-.button:hover { background: var(--red); color: #fff; }
-
-figure { margin: 0; }
-figcaption { margin-top: 10px; font-size: 14px; line-height: 1.45; color: var(--muted); max-width: 60em; }
-.fig { font-family: var(--mono); font-size: 12.5px; color: var(--red); margin-right: 8px; letter-spacing: 0.02em; }
-.plate img { border-radius: 4px; }
-.plate.light img { border: 1px solid var(--rule); background: #fff; }
-
-/* Sections */
-.sec { display: grid; grid-template-columns: 3fr 9fr; gap: 26px 56px; padding-bottom: 96px; }
-.sec::before, footer::before { content: ""; grid-column: 1 / -1; border-top: 1px solid var(--ink); }
-.sec.plain::before { display: none; }
-.sec-head h2 { font-family: var(--serif); font-weight: 500; font-size: 36px; line-height: 1.08;
-               letter-spacing: -0.01em; font-variation-settings: "opsz" 48; }
-.sec-head p { margin-top: 14px; font-size: 16px; color: var(--ink-2); }
-.sec-head .src { margin-top: 16px; font-family: var(--mono); font-size: 13px; }
-.sec-head .src a { color: var(--red); text-decoration-color: transparent; }
-.sec-head .src a:hover { text-decoration-color: var(--red); }
-.sec-body { min-width: 0; }
-.sec-body > p { max-width: 38em; }
-
-/* Ledger rows: pipeline steps, agents, tracks */
-.ledger { list-style: none; margin-top: 36px; border-top: 1px solid var(--rule); }
-.ledger li { display: grid; grid-template-columns: 15em 1fr; gap: 6px 32px;
-             padding: 14px 0 15px; border-bottom: 1px solid var(--rule); }
-.ledger .k { font-family: var(--mono); font-size: 14px; padding-top: 2px; }
-.ledger .k small { display: block; font-family: var(--sans); font-size: 13px; color: var(--muted); }
-.ledger .v { color: var(--ink-2); max-width: 40em; }
-.ledger .v b { color: var(--ink); font-weight: 600; }
-
-/* Frames band */
-.band { background: var(--night); color: var(--night-ink); padding: 0 0 96px; }
-.band .sec { padding-bottom: 40px; padding-top: 72px; }
-.band .intro { font-family: var(--serif); font-size: 23px; line-height: 1.35; max-width: 34em; font-variation-settings: "opsz" 24; }
-.band .intro code { font-size: 0.8em; }
-.band .sec-head p { color: var(--night-muted); }
-.band .sec-head .src a { color: #e8848a; }
-.band a { text-decoration-color: var(--night-rule); }
-.frames { display: grid; grid-template-columns: repeat(6, 1fr); gap: 40px 24px; }
-.frames figure { grid-column: span 2; }
-.frames figure.big { grid-column: span 3; }
-.frames img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 3px; }
-.frames figcaption { color: var(--night-muted); margin-top: 12px; }
-.frames figcaption .mono { display: block; color: var(--night-ink); font-size: 13px; margin-bottom: 2px; }
-
-/* Agents, contact sheet */
-.sheet { margin-top: 32px; }
-.sheet img { border-radius: 3px; }
-
-/* Music */
-.tracks { list-style: none; margin-top: 32px; border-top: 1px solid var(--rule); }
-.tracks li { display: grid; grid-template-columns: 7.5em 1fr 300px; gap: 10px 32px; align-items: center;
-             padding: 20px 0; border-bottom: 1px solid var(--rule); }
-.tracks .name { font-family: var(--serif); font-size: 26px; line-height: 1.1; }
-.tracks .name small { display: block; margin-top: 4px; font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
-.tracks p { color: var(--ink-2); font-size: 16px; }
-.tracks audio { width: 100%; height: 40px; }
-
-/* Style index */
-.index { display: grid; grid-template-columns: 1fr 1fr; gap: 0 48px; margin-top: 8px; }
-.group { margin-bottom: 36px; }
-.group h3 { font-family: var(--serif); font-weight: 500; font-size: 22px; line-height: 1.2;
-            padding-bottom: 8px; border-bottom: 1px solid var(--ink); display: flex; justify-content: space-between; align-items: baseline; }
-.group h3 span { font-family: var(--mono); font-size: 13px; color: var(--muted); font-weight: 400; }
-.group ul { list-style: none; }
-.group li { padding: 10px 0 11px; border-bottom: 1px solid var(--rule); font-size: 15px; line-height: 1.45; }
-.group li code { display: block; font-size: 14px; color: var(--ink); margin-bottom: 1px; }
-.group li span { color: var(--ink-2); }
-sup.o { font-family: var(--mono); font-size: 11px; color: var(--red); margin-left: 3px; vertical-align: 4px; line-height: 0; }
-.note { font-size: 14px; color: var(--muted); max-width: 50em; }
-
-/* Install */
-pre { margin-top: 28px; background: var(--paper-2); border-radius: 4px; padding: 18px 20px;
-      font-family: var(--mono); font-size: 14px; line-height: 1.7; overflow-x: auto; color: var(--ink); }
-pre .c { color: var(--muted); }
-.prompts { list-style: none; margin-top: 28px; }
-.prompts li { font-family: var(--mono); font-size: 15px; padding: 10px 0 10px 16px; border-left: 2px solid var(--red); }
-.prompts li + li { margin-top: 10px; }
-
-/* Footer */
-#review { padding-top: 72px; }
-footer { padding-bottom: 56px;
-         display: grid; grid-template-columns: 3fr 9fr; gap: 16px 56px; font-size: 14.5px; color: var(--ink-2); }
-footer .home { font-family: var(--serif); font-size: 19px; font-weight: 600; color: var(--ink); text-decoration: none; }
-footer p { max-width: 52em; }
-footer p + p { margin-top: 10px; }
-
-/* Tablet */
-@media (max-width: 1020px) {
-  .opening { grid-template-columns: 1fr; gap: 40px; }
-  .opening .text { max-width: 640px; }
-  .sec, footer { grid-template-columns: 1fr; }
-  .sec-head p { max-width: 38em; }
-  .frames { grid-template-columns: 1fr 1fr; }
-  .frames figure, .frames figure.big { grid-column: span 1; }
-  .tracks li { grid-template-columns: 8em 1fr; }
-  .tracks audio { grid-column: 1 / -1; }
-}
-/* Phone */
-@media (max-width: 640px) {
-  body { font-size: 16.5px; }
-  .top nav a.opt { display: none; }
-  .masthead { padding-top: 12px; }
-  .dateline p { font-size: 12px; }
-  .opening { display: flex; flex-direction: column; gap: 0; padding-top: 28px; padding-bottom: 64px; }
-  .opening .text { display: contents; }
-  .opening .lede { order: 1; }
-  .opening .plate { order: 2; margin: 26px 0 6px; }
-  .opening .text > :not(.lede) { order: 3; }
-  .lede { font-size: 23px; }
-  .sec { padding-bottom: 64px; row-gap: 22px; }
-  .sec-head h2 { font-size: 30px; }
-  .band { padding-bottom: 64px; }
-  .band .sec { padding-top: 52px; padding-bottom: 28px; }
-  .frames { grid-template-columns: 1fr; gap: 28px; }
-  .ledger li { grid-template-columns: 1fr; gap: 2px; }
-  .band .intro { font-size: 19px; }
-  #review { padding-top: 52px; }
-  .index { grid-template-columns: 1fr; }
-  .tracks li { grid-template-columns: 1fr; gap: 8px; }
-  pre { font-size: 12.5px; padding: 14px; margin-left: calc(-1 * var(--gutter) / 2); margin-right: calc(-1 * var(--gutter) / 2); }
+@media (max-width: 560px) {
+  body { font-size: 16px; }
+  .mosaic { grid-template-columns: 1fr; }
+  .mosaic .a, .mosaic .b, .mosaic .c, .mosaic .d, .mosaic .e { grid-column: 1; }
+  .settings li { grid-template-columns: 70px 1fr; }
 }
 </style>
 </head>
 <body>
 
-<header class="top wrap">
+<header class="wrap top">
   <a class="repo" href="https://github.com/jjietay/kaleidoscope">jjietay/kaleidoscope</a>
   <nav aria-label="Sections">
-    <a class="opt" href="#how">How it works</a>
-    <a class="opt" href="#frames">Frames</a>
-    <a class="opt" href="#review">Review</a>
-    <a class="opt" href="#music">Sound</a>
+    <a href="#how">How it works</a>
+    <a href="#frames">Frames</a>
+    <a href="#checks">Checks</a>
+    <a href="#sound">Sound</a>
     <a href="#install">Install</a>
   </nav>
 </header>
 
 <main>
-
-<div class="masthead wrap">
+<section class="wrap hero" aria-label="Introduction">
   <h1>Kaleidoscope</h1>
-  <div class="dateline"><p><span>A skill for Claude Code</span><span><span class="nw">one clay look</span> · <span class="nw">28 own models</span> · <span class="nw">1 script agent</span></span></p></div>
-</div>
-
-<section class="opening wrap" aria-label="Introduction">
-  <div class="text">
-    <p class="lede">Kaleidoscope makes a narrated video that teaches one topic. Every picture is 3D, in one clay look, and the same silent mascot does the work in every video.</p>
-    <p>Claude writes the script, the storyboard and the scenes from what your conversation and your project already show. The engine speaks the script on your own computer, times each word and draws every frame with code. It uses no video model. One agent checks the script before the voice is made, and the engine measures every frame before any build.</p>
+  <div>
+    <p class="lede">Narrated teaching videos, made in clay by code.</p>
+    <p>Claude writes the script, the storyboard and the scenes from your conversation and your project. The engine speaks the script on your computer, times each word and draws every frame. A silent mascot does the physical work, and each formula acts out what the voice says.</p>
     <div class="ask">
-      <p class="label">In Claude Code, in the conversation where the topic came up, ask:</p>
-      <blockquote>Make a video on why computed torque control works.</blockquote>
+      <p>In Claude Code, in the conversation where the topic came up, ask:</p>
+      <q>Make a video on why computed torque control works.</q>
     </div>
     <div class="actions">
       <a class="button" href="#install">Install</a>
       <a href="https://github.com/jjietay/kaleidoscope">Read the source on GitHub</a>
     </div>
   </div>
-  <figure class="plate">
-    <a href="png/clay-cancel.png"><img src="png/clay-cancel.png" width="1280" height="720" alt="The clay mascot pushes a cart on a spring. Above, the friction and spring terms of the formula are struck out in red."></a>
-    <figcaption><span class="fig">Fig. 1</span>A frame from <i>Why computed torque works</i>. The mascot holds the cart while β cancels the friction and the spring terms.</figcaption>
+  <figure class="sits" style="margin-bottom:0">
+    <div class="screen">
+      <video id="clip" muted loop playsinline preload="metadata" poster="png/clay-cancel.png" width="1280" height="720"
+        aria-label="The mascot pushes a cart on a spring. Above, the friction and spring terms of the formula are struck out and burst.">
+        <source src="clip/cancel.mp4" type="video/mp4">
+      </video>
+      <button type="button" id="clipToggle" aria-controls="clip">Play</button>
+    </div>
+    <figcaption><b>From “Why computed torque works.”</b> The mascot holds the cart while β cancels the friction and the spring terms, one strike at a time.</figcaption>
   </figure>
 </section>
 
-<section class="sec wrap" id="how">
-  <div class="sec-head">
+<section class="part p-sand" id="how">
+  <div class="wrap">
     <h2>How a video is made</h2>
-    <p>Claude plans and builds. The engine speaks, times and draws. The checks send faults back to Claude before any long step.</p>
-    <p class="src"><a href="https://github.com/jjietay/kaleidoscope/blob/main/SKILL.md">→ SKILL.md</a></p>
-  </div>
-  <div class="sec-body">
-    <figure class="plate light">
-      <a href="png/pipeline.png"><img src="png/pipeline.png" width="3000" height="1785" alt="Pipeline figure. Panel a, plan and build: the main session writes script.md, storyboard.md and scenes.js; Chatterbox speaks; Whisper times each word; headless Chrome draws the frames; make check tests them. Panel b, review and render: six reviewer agents read a review pack, a compiler merges their reports, and after round 2 make final renders the MP4." loading="lazy"></a>
-      <figcaption><span class="fig">Fig. 2</span>(a) Plan and build, from your topic to checked frames. (b) Look, build and render, a look after each edit, then the gates. Select the figure to see it at full size.</figcaption>
+    <p class="intro">Claude plans and builds. The engine speaks, times and draws. The checks send faults back to Claude before any long step. The full workflow is in <a href="https://github.com/jjietay/kaleidoscope/blob/main/SKILL.md">SKILL.md</a>.</p>
+    <figure class="sits small">
+      <a href="png/pipeline.png"><img src="png/pipeline.png" width="3000" height="1785" loading="lazy" alt="Pipeline figure. Panel a, plan and build: the main session writes script.md, storyboard.md and scenes.js from the clay kit; Chatterbox speaks; Whisper times each word; headless Chrome draws the frames; make check tests them. Panel b, look, build and render: make look measures collisions, text on 3D, joins, walks, voice and motion, and stable frames; Claude reads each image and gives its check digit; make final renders, and verify checks the MP4."></a>
+      <figcaption><b>(a) Plan and build, (b) look, build and render.</b> A look after each edit, then the gates. Select the figure to see it at full size.</figcaption>
     </figure>
-    <ol class="ledger">
-      <li><span class="k">script.md<br>storyboard.md<br>scenes.js<small>Claude writes</small></span><span class="v">One part for each idea, one scene for each part, all in one clay look. Claude checks every fact before it writes the script.</span></li>
-      <li><span class="k">Chatterbox or Kokoro<small>voice</small></span><span class="v">Speaks the script. Chatterbox runs best on a GPU. Kokoro is small and fast on a CPU.</span></li>
-      <li><span class="k">Whisper<small>word timing</small></span><span class="v">Gives each word and each <code>[#cue]</code> a time in seconds. If a sentence does not match the script, the engine speaks it again.</span></li>
-      <li><span class="k">headless Chrome<small>frames</small></span><span class="v">Draws each frame from the timeline: the clay world in <b>Three.js</b>, the text in HTML, and <b>Manim</b> for a formula that changes step by step.</span></li>
-      <li><span class="k">make check<small>automatic checks</small></span><span class="v">Tests overlap, the safe area, text size and pacing. Claude also looks at every changed part, frame by frame.</span></li>
-      <li><span class="k">make look<small>after each edit</small></span><span class="v">Measures each changed scene on every frame and draws its near frames and moving parts. Claude reads each image before any build.</span></li>
-      <li><span class="k">make final<small>render</small></span><span class="v">Chrome draws on the GPU and NVENC encodes, or the CPU does both when there is no GPU. The mix puts the music and the sound effects under the voice. <code>verify</code> checks the duration, the loudness and black frames. The result is an MP4 with soft subtitles and 48 kHz sound.</span></li>
+    <ol class="steps">
+      <li><h3>Claude writes three files</h3><p><code>script.md</code>, <code>storyboard.md</code> and <code>scenes.js</code>: one part for each idea and one scene for each part. One agent checks every fact and every formula first.</p></li>
+      <li><h3>The voice speaks</h3><p>Chatterbox on a GPU, or Kokoro, small and fast on a CPU.</p></li>
+      <li><h3>Whisper times each word</h3><p>Each word and each <code>[#cue]</code> gets a time in seconds. If a sentence does not match the script, the engine speaks it again.</p></li>
+      <li><h3>Chrome draws each frame</h3><p>The clay world in Three.js, the text in HTML, and Manim for a formula that changes step by step.</p></li>
+      <li><h3><code>make look</code> after each edit</h3><p>It measures each changed scene on every frame and draws its near frames and moving parts. Claude reads each image before any build.</p></li>
+      <li><h3><code>make final</code> renders</h3><p>The GPU draws and NVENC encodes, or the CPU does both. <code>verify</code> checks the duration, the loudness and black frames. The result is an MP4 with soft subtitles.</p></li>
     </ol>
   </div>
 </section>
 
-<div class="band" id="frames">
-  <section class="sec plain wrap">
-    <div class="sec-head">
-      <h2>Frames from a finished video</h2>
-      <p class="src"><a href="https://github.com/jjietay/kaleidoscope/tree/main/styles/library">→ styles/library/</a></p>
-    </div>
-    <div class="sec-body">
-      <p class="intro">Every picture uses one clay look and models that we made in code. The mascot does the physical work, and each formula acts out what the voice says. Select a picture to see it at full size.</p>
-    </div>
-  </section>
+<section class="part p-navy" id="frames">
   <div class="wrap">
-    <div class="frames">
-      <figure class="big"><a href="png/clay-servo.png"><img src="png/clay-servo.png" width="1280" height="720" alt="A robot drives toward a flag that the mascot holds. An orange arrow e shows the gap, and a blue arrow k p e shows the push." loading="lazy"></a>
-        <figcaption><span class="mono">g.arrow</span>The gap e and the push k<sub>p</sub>e are arrows on the robot, and the mascot holds the target.</figcaption></figure>
-      <figure class="big"><a href="png/clay-formula.png"><img src="png/clay-formula.png" width="1280" height="720" alt="The formula m x double dot equals m v, with both m terms struck out in red." loading="lazy"></a>
-        <figcaption><span class="mono">eqn.js</span>The mass cancels: both terms are struck out, then fly together and burst.</figcaption></figure>
-      <figure><a href="png/clay-key.png"><img src="png/clay-key.png" width="1280" height="720" alt="The mascot leans over a table and presses a key on a laptop." loading="lazy"></a>
-        <figcaption><span class="mono">hold</span>He presses a key, and β is switched off.</figcaption></figure>
-      <figure><a href="png/clay-room.png"><img src="png/clay-room.png" width="900" height="506" alt="A clay room with the mascot and several models." loading="lazy"></a>
-        <figcaption><span class="mono">models.js</span>28 models, made in code from signed distance shapes.</figcaption></figure>
-      <figure><a href="png/mascot.png"><img src="png/mascot.png" width="1280" height="720" alt="Nine faces of the mascot: neutral, smile, surprised, confused, thinking, worried, unimpressed, understanding, sleepy." loading="lazy"></a>
-        <figcaption><span class="mono">mascot.js</span>He never speaks. Nine expressions react for the viewer.</figcaption></figure>
+    <h2>Frames from a finished video</h2>
+    <p class="intro">One clay look, and 28 models that we made in code. Select a picture to see it at full size.</p>
+    <div class="mosaic">
+      <figure class="sits a"><a href="png/clay-servo.png"><img src="png/clay-servo.png" width="1280" height="720" loading="lazy" alt="A robot drives toward a flag that the mascot holds. An orange arrow e shows the gap, and a blue arrow k p e shows the push."></a>
+        <figcaption><b>Follow the target.</b> The gap e and the push k<sub>p</sub>e are arrows on the robot, and the mascot holds the flag.</figcaption></figure>
+      <figure class="sits b"><a href="png/clay-formula.png"><img src="png/clay-formula.png" width="1280" height="720" loading="lazy" alt="The mascot pushes a heavy robot. Above, both m terms of m x double dot equals m v are struck out in pink."></a>
+        <figcaption><b>The mass cancels.</b> Both terms are struck out, then fly together and burst.</figcaption></figure>
+      <figure class="sits small c"><a href="png/clay-key.png"><img src="png/clay-key.png" width="1280" height="720" loading="lazy" alt="The mascot leans over a table and presses a key on a laptop."></a>
+        <figcaption><b>β off.</b> He presses a key, and the spring pulls the cart back.</figcaption></figure>
+      <figure class="sits small d"><a href="png/clay-room.png"><img src="png/clay-room.png" width="900" height="506" loading="lazy" alt="A clay room with the mascot, a tripod, a tank, a laptop on a table and a robot arm."></a>
+        <figcaption><b>Our own models.</b> Each one is made in code from signed distance shapes, so every video looks the same.</figcaption></figure>
+      <figure class="sits small e"><a href="png/mascot.png"><img src="png/mascot.png" width="1280" height="720" loading="lazy" alt="Nine faces of the mascot: neutral, smile, surprised, confused, thinking, worried, unimpressed, understanding and sleepy."></a>
+        <figcaption><b>He never speaks.</b> Nine expressions react for the viewer.</figcaption></figure>
     </div>
-  </div>
-</div>
-
-<section class="sec plain wrap" id="review">
-  <div class="sec-head">
-    <h2>Checked before render</h2>
-    <p>The engine measures every frame, one agent checks the script, and each image has a digit that opens the next step.</p>
-    <p class="src"><a href="https://github.com/jjietay/kaleidoscope/tree/main/agents">→ agents/</a></p>
-  </div>
-  <div class="sec-body">
-    <p>Claude reads strips like this one, the near frames of each edited part, and a dense strip of each thing that moves. <code>make build</code> and <code>make final</code> stop until that is done. <code>make selftest</code> plants each fault that a video has had, and confirms that the engine catches it.</p>
-    <figure class="plate sheet">
-      <a href="png/check-strip.png"><img src="png/check-strip.png" width="1280" height="638" alt="A movement strip: twelve frames of the mascot as he holds a cart, walks to a robot and pushes it, each labelled with its time, and a CHECK digit at the top right" loading="lazy"></a>
-      <figcaption><span class="fig">Fig. 3</span>A movement strip from <code>make build</code>. Its CHECK digit, with the digits of all other strips, opens <code>make final</code>.</figcaption>
-    </figure>
-    <ul class="ledger">
-      <li><span class="k">video-script</span><span class="v">Before the voice is made: every fact worked out again, and every formula explained.</span></li>
-    </ul>
   </div>
 </section>
 
-<section class="sec wrap" id="music">
-  <div class="sec-head">
-    <h2>Music and sound effects made from code</h2>
-    <p>The music plays about 13 dB under the voice and ducks gently when the voice speaks. The sound effects sit 7 to 12 dB under the voice.</p>
-    <p class="src"><a href="https://github.com/jjietay/kaleidoscope/blob/main/SOUND.md">→ SOUND.md</a></p>
+<section class="part p-lilac" id="checks">
+  <div class="wrap split">
+    <div>
+      <h2>Checked before render</h2>
+      <p class="intro narrow">The engine measures every frame: hands that miss what they hold, objects that pass through each other, text under a 3D thing, a formula that sits still while the voice says it moves. Claude reads the near frames of each edited part and a strip of each thing that moves. <code>make build</code> and <code>make final</code> stop until that is done.</p>
+      <div class="agent">
+        <h3>One script agent</h3>
+        <p>Before the voice is made, it works out every fact again and checks that every formula is explained. It is in <a href="https://github.com/jjietay/kaleidoscope/tree/main/agents">agents/</a>.</p>
+      </div>
+    </div>
+    <figure class="sits small">
+      <a href="png/check-strip.png"><img src="png/check-strip.png" width="1280" height="638" loading="lazy" alt="A movement strip: twelve frames of the mascot as he holds a cart, walks to a robot and pushes it, each labelled with its time, and a CHECK digit at the top right."></a>
+      <figcaption><b>A movement strip from a build.</b> Its CHECK digit, with the digits of every other strip, opens <code>make final</code>. <code>make selftest</code> plants each fault that a video has had and confirms that the engine catches it.</figcaption>
+    </figure>
   </div>
-  <div class="sec-body">
-    <p>The engine makes its background music in <code>engine/music.mjs</code> and its sound effects in <code>engine/sfx.mjs</code>. It uses no samples, no AI models and no recordings, so there is no licence to clear. The same input always gives the same file. These are 30 s previews of the two approved tracks and of the sound effects.</p>
+</section>
+
+<section class="part p-blush" id="sound">
+  <div class="wrap">
+    <h2>Music and sound made from code</h2>
+    <p class="intro">The engine makes its music in <code>engine/music.mjs</code> and its sound effects in <code>engine/sfx.mjs</code>, with no samples and no recordings, so there is no licence to clear. The music plays about 13 dB under the voice. These are 30 s previews. The rules are in <a href="https://github.com/jjietay/kaleidoscope/blob/main/SOUND.md">SOUND.md</a>.</p>
     <ul class="tracks">
-      <li><span class="name">current<small>72 BPM · C Am F G</small></span>
-        <p>A calm pad and a slow arpeggio, with no beat. This is the default track, and it suits any video.</p>
+      <li><h3>current<small>72 BPM, C Am F G</small></h3>
+        <p>A calm pad and a slow arpeggio, with no beat. The default track, for any video.</p>
         <audio controls preload="none" src="music/current-30s.flac" aria-label="current, 30 second preview"></audio></li>
-      <li><span class="name">lofi<small>76 BPM · swing</small></span>
-        <p>A lo-fi study beat: electric piano, bass, soft drums and vinyl hiss. Use it for a calm video that needs more energy.</p>
+      <li><h3>lofi<small>76 BPM, swing</small></h3>
+        <p>Electric piano, bass, soft drums and vinyl hiss, for a calm video that needs more energy.</p>
         <audio controls preload="none" src="music/lofi-30s.flac" aria-label="lofi, 30 second preview"></audio></li>
-      <li><span class="name">sound effects<small>12 sounds · engine/sfx.mjs</small></span>
-        <p>Pop, click, tick, whoosh, swish, thud, stamp, paper, marker, pencil, chime and typing. A scene adds a sound at a cue with <code>s.sfx('stamp', '#slam')</code>. This demo plays all 12 over the music.</p>
+      <li><h3>sound effects<small>12 sounds</small></h3>
+        <p>Pop, click, tick, whoosh, swish, thud, stamp, paper, marker, pencil, chime and typing. A scene adds one at a cue with <code>s.sfx('pop', '#cue')</code>. This demo plays all 12 over the music.</p>
         <audio controls preload="none" src="sfx/demo-music-30s.flac" aria-label="sound effects, 30 second demo"></audio></li>
     </ul>
   </div>
 </section>
 
-<section class="sec wrap" id="install">
-  <div class="sec-head">
-    <h2>Install</h2>
-    <p>One command checks your computer, asks 4 questions, shows the plan and installs only what you choose. A GPU is not necessary.</p>
-    <p class="src"><a href="https://github.com/jjietay/kaleidoscope/blob/main/INSTALL.md">→ INSTALL.md</a></p>
-  </div>
-  <div class="sec-body">
+<section class="part p-clay" id="install">
+  <div class="wrap split">
+    <div>
+      <h2>Install</h2>
+      <p class="intro">One command checks your computer, asks 4 questions, shows the plan and installs only what you choose. A GPU is not necessary. The manual setup is in <a href="https://github.com/jjietay/kaleidoscope/blob/main/INSTALL.md">INSTALL.md</a>.</p>
+    </div>
+    <div>
 <pre><code>npx kaleidoscope-video</code></pre>
-    <p style="margin-top:24px">Later, <code>/setup-kaleidoscope</code> in Claude Code changes the voice, the GPU and the temperature guard:</p>
-    <ul class="ledger">
-      <li><span class="k">voice</span><span class="v">Chatterbox on a GPU, or Kokoro on a CPU.</span></li>
-      <li><span class="k">gpu</span><span class="v">Auto, or off.</span></li>
-      <li><span class="k">guard</span><span class="v">Heavy jobs need CPU turbo off, pause at 85 °C and stop at 92 °C.</span></li>
-    </ul>
-    <p style="margin-top:24px"><code>INSTALL.md</code> has the manual setup. Then ask for a video in the conversation where the topic came up:</p>
-    <ul class="prompts">
-      <li>Make a video explaining how the EKF fuses wheel odometry and the IMU.</li>
-      <li>Make a video on why computed torque control works.</li>
-    </ul>
+      <p>Later, <code>/setup-kaleidoscope</code> in Claude Code changes these:</p>
+      <ul class="settings">
+        <li><b>voice</b><span>Chatterbox on a GPU, or Kokoro on a CPU.</span></li>
+        <li><b>gpu</b><span>Auto, or off.</span></li>
+        <li><b>guard</b><span>Heavy jobs need CPU turbo off. They pause at 85 °C and stop at 92 °C.</span></li>
+      </ul>
+      <p style="margin:0">Then ask for a video in the conversation where the topic came up:</p>
+      <ul class="prompts">
+        <li>Make a video explaining how the EKF fuses wheel odometry and the IMU.</li>
+        <li>Make a video on why computed torque control works.</li>
+      </ul>
+    </div>
   </div>
 </section>
-
 </main>
 
-<footer class="wrap">
-  <a class="home" href="#">Kaleidoscope</a>
-  <div>
+<footer>
+  <div class="wrap">
     <p>Kaleidoscope is under the <a href="https://github.com/jjietay/kaleidoscope/blob/main/LICENSE">MIT licence</a>.
     <a href="https://github.com/vincentsch/explainroo">explainroo</a> times the words, <a href="https://github.com/resemble-ai/chatterbox">Chatterbox</a> speaks the narration,
     and <a href="https://www.manim.community/">Manim Community</a> draws the maths scenes.</p>
@@ -362,5 +289,18 @@ footer p + p { margin-top: 10px; }
   </div>
 </footer>
 
+<script>
+// The hero clip plays by itself only when the viewer allows motion. The button pauses or plays it.
+(function () {
+  var v = document.getElementById('clip'), b = document.getElementById('clipToggle');
+  if (!v || !b) return;
+  var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function label() { b.textContent = v.paused ? 'Play' : 'Pause'; }
+  b.addEventListener('click', function () { if (v.paused) v.play(); else v.pause(); });
+  v.addEventListener('play', label); v.addEventListener('pause', label);
+  if (!still) { var p = v.play(); if (p && p.catch) p.catch(label); }
+  label();
+})();
+</script>
 </body>
 </html>

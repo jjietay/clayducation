@@ -12,11 +12,18 @@ change the page.
 | `png/mascot.png` | the nine expressions, from the `make clay` sheet `expressions.png` |
 | `png/clay-room.png` | the mascot and models in one room |
 | `png/pipeline.png` | the README figure, made from `pipeline.html` |
+| `clip/cancel.mp4` | the muted opening loop: 418.8 to 425.2 s of the same video, 1280 px, no sound |
 
 Take a frame from a rendered video (no rebuild is needed):
 
 ```bash
 ffmpeg -ss <seconds> -i out/<name>.mp4 -frames:v 1 -vf scale=1280:-2 gallery/png/<picture>.png
+```
+
+Cut the opening loop:
+
+```bash
+ffmpeg -ss 418.8 -t 6.4 -i out/<name>.mp4 -an -vf scale=1280:-2 -c:v libx264 -crf 30 -pix_fmt yuv420p -movflags +faststart gallery/clip/cancel.mp4
 ```
 
 Render `pipeline.html` to `png/pipeline.png` with Chrome:
