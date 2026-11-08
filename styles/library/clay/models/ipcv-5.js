@@ -126,18 +126,20 @@ export const MODELS = {
     moving: 'Each column scales in height',
   },
   seesaw: {
+    // Real size against the mascot (5 units for 1 m): a 2.8 m plank with the axle at about 0.6 m.
     label: 'Seesaw',
+    step: 0.05,
     make() {
-      const m = def(), P = [0, 1.55, 0], Y = 1.82;
+      const m = def(), P = [0, 3.0, 0], Y = 3.485;
       m.add('fulcrum', (x, y, z) => {
-        const t = tri2(x, y, -0.85, 0, 0.85, 0, 0, 1.5) + 0.1, dz = Math.abs(z) - 0.42 + 0.08;
-        const d = Math.hypot(Math.max(t, 0), Math.max(dz, 0)) + Math.min(Math.max(t, dz), 0) - 0.08;
-        return smin(d, rcyl(x, y, z, P[0], P[1], 0, 'z', 0.18, 0.5, 0.05), 0.08);
+        const t = tri2(x, y, -1.7, 0, 1.7, 0, 0, 2.9) + 0.2, dz = Math.abs(z) - 0.8 + 0.16;
+        const d = Math.hypot(Math.max(t, 0), Math.max(dz, 0)) + Math.min(Math.max(t, dz), 0) - 0.16;
+        return smin(d, rcyl(x, y, z, P[0], P[1], 0, 'z', 0.32, 0.95, 0.08), 0.15);
       }, PAL.ink);
-      m.add('plank', (x, y, z) => rbox(x, y, z, 0, Y, 0, 3.5, 0.13, 0.45, 0.1), PAL.wood, { pivot: P });
+      m.add('plank', (x, y, z) => rbox(x, y, z, 0, Y, 0, 7, 0.225, 0.9, 0.18), PAL.wood, { pivot: P });
       for (const s of [-1, 1]) {
-        m.add(`seat${s}`, (x, y, z) => rbox(x, y, z, s * 3.0, Y + 0.24, 0, 0.42, 0.13, 0.4, 0.12), PAL.cream, { parent: 'plank' });
-        m.add(`handle${s}`, (x, y, z) => smin(cone(x, y, z, s * 2.45, Y + 0.08, 0, s * 2.45, Y + 0.75, 0, 0.1, 0.09), cone(x, y, z, s * 2.45, Y + 0.75, -0.34, s * 2.45, Y + 0.75, 0.34, 0.1, 0.1), 0.06), PAL.ink, { parent: 'plank' });
+        m.add(`seat${s}`, (x, y, z) => rbox(x, y, z, s * 6.0, Y + 0.425, 0, 0.85, 0.24, 0.8, 0.22), PAL.cream, { parent: 'plank' });
+        m.add(`handle${s}`, (x, y, z) => smin(cone(x, y, z, s * 4.9, Y + 0.15, 0, s * 4.9, Y + 1.5, 0, 0.19, 0.17), cone(x, y, z, s * 4.9, Y + 1.5, -0.68, s * 4.9, Y + 1.5, 0.68, 0.19, 0.19), 0.12), PAL.ink, { parent: 'plank', step: 0.035 });
       }
       return m;
     },
