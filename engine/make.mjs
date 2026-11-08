@@ -38,7 +38,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { music } from './music.mjs';
 import { sfxTrack, lint as sfxLint, timelineWords, writeWav as writeSfxWav } from './sfx.mjs';
-import { sayable, editDistance, extraWords } from './voicecheck.mjs';
+import { sayable, editDistance, extraWords, twoBars } from './voicecheck.mjs';
 
 const ENGINE = path.dirname(fileURLToPath(import.meta.url));
 const EXR = process.env.EXPLAINROO_HOME || path.join(os.homedir(), '.explainroo');
@@ -288,7 +288,9 @@ async function chatterbox(dir, shadow, cfg) {
   const { parseScript } = await import(pathToFileURL(path.join(EXR, 'src', 'script.js')).href);
   // The user chose these by ear: see the header of engine/tts/chatterbox_voice.py.
   const t = { exaggeration: 0.5, cfg_weight: 0.5, temperature: 0.8, seed: 7, stopGap: 0.6, commaMax: 0.3, paragraphGap: 1.0, retakes: 3, ...cfg._tts };
-  const script = parseScript(fs.readFileSync(path.join(dir, 'script.md'), 'utf8'));
+  const scriptText = fs.readFileSync(path.join(dir, 'script.md'), 'utf8'), bars = twoBars(scriptText);
+  if (bars.length) die(`a {shown|spoken} has a second bar, so the voice reads the wrong text: ${bars.join(', ')}. Write "∣" (U+2223) for the bar in the shown part, for example {p(x∣ω_i)|p of x, given omega i}.`);
+  const script = parseScript(scriptText);
   // The user asked: a negative number is "negative", never "minus".
   const minus = [];
   for (const sc of script.scenes) for (const u of sc.units) {
