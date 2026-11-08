@@ -117,6 +117,19 @@ export const MODELS = {
     pose(g) { g.fill.scale.y = 0.9; },
     moving: 'Red column rises',
   },
+  // A pointer stick, 2.6 long, along +z from its back end at the origin; its axis is at y = 0.07, so it lies on
+  // the floor at rest. The mascot holds the back end and pushes abacus beads with the thin tip, so the tip
+  // touches only the bead that it pushes.
+  pointer: {
+    label: 'Pointer stick',
+    make() {
+      const m = def(), L = 2.6, Y = 0.07;
+      m.add('stick', (x, y, z) => smin(rcyl(x, y, z, 0, Y, L / 2 - 0.04, 'z', 0.05, L / 2 - 0.04, 0.03), ell(x, y, z, 0, Y, 0.1, 0.075, 0.07, 0.13), 0.03), PAL.wood, { step: 0.015 });
+      m.add('tip', (x, y, z) => cone(x, y, z, 0, Y, L - 0.12, 0, Y, L, 0.05, 0.022), PAL.ink, { step: 0.012 });
+      return m;
+    },
+    moving: 'No moving parts',
+  },
   compass: {
     label: 'Drawing compass',
     make() {
@@ -143,5 +156,6 @@ export const JOINS = {
   abacus: [[/^rod/, 'frame'], [/^b(\d)-\d$/, 'rod$1']],
   hoop: [...Array(8).keys()].map((i) => [`stripe${i}`, `stripe${(i + 1) % 8}`]),
   thermometer: [['bulb', 'base'], ['collar', 'bulb'], ['collar', 'tube'], ['ticks', 'tube'], ['fill', 'bulb']],
+  pointer: [['tip', 'stick']],
   compass: [['knob', 'hinge'], ['legA', 'hinge'], ['legB', 'hinge'], ['needle', 'legA'], ['clamp', 'legB'], ['pencil', 'clamp'], ['lead', 'pencil']],
 };
