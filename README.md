@@ -21,7 +21,7 @@ A Claude Code skill that makes a narrated teaching video about a topic.<br>
 
 | A mascot who does the work | Formulas that act | Checked before render |
 |:---:|:---:|:---:|
-| <img src="gallery/png/clay-push.png" width="260"> | <img src="gallery/png/clay-formula.png" width="260"> | <img src="gallery/png/check-strip.png" width="260"> |
+| <img src="gallery/png/ipcv/boundary.png" width="260"> | <img src="gallery/png/clay-formula.png" width="260"> | <img src="gallery/png/check-strip.png" width="260"> |
 | The same silent mascot is in every video. He pulls, pushes and holds the things that the voice talks about. | When the voice says a term moves, it moves. When it says the mass cancels, the two terms are struck out and fly together. | The engine measures every frame. Claude reads strips of every movement like this one before the render can start. |
 
 ## Try it
@@ -41,6 +41,14 @@ In Claude Code, in the conversation where the topic came up:
 The default for every video: soft 3D clay, plain backgrounds and flat text, 28 models that we made in
 code, and one silent mascot who pulls, pushes and holds the things that the voice talks about.
 [`styles/clay.md`](styles/clay.md) has the mascot, his controls and every model.
+
+| Mahalanobis distance | PCA | k nearest neighbours |
+|:---:|:---:|:---:|
+| <img src="gallery/png/ipcv/ruler.png" width="260"> | <img src="gallery/png/ipcv/shadow.png" width="260"> | <img src="gallery/png/ipcv/knn.png" width="260"> |
+| **Bayes decision** | **LDA** | **Generalization** |
+| <img src="gallery/png/ipcv/bayes-scale.png" width="260"> | <img src="gallery/png/ipcv/fisher.png" width="260"> | <img src="gallery/png/ipcv/lever.png" width="260"> |
+
+Frames from a series of six videos on image processing and computer vision.
 
 <img src="gallery/png/mascot.png" alt="The mascot's nine expressions: neutral, smile, surprised, confused, thinking, worried, unimpressed, understanding, sleepy" width="100%">
 

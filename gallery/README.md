@@ -7,7 +7,9 @@ change the page.
 
 | Picture | What it shows |
 |---|---|
-| `png/clay-cancel.png`, `clay-push.png`, `clay-formula.png`, `clay-key.png`, `clay-servo.png` | frames from `~/Videos/explainers/partition-clay` ("Why computed torque works") at 421.0, 141.9, 175.6, 106.8 and 259.5 s |
+| `png/clay-cancel.png`, `clay-formula.png`, `clay-servo.png` | frames from the computed torque video at 421.0, 175.6 and 259.5 s |
+| `png/ipcv/*.png` | frames from the six the course videos in `~/Videos/explainers/ipcv-*`: bayes-scale 43.5 s (video 1), ruler 154.5 s and boundary 398.5 s (video 2), knn 347 s (video 3), shadow 55.5 s, eigen 218 s and fisher 543 s (video 4), lever 259.5 s (video 5) |
+| `png/classic/*.png` | six of the classic 2D styles, from `styles/classic/png/` |
 | `png/check-strip.png` | one movement strip from that video's build (`build/review/moving/443.8-close2-52.jpg`) |
 | `png/mascot.png` | the nine expressions, from the `make clay` sheet `expressions.png` |
 | `png/clay-room.png` | the mascot and models in one room |

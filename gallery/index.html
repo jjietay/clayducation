@@ -101,6 +101,7 @@ figcaption b { color: var(--ink); font-weight: 700; }
 .mosaic .c { grid-column: 1 / span 4; }
 .mosaic .d { grid-column: 5 / span 4; margin-top: 48px; }
 .mosaic .e { grid-column: 9 / span 4; }
+.mosaic .s { grid-column: span 4; }
 
 /* ---------- part 4: lilac ---------- */
 .p-lilac { background: var(--lilac); }
@@ -143,14 +144,14 @@ footer a { color: var(--paper-ink); }
   .steps { grid-template-columns: 1fr; }
   .mosaic { grid-template-columns: 1fr 1fr; }
   .mosaic .a, .mosaic .b { grid-column: span 2; margin-top: 0; }
-  .mosaic .c, .mosaic .d, .mosaic .e { grid-column: span 1; margin-top: 0; }
+  .mosaic .c, .mosaic .d, .mosaic .e, .mosaic .s { grid-column: span 1; margin-top: 0; }
   .mosaic .e { grid-column: span 2; }
   .tracks li { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
   body { font-size: 16px; }
   .mosaic { grid-template-columns: 1fr; }
-  .mosaic .a, .mosaic .b, .mosaic .c, .mosaic .d, .mosaic .e { grid-column: 1; }
+  .mosaic .a, .mosaic .b, .mosaic .c, .mosaic .d, .mosaic .e, .mosaic .s { grid-column: 1; }
   .settings li { grid-template-columns: 70px 1fr; }
 }
 </style>
@@ -219,17 +220,29 @@ footer a { color: var(--paper-ink); }
 <section class="part p-navy" id="frames">
   <div class="wrap">
     <h2>The clay look <span class="new">New</span></h2>
-    <p class="intro">The new default: one soft clay look, 28 models that we made in code, and a silent mascot who does the physical work. These frames come from a finished video. Select a picture to see it at full size.</p>
+    <p class="intro">The new default: one soft clay look, 28 models that we made in code, and a silent mascot who does the physical work. These frames come from six finished videos. Select a picture to see it at full size.</p>
     <div class="mosaic">
-      <figure class="sits a"><a href="png/clay-servo.png"><img src="png/clay-servo.png" width="1280" height="720" loading="lazy" alt="A robot drives toward a flag that the mascot holds. An orange arrow e shows the gap, and a blue arrow k p e shows the push."></a>
-        <figcaption><b>Follow the target.</b> The gap e and the push k<sub>p</sub>e are arrows on the robot, and the mascot holds the flag.</figcaption></figure>
-      <figure class="sits b"><a href="png/clay-formula.png"><img src="png/clay-formula.png" width="1280" height="720" loading="lazy" alt="The mascot pushes a heavy robot. Above, both m terms of m x double dot equals m v are struck out in pink."></a>
-        <figcaption><b>The mass cancels.</b> Both terms are struck out, then fly together and burst.</figcaption></figure>
-      <figure class="sits small c"><a href="png/clay-key.png"><img src="png/clay-key.png" width="1280" height="720" loading="lazy" alt="The mascot leans over a table and presses a key on a laptop."></a>
-        <figcaption><b>β off.</b> He presses a key, and the spring pulls the cart back.</figcaption></figure>
-      <figure class="sits small d"><a href="png/clay-room.png"><img src="png/clay-room.png" width="900" height="506" loading="lazy" alt="A clay room with the mascot, a tripod, a tank, a laptop on a table and a robot arm."></a>
-        <figcaption><b>Our own models.</b> Each one is made in code from signed distance shapes, so every video looks the same.</figcaption></figure>
-      <figure class="sits small e"><a href="png/mascot.png"><img src="png/mascot.png" width="1280" height="720" loading="lazy" alt="Nine faces of the mascot: neutral, smile, surprised, confused, thinking, worried, unimpressed, understanding and sleepy."></a>
+      <figure class="sits a"><a href="png/ipcv/ruler.png"><img src="png/ipcv/ruler.png" width="1280" height="720" loading="lazy" alt="The mascot slides a long ruler along a row of tables past a row of apples."></a>
+        <figcaption><b>A ruler in units of σ.</b> Mahalanobis distance: he measures how far a fruit is from the class mean.</figcaption></figure>
+      <figure class="sits b"><a href="png/ipcv/shadow.png"><img src="png/ipcv/shadow.png" width="1280" height="720" loading="lazy" alt="The mascot holds up a screen; a light panel casts the shadow of a cloud of beads onto it."></a>
+        <figcaption><b>A shadow is a projection.</b> PCA: he tilts the screen to find the widest shadow.</figcaption></figure>
+      <figure class="sits small s"><a href="png/ipcv/bayes-scale.png"><img src="png/ipcv/bayes-scale.png" width="1280" height="720" loading="lazy" alt="The mascot beside a balance scale loaded with small figures."></a>
+        <figcaption><b>Priors on a scale.</b> Bayes decision: 70 male, 30 female.</figcaption></figure>
+      <figure class="sits small s"><a href="png/ipcv/knn.png"><img src="png/ipcv/knn.png" width="1280" height="720" loading="lazy" alt="The mascot holds a hoop over a field of blue and plum beads."></a>
+        <figcaption><b>A vote in one hoop.</b> The k nearest neighbours decide.</figcaption></figure>
+      <figure class="sits small s"><a href="png/ipcv/boundary.png"><img src="png/ipcv/boundary.png" width="1280" height="720" loading="lazy" alt="The mascot pushes a crate toward a fence between apples and pears."></a>
+        <figcaption><b>The boundary is a tie.</b> Where both class scores are equal.</figcaption></figure>
+      <figure class="sits small s"><a href="png/ipcv/fisher.png"><img src="png/ipcv/fisher.png" width="1280" height="720" loading="lazy" alt="The mascot turns a screen next to a pressure gauge."></a>
+        <figcaption><b>The Fisher ratio.</b> LDA: the gauge scores each direction.</figcaption></figure>
+      <figure class="sits small s"><a href="png/ipcv/lever.png"><img src="png/ipcv/lever.png" width="1280" height="720" loading="lazy" alt="The mascot pushes down on a seesaw with a small blue ball on it."></a>
+        <figcaption><b>A tiny λ, a huge lever.</b> Why small eigenvalues mislead a classifier.</figcaption></figure>
+      <figure class="sits small s"><a href="png/ipcv/eigen.png"><img src="png/ipcv/eigen.png" width="1280" height="720" loading="lazy" alt="A Manim plot: data points, the best line through them and a curve of variance against angle."></a>
+        <figcaption><b>A Manim part.</b> For curves and plots, the video changes to Manim and back.</figcaption></figure>
+      <figure class="sits small s"><a href="png/clay-servo.png"><img src="png/clay-servo.png" width="1280" height="720" loading="lazy" alt="A robot drives toward a flag that the mascot holds, with arrows for the gap and the push."></a>
+        <figcaption><b>Follow the target.</b> From the computed torque video.</figcaption></figure>
+      <figure class="sits small s"><a href="png/clay-room.png"><img src="png/clay-room.png" width="900" height="506" loading="lazy" alt="A clay room with the mascot and several models."></a>
+        <figcaption><b>Our own models.</b> Made in code, so every video looks the same.</figcaption></figure>
+      <figure class="sits small s"><a href="png/mascot.png"><img src="png/mascot.png" width="1280" height="720" loading="lazy" alt="Nine faces of the mascot."></a>
         <figcaption><b>He never speaks.</b> Nine expressions react for the viewer.</figcaption></figure>
     </div>
   </div>
