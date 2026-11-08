@@ -12,9 +12,9 @@ const leaf = (x, y, z, cx, cy, a, len, w) => {
   return ell(u, v + Math.abs(u) * 0.05, z, 0, 0, 0, len, 0.032, w);
 };
 
-// The Gaussian hill, in world units: top surface y = B + A exp(-r² / 2σ²) on a plate of radius R.
+// The Gaussian hill: top surface y = B + A exp(-r² / 2σ²) on a plate of radius R.
 const HILL = { A: 2.6, S: 1.5, B: 0.14, R: 4.7 };
-function hillWorld(x, y, z) {
+function hill(x, y, z) {
   const { A, S, B, R } = HILL, r = Math.hypot(x, z), e = A * Math.exp(-r * r / (2 * S * S)), slope = e * r / (S * S);
   const top = (y - B - e) / Math.sqrt(1 + slope * slope);
   const plate = smax(smax(top, -y, 0.02), r - R, 0.12);
@@ -43,7 +43,7 @@ export const MODELS = {
         // Wider at the shoulders than at the base, with a deep top dimple and a small one below.
         const k = 1 + 0.09 * clamp((y - 0.6) / 0.6, -1, 1), b = ell(x / k, y, z / k, 0, 0.62, 0, 0.75, 0.62, 0.75) * k;
         return smax(smax(b, -ell(x, y, z, 0, 1.3, 0, 0.26, 0.2, 0.26), 0.16), -ell(x, y, z, 0, -0.04, 0, 0.14, 0.08, 0.14), 0.07) * 0.9;
-      }, C.apple);
+      }, C.apple, { step: 0.033 });
       m.add('stem', (x, y, z) => cone(x, y, z, 0, 1.04, 0, 0.05, 1.44, 0, 0.05, 0.035), C.stem);
       m.add('leaf', (x, y, z) => leaf(x, y, z, 0.27, 1.36, -0.35, 0.26, 0.12), PAL.leaf);
       return m;
@@ -54,7 +54,7 @@ export const MODELS = {
     label: 'Pear',
     make() {
       const m = def();
-      m.add('body', (x, y, z) => smax(smin(ell(x, y, z, 0, 0.54, 0, 0.6, 0.54, 0.6), ell(x, y, z, 0, 1.24, 0, 0.27, 0.34, 0.27), 0.42), -ell(x, y, z, 0, -0.03, 0, 0.12, 0.06, 0.12), 0.06), C.pear);
+      m.add('body', (x, y, z) => smax(smin(ell(x, y, z, 0, 0.54, 0, 0.6, 0.54, 0.6), ell(x, y, z, 0, 1.24, 0, 0.27, 0.34, 0.27), 0.42), -ell(x, y, z, 0, -0.03, 0, 0.12, 0.06, 0.12), 0.06), C.pear, { step: 0.029 });
       m.add('stem', (x, y, z) => cone(x, y, z, 0, 1.45, 0, -0.07, 1.74, 0, 0.05, 0.035), C.stem);
       m.add('leaf', (x, y, z) => leaf(x, y, z, 0.17, 1.66, -0.5, 0.19, 0.09), PAL.leaf);
       return m;
@@ -65,16 +65,14 @@ export const MODELS = {
     label: 'Gaussian density hill',
     make() {
       const m = def();
-      // Made at half size and shown at scale 2 (see rest): the large surface then keeps a low triangle count.
-      m.add('hill', (x, y, z) => 0.5 * hillWorld(2 * x, 2 * y, 2 * z), PAL.cream);
+      // A coarse mesh step keeps the large smooth surface at a low triangle count.
+      m.add('hill', hill, PAL.cream, { step: 0.064 });
       return m;
     },
-    rest(g) { g.hill.scale.setScalar(2); },
     moving: 'No moving parts. Scale m.root in x, y and z',
   },
   ringCircle: {
     label: 'Dashed contour ring',
-    pieces: DASHES,
     make() {
       const m = def(), step = 2 * Math.PI / DASHES;
       m.add('dashes', (x, y, z) => {
