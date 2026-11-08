@@ -24,7 +24,7 @@ only when the topic itself is unclear. Every check below is yours to run and to 
 ## The look the user wants (read before step 6)
 
 **Clay for things that act, Manim for plots, and the mascot is in every video.** Read `styles/clay.md`.
-The user chose the clay look over the old style mix for consistency across videos. The 2D styles are deleted.
+The user chose the clay look over the old style mix for consistency across videos. The 2D styles are an opt-in classic look; see the section below.
 
 - **Do not force a plot into clay (the user asked).** When a 2D Manim picture helps the viewer understand
   more than clay does (a curve, a distribution, a contour, a projection or other geometry in a plane),

@@ -28,29 +28,6 @@ const AB = { postX: 2.4, postR: 0.17, rodY: [2.45, 1.45], bx: 0.16, by: 0.32, pi
 AB.inner = AB.postX - AB.postR;                       // the inner face of a post
 AB.slide = 2 * AB.inner - 10 * AB.pitch;              // how far a bead can slide, from end to end
 
-// The sand heap: a bell profile that meets the floor at radius R.
-function heap(x, y, z) {
-  const H = 1.2, R = 1.8, lift = 0.24, sg = R / Math.sqrt(2 * Math.log((H + lift) / lift)), r = Math.hypot(x, z);
-  const e = Math.exp(-r * r / (2 * sg * sg)), h = (H + lift) * e - lift, dh = (H + lift) * e * r / (sg * sg);
-  // The base is just below the floor, off the mesh grid. The last term bounds the field, so the bake box stays small.
-  return Math.max(smax((y - h) / Math.sqrt(1 + dh * dh), -y - 0.004, 0.24), r - R - 0.1);
-}
-
-// The Gaussian arch: the curve y = AH exp(-x² / 2), with sigma = 1 model unit, from x = -AW to AW.
-const AH = 2.8, AW = 2.55, AY = 1.19, ARCH = [];
-for (let i = 0; i <= 80; i++) { const x = -AW + (2 * AW * i) / 80; ARCH.push([x, AY + 0.26 + AH * Math.exp(-x * x / 2)]); }
-function archField(x, y, z) {
-  let d = 9;
-  for (let i = 0; i < ARCH.length - 1; i++) {
-    const [ax, ay] = ARCH[i], [bx, by] = ARCH[i + 1];
-    if (Math.abs(x - ax) > d + 0.1 && Math.abs(x - bx) > d + 0.1) continue;
-    const ex = bx - ax, ey = by - ay, t = clamp(((x - ax) * ex + (y - ay) * ey) / (ex * ex + ey * ey), 0, 1);
-    d = Math.min(d, Math.hypot(x - ax - ex * t, y - ay - ey * t));
-  }
-  const r = 0.08, a = d - 0.15 + r, b = Math.abs(z) - 0.26 + r, strip = Math.min(Math.max(a, b), 0) + Math.hypot(Math.max(a, 0), Math.max(b, 0)) - r;
-  return smin(strip, rbox(x, y, z, 0, AY + 0.13, 0, AW + 0.15, 0.13, 0.26, 0.08), 0.1);
-}
-
 // The thermometer column runs from its pivot just inside the bulb to the top of the tube.
 const TH = { pivot: 1.3, top: 5.75 };
 

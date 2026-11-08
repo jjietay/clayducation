@@ -103,7 +103,7 @@ it in the right way. See them in `make clay m-<name>`.
 | `servo` | servo motor | `horn` |
 | `node` | network node | `light` |
 | `door`, `sign` | classroom door with a frosted window; school sign board | `leaf` swings; `board` turns 180° |
-| `pawnA`, `pawnB` | student token, blue and plum | none |
+| `pawnA`, `pawnB`, `pawnQ` | student token: blue, plum, and grey for a class not known yet | none |
 | `stadiometer` | height-measuring post | `slider` moves on y |
 | `balance` | beam balance with level pans | `beam` tips, `panL`, `panR` stay level |
 | `apple`, `pear` | fruit for class clouds | none |
@@ -111,6 +111,7 @@ it in the right way. See them in `make clay m-<name>`.
 | `fence` | waist-high fence panel and post, 4 long; set copies 4 apart | none |
 | `filmstrip` | film strip of 6 almost equal frames | none |
 | `beadA`, `beadB` | training-sample bead, blue and plum | none |
+| `pointer` | pointer stick, 2.6 long, for pushing small things (abacus beads) | none |
 | `abacus` | abacus with 2 rods of 10 beads | `b0-0` … `b1-9` slide in x |
 | `hoop` | striped hoop on the floor, radius 1 | scale the root in x and z |
 | `thermometer` | thermometer | `fill` scales in y |
@@ -119,12 +120,13 @@ it in the right way. See them in `make clay m-<name>`.
 | `salmon`, `seabass` | fish for class clouds | none |
 | `lamp` | spotlight on a stand | `head` aims |
 | `screen` | projection screen | `panel` turns |
+| `rig` | a screen and a flat light panel on one turning frame, so the light's rays stay parallel to the screen's normal | `arms` turns about the column |
 | `gauge` | dial gauge | `needle` turns about z |
 | `humanoid` | orange biped robot, no brand | `pelvis`, `torso`, `head`, `armL/R`, `foreL/R`, `thighL/R`, `shinL/R`, `footL/R` |
 | `vat`, `jar` | vat full of sample balls; jar with a few | `lid` of the jar lifts off |
 | `seesaw` | playground seesaw, plank 14 long | `plank` tips |
-| `discs` | two overlapping plates and their lens | none |
-| `scoreboard` | board with a dark face and 4 bars | `bar0` … `bar3` scale in y |
+| `discs` | two overlapping plates (gold and slate) and the red lens where they meet | `overlap` lifts off |
+| `scoreboard` | board with a dark face and 4 bars (grey and teal) | `bar0` … `bar3` scale in y, from their rest heights |
 | `neuron` | neuron with 3 inputs and 1 output | `glow` scales |
 | `pipe` | pipe with a valve | `wheel` turns, `gate` scales |
 | `rampStep`, `rampSigmoid`, `rampRelu` | ramps whose tops follow the activations, for a rolling ball | none |
