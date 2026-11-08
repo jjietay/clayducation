@@ -48,3 +48,8 @@ export function extraWords(scriptText, heardWords) {
   // Whisper also cuts numbers into pieces (".14"), which do not line up word by word.
   return heardWords.filter((h, k) => !/\d/.test(h) && bad[k][0] >= 2 && bad[k][0] >= 0.6 * bad[k][1]);
 }
+
+// A {shown|spoken} with a second bar: the parser splits at the first bar, so in video 1
+// {p(ω_i|x)|p of omega i, given x} spoke "x)|p of omega i, given x" ("XTP") and showed "p(ω_i".
+// Returns each such brace, so make voice can stop before any voice is made.
+export const twoBars = (script) => [...script.matchAll(/\{[^{}]*\|[^{}]*\|[^{}]*\}/g)].map((m) => m[0]);

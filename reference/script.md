@@ -132,6 +132,7 @@ What is left for you:
   sentence and a `[pause]`: "On the right is lambda v. [pause 0.6] That is v, scaled by
   lambda." `make voice` measures every clause and WARNs "fast" when one is more than 1.3
   times the usual pace after 3 retakes.
+- A bar in the shown part breaks the markup: write "∣" (U+2223), as in `{p(x∣ω_i)|p of x, given omega i}`. `make voice` stops on a second "|".
 - Numbers in brackets: `{(1, 0)|one zero}`. Decimals: `{0.5|zero point five}`.
 - **A negative number is "negative", never "minus"** (the user asked): `{(1, -1)|one, negative one}`,
   `{-3|negative three}`. Say "minus" only for a subtraction: `{5 - 3|five minus three}`.
