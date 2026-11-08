@@ -5,7 +5,7 @@
 A Claude Code skill that makes a narrated teaching video about a topic.<br>
 <b>New:</b> soft 3D clay with a silent mascot who does the work. The classic 2D styles are still there.<br>One agent checks the script before the voice is made.
 
-<img src="gallery/png/clay-cancel.png" alt="The clay mascot pushes a cart on a spring while two terms of the formula above are struck out" width="100%">
+<img src="https://raw.githubusercontent.com/jjietay/kaleidoscope/main/gallery/png/clay-cancel.png" alt="The clay mascot pushes a cart on a spring while two terms of the formula above are struck out" width="100%">
 
 <sub>Code draws every frame, without a video model, from 28 clay models of our own, and makes the music and the sound effects. The voice runs on your own computer, with or without a GPU.</sub>
 
@@ -15,13 +15,13 @@ A Claude Code skill that makes a narrated teaching video about a topic.<br>
 
 ## Pipeline
 
-<img src="gallery/png/pipeline.png" alt="How a video is made: (a) plan and build, (b) review and render" width="100%">
+<img src="https://raw.githubusercontent.com/jjietay/kaleidoscope/main/gallery/png/pipeline.png" alt="How a video is made: (a) plan and build, (b) review and render" width="100%">
 
 ## What makes it different
 
 | A mascot who does the work | Formulas that act | Checked before render |
 |:---:|:---:|:---:|
-| <img src="gallery/png/ipcv/boundary.png" width="260"> | <img src="gallery/png/clay-formula.png" width="260"> | <img src="gallery/png/check-strip.png" width="260"> |
+| <img src="https://raw.githubusercontent.com/jjietay/kaleidoscope/main/gallery/png/ipcv/boundary.png" width="260"> | <img src="https://raw.githubusercontent.com/jjietay/kaleidoscope/main/gallery/png/clay-formula.png" width="260"> | <img src="https://raw.githubusercontent.com/jjietay/kaleidoscope/main/gallery/png/check-strip.png" width="260"> |
 | The same silent mascot is in every video. He pulls, pushes and holds the things that the voice talks about. | When the voice says a term moves, it moves. When it says the mass cancels, the two terms are struck out and fly together. | The engine measures every frame. Claude reads strips of every movement like this one before the render can start. |
 
 ## Try it
@@ -44,13 +44,13 @@ code, and one silent mascot who pulls, pushes and holds the things that the voic
 
 | Mahalanobis distance | PCA | k nearest neighbours |
 |:---:|:---:|:---:|
-| <img src="gallery/png/ipcv/ruler.png" width="260"> | <img src="gallery/png/ipcv/shadow.png" width="260"> | <img src="gallery/png/ipcv/knn.png" width="260"> |
+| <img src="https://raw.githubusercontent.com/jjietay/kaleidoscope/main/gallery/png/ipcv/ruler.png" width="260"> | <img src="https://raw.githubusercontent.com/jjietay/kaleidoscope/main/gallery/png/ipcv/shadow.png" width="260"> | <img src="https://raw.githubusercontent.com/jjietay/kaleidoscope/main/gallery/png/ipcv/knn.png" width="260"> |
 | **Bayes decision** | **LDA** | **Generalization** |
-| <img src="gallery/png/ipcv/bayes-scale.png" width="260"> | <img src="gallery/png/ipcv/fisher.png" width="260"> | <img src="gallery/png/ipcv/lever.png" width="260"> |
+| <img src="https://raw.githubusercontent.com/jjietay/kaleidoscope/main/gallery/png/ipcv/bayes-scale.png" width="260"> | <img src="https://raw.githubusercontent.com/jjietay/kaleidoscope/main/gallery/png/ipcv/fisher.png" width="260"> | <img src="https://raw.githubusercontent.com/jjietay/kaleidoscope/main/gallery/png/ipcv/lever.png" width="260"> |
 
 Frames from a series of six videos on image processing and computer vision.
 
-<img src="gallery/png/mascot.png" alt="The mascot's nine expressions: neutral, smile, surprised, confused, thinking, worried, unimpressed, understanding, sleepy" width="100%">
+<img src="https://raw.githubusercontent.com/jjietay/kaleidoscope/main/gallery/png/mascot.png" alt="The mascot's nine expressions: neutral, smile, surprised, confused, thinking, worried, unimpressed, understanding, sleepy" width="100%">
 
 ### Classic: 29 flat styles
 
@@ -60,9 +60,9 @@ The first version's 2D styles, one style for each part of a video. Ask for them 
 
 | Newsreel | Flat vector | Line boil |
 |:---:|:---:|:---:|
-| <img src="gallery/png/classic/newsreel.png" width="260"> | <img src="gallery/png/classic/flat.png" width="260"> | <img src="gallery/png/classic/boil.png" width="260"> |
+| <img src="https://raw.githubusercontent.com/jjietay/kaleidoscope/main/gallery/png/classic/newsreel.png" width="260"> | <img src="https://raw.githubusercontent.com/jjietay/kaleidoscope/main/gallery/png/classic/flat.png" width="260"> | <img src="https://raw.githubusercontent.com/jjietay/kaleidoscope/main/gallery/png/classic/boil.png" width="260"> |
 | **Pixel art** | **Risograph** | **Blueprint** |
-| <img src="gallery/png/classic/pixel.png" width="260"> | <img src="gallery/png/classic/riso.png" width="260"> | <img src="gallery/png/classic/blueprint.png" width="260"> |
+| <img src="https://raw.githubusercontent.com/jjietay/kaleidoscope/main/gallery/png/classic/pixel.png" width="260"> | <img src="https://raw.githubusercontent.com/jjietay/kaleidoscope/main/gallery/png/classic/riso.png" width="260"> | <img src="https://raw.githubusercontent.com/jjietay/kaleidoscope/main/gallery/png/classic/blueprint.png" width="260"> |
 
 ## Install
 
