@@ -68,8 +68,8 @@ const moldU = (x) => clamp((x + MOLD.half) / (2 * MOLD.half), 0, 1);
 const moldFace = (x) => { const u = moldU(x), b = MOLD.b; return MOLD.low + MOLD.drop * (1 / (u + b) - 1 / (1 + b)) / (1 / b - 1 / (1 + b)); };
 const moldSlope = (x) => { const u = moldU(x), b = MOLD.b; return MOLD.drop / (2 * MOLD.half) / ((u + b) * (u + b)) / (1 / b - 1 / (1 + b)); };
 
-// The scoreboard: four bar slots in the lower half of the face. A bar is 1 unit tall at scale 1,
-// so its scale.y is its height. PAL is read only in make(), because models.js imports this file.
+// The scoreboard: four bar slots in the lower half of the face. Bar i is built at its rest height
+// SB.rest[i], so a height v is scale.y = v / SB.rest[i]. The slot holds a bar up to about 1.06 tall. PAL is read only in make(), because models.js imports this file.
 const SB = { foot: 2.85, slots: [-1.65, -0.55, 0.55, 1.65], rest: [0.75, 0.5, 0.95, 0.62] };
 
 export const MODELS = {
@@ -84,9 +84,9 @@ export const MODELS = {
         d = smin(d, torus(x, y, z, 0, 2.86, 0, 'y', 1.68, 0.14), 0.08);
         for (const by of [0.7, 2.05]) d = smin(d, torus(x, y, z, 0, by, 0, 'y', 1.62 + 0.08 * by / 2.85, 0.075), 0.04);
         return smax(d, -rcyl(x, y, z, 0, VAT.floor + 1, 0, 'y', 1.5, 1, 0.12), 0.06);
-      }, PAL.steel);
-      m.add('blue', (x, y, z) => smin(vatDome(x, y, z), ballDist(x, y, z, VAT_BALLS.blue, VAT.ball), 0.06), BLUE);
-      m.add('plum', (x, y, z) => smax(ballDist(x, y, z, VAT_BALLS.plum, VAT.ball), -vatDome(x, y, z) - 0.03, 0.02), PLUM);
+      }, PAL.steel, { step: 0.05 });
+      m.add('blue', (x, y, z) => smin(vatDome(x, y, z), ballDist(x, y, z, VAT_BALLS.blue, VAT.ball), 0.06), BLUE, { step: 0.04 });
+      m.add('plum', (x, y, z) => smax(ballDist(x, y, z, VAT_BALLS.plum, VAT.ball), -vatDome(x, y, z) - 0.03, 0.02), PLUM, { step: 0.035 });
       return m;
     },
     moving: 'No moving parts',
@@ -115,10 +115,10 @@ export const MODELS = {
     label: 'Eigenvalue spectrum columns',
     make() {
       const m = def();
-      m.add('plate', (x, y, z) => rbox(x, y, z, 0, COL.top / 2, 0, 4.5, COL.top / 2, 0.5, 0.08), PAL.ink);
+      m.add('plate', (x, y, z) => rbox(x, y, z, 0, COL.top / 2, 0, 4.5, COL.top / 2, 0.5, 0.08), PAL.ink, { step: 0.06 });
       for (let k = 0; k < COL.n; k++) {
         const cx = COLUMN_X[k], h = COLUMN_H[k], lo = COL.top - 0.04, r = Math.min(0.12, h / 2);
-        m.add(`col${k}`, (x, y, z) => rbox(x, y, z, cx, (lo + COL.top + h) / 2, 0, COL.half, (COL.top + h - lo) / 2, COL.half, r), PAL.teal, { pivot: [cx, COL.top, 0] });
+        m.add(`col${k}`, (x, y, z) => rbox(x, y, z, cx, (lo + COL.top + h) / 2, 0, COL.half, (COL.top + h - lo) / 2, COL.half, r), PAL.teal, { pivot: [cx, COL.top, 0], step: 0.032 });
       }
       return m;
     },
@@ -148,12 +148,12 @@ export const MODELS = {
     label: 'Two overlapping plates',
     make() {
       const m = def(), c = 1.735, R = 2.6;
-      m.add('plateA', (x, y, z) => rcyl(x, y, z, -c, 0.09, 0, 'y', R, 0.09, 0.06), BLUE);
-      m.add('plateB', (x, y, z) => rcyl(x, y, z, c, 0.11, 0, 'y', R, 0.11, 0.06), PLUM);
+      m.add('plateA', (x, y, z) => rcyl(x, y, z, -c, 0.09, 0, 'y', R, 0.09, 0.06), BLUE, { step: 0.05 });
+      m.add('plateB', (x, y, z) => rcyl(x, y, z, c, 0.11, 0, 'y', R, 0.11, 0.06), PLUM, { step: 0.05 });
       m.add('overlap', (x, y, z) => {
         const rr = 0.06, d2 = Math.max(Math.hypot(x + c, z) - R, Math.hypot(x - c, z) - R) + rr, dy = Math.abs(y - 0.23) - 0.13 + rr;
         return Math.min(Math.max(d2, dy), 0) + Math.hypot(Math.max(d2, 0), Math.max(dy, 0)) - rr;
-      }, PAL.red);
+      }, PAL.red, { step: 0.04 });
       return m;
     },
     moving: 'No moving parts',
@@ -171,13 +171,13 @@ export const MODELS = {
         d = smin(d, rbox(x, y, z, 0, 4.95, PZ, 3.5, 0.3, 0.27, 0.12), 0.1);
         d = smin(d, rbox(x, y, z, 0, 4.95, -0.42, 0.55, 0.3, 0.78, 0.12), 0.1);
         return smin(d, rcyl(x, y, z, 0, 5.3, 0, 'y', 0.34, 0.1, 0.05), 0.06);
-      }, PAL.ink);
+      }, PAL.ink, { step: 0.05 });
       m.add('ram', (x, y, z) => {
         const body = curvedSlab(x, y, z, MOLD.half, MOLD.depth, moldFace(x) + MOLD.face - 0.02, MOLD.top, moldSlope(x), 0.1);
-        const rod = cone(x, y, z, 0, MOLD.top - 0.1, 0, 0, MOLD.rodTop, 0, 0.15, 0.15) + 0.018 * Math.sin(Math.atan2(z, x) + y * 18);
-        return smin(body, rod, 0.1);
-      }, PAL.steel, { pivot: [0, MOLD.top, 0], free: true });
-      m.add('face', (x, y, z) => curvedSlab(x, y, z, MOLD.half, MOLD.depth + 0.02, moldFace(x), moldFace(x) + MOLD.face, moldSlope(x), 0.05), PAL.teal, { parent: 'ram' });
+        return smin(body, cone(x, y, z, 0, MOLD.top - 0.1, 0, 0, MOLD.top + 0.25, 0, 0.2, 0.15), 0.1);
+      }, PAL.steel, { pivot: [0, MOLD.top, 0], free: true, step: 0.045 });
+      m.add('screw', (x, y, z) => cone(x, y, z, 0, MOLD.top + 0.05, 0, 0, MOLD.rodTop, 0, 0.15, 0.15) + 0.018 * Math.sin(Math.atan2(z, x) + y * 18), PAL.steel, { parent: 'ram', step: 0.02 });
+      m.add('face', (x, y, z) => curvedSlab(x, y, z, MOLD.half, MOLD.depth + 0.02, moldFace(x), moldFace(x) + MOLD.face, moldSlope(x), 0.05), PAL.teal, { parent: 'ram', step: 0.04 });
       m.add('handle', (x, y, z) => { const Y = MOLD.rodTop; return Math.min(cone(x, y, z, -0.85, Y, 0, 0.85, Y, 0, 0.09, 0.09), ell(x, y, z, -0.92, Y, 0, 0.17, 0.17, 0.17), ell(x, y, z, 0.92, Y, 0, 0.17, 0.17, 0.17), ell(x, y, z, 0, Y, 0, 0.2, 0.15, 0.2)); }, PAL.ink, { parent: 'ram' });
       return m;
     },
@@ -188,21 +188,21 @@ export const MODELS = {
     label: 'Scoreboard with four bars',
     make() {
       const m = def(), C = 4.0, colors = [PAL.teal, PAL.cream, BAR_BLUE, BAR_PLUM];
-      m.add('board', (x, y, z) => smax(rbox(x, y, z, 0, C, 0, 2.5, 1.5, 0.16, 0.12), -rbox(x, y, z, 0, C, 0, 2.3, 1.3, 0.5, 0.05), 0.04), PAL.cream);
+      m.add('board', (x, y, z) => smax(rbox(x, y, z, 0, C, 0, 2.5, 1.5, 0.16, 0.12), -rbox(x, y, z, 0, C, 0, 2.3, 1.3, 0.5, 0.05), 0.04), PAL.cream, { step: 0.045 });
       m.add('face', (x, y, z) => {
         let s = 9;
         for (const sx of SB.slots) s = Math.min(s, rbox(x, y, z, sx, 3.38, 0.15, 0.33, 0.58, 0.09, 0.05));
         return smax(rbox(x, y, z, 0, C, 0, 2.32, 1.32, 0.12, 0.03), -s, 0.03);
-      }, PAL.screen);
+      }, PAL.screen, { step: 0.04 });
       for (const sx of [-1, 1]) m.add(`leg${sx}`, (x, y, z) => smin(rbox(x, y, z, sx * 1.8, 1.31, 0, 0.14, 1.31, 0.12, 0.07), rbox(x, y, z, sx * 1.8, 0.09, 0, 0.32, 0.09, 0.45, 0.07), 0.08), PAL.ink);
       for (let i = 0; i < 4; i++) {
         const cx = SB.slots[i];
-        m.add(`bar${i}`, (x, y, z) => rbox(x, y, z, cx, SB.foot + 0.5, 0.1, 0.25, 0.5, 0.1, 0.08), colors[i], { pivot: [cx, SB.foot, 0.1] });
+        const h = SB.rest[i];
+        m.add(`bar${i}`, (x, y, z) => rbox(x, y, z, cx, SB.foot + h / 2, 0.1, 0.25, h / 2, 0.1, 0.08), colors[i], { pivot: [cx, SB.foot, 0.1] });
       }
       return m;
     },
-    rest(g) { for (let i = 0; i < 4; i++) g[`bar${i}`].scale.y = SB.rest[i]; },
-    pose(g) { for (const [i, v] of [0.4, 1.0, 0.3, 0.85].entries()) g[`bar${i}`].scale.y = v; },
+    pose(g) { for (const [i, v] of [0.4, 1.0, 0.3, 0.85].entries()) g[`bar${i}`].scale.y = v / SB.rest[i]; },
     moving: 'Each bar scales in height',
   },
 };
@@ -213,6 +213,6 @@ export const JOINS = {
   columns: [[/^col/, 'plate']],
   seesaw: [['plank', 'fulcrum'], [/^seat/, 'plank'], [/^handle/, 'plank']],
   discs: [['plateA', 'plateB'], ['overlap', 'plateA'], ['overlap', 'plateB']],
-  mold: [['ram', 'frame'], ['face', 'ram'], ['handle', 'ram']],
+  mold: [['screw', 'frame'], ['screw', 'ram'], ['face', 'ram'], ['handle', 'screw']],
   scoreboard: [[/^leg/, 'board'], ['face', 'board'], [/^bar/, 'face']],
 };
