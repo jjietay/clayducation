@@ -54,10 +54,10 @@ export const MODELS = {
     make() {
       const m = def(), HX = -2, HZ = -0.11;
       // Opening: x from -2 to 2, y from 0 to 10.5.
-      m.add('frame', (x, y, z) => smax(rbox(x, y, z, 0, 5.46, 0, 2.42, 5.46, 0.21, 0.1), -rbox(x, y, z, 0, 5.0, 0, 2.0, 5.5, 0.6, 0.06), 0.06), FRAME);
+      m.add('frame', (x, y, z) => smax(rbox(x, y, z, 0, 5.46, 0, 2.42, 5.46, 0.21, 0.1), -rbox(x, y, z, 0, 5.0, 0, 2.0, 5.5, 0.6, 0.06), 0.06), FRAME, { step: 0.055 });
       m.add('hinges', (x, y, z) => Math.min(...[1.4, 5.25, 9.1].map((cy) => rcyl(x, y, z, HX, cy, HZ, 'y', 0.12, 0.42, 0.05))), PAL.steel, { mat: 'metal' });
-      m.add('leaf', (x, y, z) => smax(rbox(x, y, z, 0, 5.25, 0, 1.96, 5.19, 0.11, 0.08), -rbox(x, y, z, 0, 7.8, 0, 1.1, 1.8, 0.5, 0.1), 0.05), PAL.wood, { pivot: [HX, 0, HZ], free: true });
-      m.add('window', (x, y, z) => rbox(x, y, z, 0, 7.8, 0, 1.12, 1.82, 0.05, 0.04), FROST, { parent: 'leaf' });
+      m.add('leaf', (x, y, z) => smax(rbox(x, y, z, 0, 5.25, 0, 1.96, 5.19, 0.11, 0.08), -rbox(x, y, z, 0, 7.8, 0, 1.1, 1.8, 0.5, 0.1), 0.05), PAL.wood, { pivot: [HX, 0, HZ], free: true, step: 0.055 });
+      m.add('window', (x, y, z) => rbox(x, y, z, 0, 7.8, 0, 1.12, 1.82, 0.05, 0.04), FROST, { parent: 'leaf', step: 0.05 });
       m.add('handle', (x, y, z) => {
         let d = rcyl(x, y, z, 1.5, 4.3, 0, 'z', 0.27, 0.17, 0.07);
         for (const s of [-1, 1]) d = smin(d, Math.min(cone(x, y, z, 1.5, 4.3, s * 0.14, 1.5, 4.3, s * 0.4, 0.12, 0.12), cone(x, y, z, 1.5, 4.3, s * 0.42, 0.72, 4.3, s * 0.44, 0.13, 0.12)), 0.06);
@@ -77,10 +77,10 @@ export const MODELS = {
         for (const s of [-1, 1]) d = Math.min(d, rcyl(x, y, z, s * 3.0, 4.7, 0, 'y', 0.26, 4.7, 0.1), ell(x, y, z, s * 3.0, 9.45, 0, 0.32, 0.32, 0.32), rcyl(x, y, z, s * 3.0, 0.1, 0, 'y', 0.46, 0.1, 0.06));
         // Pins on the turning axis, above and below the board.
         return Math.min(d, rcyl(x, y, z, 0, 8.74, 0, 'y', 0.12, 0.18, 0.03), rcyl(x, y, z, 0, 6.86, 0, 'y', 0.12, 0.18, 0.03));
-      }, PAL.ink);
+      }, PAL.ink, { step: 0.05 });
       // Board face: x from -2.5 to 2.5, y from 7.0 to 8.6. The text goes on it later, as flat HTML.
-      m.add('board', (x, y, z) => rbox(x, y, z, 0, BY, 0, 2.5, 0.8, 0.1, 0.08), PAL.cream, { pivot: [0, BY, 0], free: true });
-      m.add('rim', (x, y, z) => smax(rbox(x, y, z, 0, BY, 0, 2.6, 0.9, 0.14, 0.1), -rbox(x, y, z, 0, BY, 0, 2.4, 0.7, 0.3, 0.06), 0.03), PAL.ink, { parent: 'board' });
+      m.add('board', (x, y, z) => rbox(x, y, z, 0, BY, 0, 2.5, 0.8, 0.1, 0.08), PAL.cream, { pivot: [0, BY, 0], free: true, step: 0.05 });
+      m.add('rim', (x, y, z) => smax(rbox(x, y, z, 0, BY, 0, 2.6, 0.9, 0.14, 0.1), -rbox(x, y, z, 0, BY, 0, 2.4, 0.7, 0.3, 0.06), 0.03), PAL.ink, { parent: 'board', step: 0.04 });
       return m;
     },
     pose(g) { g.board.rotation.y = Math.PI; },
@@ -92,11 +92,11 @@ export const MODELS = {
     label: 'Height-measuring post',
     make() {
       const m = def(), CZ = -1.2, Y0 = 9.78;
-      m.add('plate', (x, y, z) => rbox(x, y, z, 0, 0.1, 0.2, 1.6, 0.1, 1.7, 0.09), PAL.grey);
-      m.add('column', (x, y, z) => rbox(x, y, z, 0, 5.15, CZ, 0.5, 5.1, 0.4, 0.2), PAL.cream);
+      m.add('plate', (x, y, z) => rbox(x, y, z, 0, 0.1, 0.2, 1.6, 0.1, 1.7, 0.09), PAL.grey, { step: 0.05 });
+      m.add('column', (x, y, z) => rbox(x, y, z, 0, 5.15, CZ, 0.5, 5.1, 0.4, 0.2), PAL.cream, { step: 0.05 });
       // One tick at each whole unit of height, y = 1 to 10; longer ticks at 5 and 10.
       m.add('ticks', (x, y, z) => { const k = clamp(Math.round(y), 1, 10); return ell(x, y, z, 0, k, CZ + 0.38, k % 5 ? 0.34 : 0.5, 0.13, 0.13); }, PAL.ink);
-      m.add('slider', (x, y, z) => rbox(x, y, z, 0, Y0, CZ, 0.66, 0.36, 0.6, 0.16), PAL.teal, { pivot: [0, Y0, CZ], free: true });
+      m.add('slider', (x, y, z) => rbox(x, y, z, 0, Y0, CZ, 0.66, 0.36, 0.6, 0.16), PAL.teal, { pivot: [0, Y0, CZ], free: true, step: 0.045 });
       // The head bar: its underside is at y = 9.6 at rest, and it reaches z = 1.4.
       m.add('bar', (x, y, z) => rbox(x, y, z, 0, Y0 - 0.06, 0.3, 0.46, 0.12, 1.1, 0.1), PAL.teal, { parent: 'slider' });
       return m;
@@ -108,7 +108,7 @@ export const MODELS = {
     label: 'Beam balance',
     make() {
       const m = def(), BY = 4.8, PX = 2.4, FY = 1.9;
-      m.add('base', (x, y, z) => smin(rbox(x, y, z, 0, 0.2, 0, 1.4, 0.2, 0.9, 0.15), rcyl(x, y, z, 0, 0.45, 0, 'y', 0.5, 0.1, 0.08), 0.12), SLATE);
+      m.add('base', (x, y, z) => smin(rbox(x, y, z, 0, 0.2, 0, 1.4, 0.2, 0.9, 0.15), rcyl(x, y, z, 0, 0.45, 0, 'y', 0.5, 0.1, 0.08), 0.12), SLATE, { step: 0.05 });
       m.add('column', (x, y, z) => cone(x, y, z, 0, 0.4, 0, 0, 4.62, 0, 0.24, 0.17), SLATE);
       m.add('beam', (x, y, z) => Math.min(cone(x, y, z, 0, BY, 0, PX, BY, 0, 0.2, 0.12), cone(x, y, z, 0, BY, 0, -PX, BY, 0, 0.2, 0.12), ell(x, y, z, PX, BY, 0, 0.17, 0.17, 0.17), ell(x, y, z, -PX, BY, 0, 0.17, 0.17, 0.17)), SLATE, { pivot: [0, BY, 0], free: true });
       m.add('hub', (x, y, z) => rcyl(x, y, z, 0, BY, 0, 'z', 0.34, 0.22, 0.08), PAL.cream, { parent: 'beam' });
@@ -116,7 +116,7 @@ export const MODELS = {
       // Pans: the inner floor is flat at y = 1.9, 2.14 across, with a rim up to y = 2.15.
       for (const [s, n] of [[-1, 'L'], [1, 'R']]) {
         const cx = s * PX;
-        m.add(`pan${n}`, (x, y, z) => smin(smax(rcyl(x, y, z, cx, FY + 0.075, 0, 'y', 1.2, 0.175, 0.1), -rcyl(x, y, z, cx, FY + 0.5, 0, 'y', 1.07, 0.5, 0.1), 0.05), torus(x, y, z, cx, FY + 0.24, 0, 'y', 1.14, 0.07), 0.04), PAL.steel, { parent: 'beam', pivot: [cx, BY, 0] });
+        m.add(`pan${n}`, (x, y, z) => smin(smax(rcyl(x, y, z, cx, FY + 0.075, 0, 'y', 1.2, 0.175, 0.1), -rcyl(x, y, z, cx, FY + 0.5, 0, 'y', 1.07, 0.5, 0.1), 0.05), torus(x, y, z, cx, FY + 0.24, 0, 'y', 1.14, 0.07), 0.04), PAL.steel, { parent: 'beam', pivot: [cx, BY, 0], step: 0.045 });
         m.add(`hanger${n}`, (x, y, z) => Math.min(cone(x, y, z, cx, BY, 0, cx - 1.13, FY + 0.2, 0, 0.09, 0.09), cone(x, y, z, cx, BY, 0, cx + 1.13, FY + 0.2, 0, 0.09, 0.09)), SLATE, { parent: `pan${n}` });
       }
       return m;
