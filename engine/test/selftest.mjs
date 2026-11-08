@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const HERE = path.dirname(fileURLToPath(import.meta.url)), MAKE = path.join(HERE, '..', 'make.mjs');
+const HERE = path.dirname(fileURLToPath(import.meta.url)), MAKE = path.join(HERE, '..', 'make.mjs'), CFG = path.join(HERE, '..', '..', 'config.json');
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kaleidoscope-selftest-'));
 const make = (...a) => { const r = spawnSync(process.execPath, [MAKE, ...a], { encoding: 'utf8' }); return { code: r.status, out: (r.stdout || '') + (r.stderr || '') }; };
 let failed = 0;
@@ -156,7 +156,7 @@ try {
   }
 
   // ---------- the voice stays when the script stays ----------
-  const V = spawnSync(process.execPath, ['--input-type=module', '-e', `import { createHash } from 'node:crypto'; import fs from 'node:fs'; const d = ${JSON.stringify(dir)}, c = JSON.parse(fs.readFileSync(d + '/video.json', 'utf8')); process.stdout.write(createHash('sha1').update(fs.readFileSync(d + '/script.md')).update(JSON.stringify([c._tts || {}, c.fps, c.lead, c.hold, c.end])).digest('hex'));`], { encoding: 'utf8' });
+  const V = spawnSync(process.execPath, ['--input-type=module', '-e', `import { createHash } from 'node:crypto'; import fs from 'node:fs'; const d = ${JSON.stringify(dir)}, c = JSON.parse(fs.readFileSync(d + '/video.json', 'utf8')); process.stdout.write(createHash('sha1').update(fs.readFileSync(d + '/script.md')).update(JSON.stringify([c._tts || {}, c.fps, c.lead, c.hold, c.end, (() => { try { return JSON.parse(fs.readFileSync(${JSON.stringify(CFG)}, 'utf8')).whisper || 'base'; } catch { return 'base'; } })()])).digest('hex'));`], { encoding: 'utf8' });
   fs.writeFileSync(path.join(dir, 'build', 'voice.stamp'), V.stdout);
   report('an unchanged script keeps its voice', /script unchanged/.test(make('voice', dir).out));
 

@@ -72,7 +72,27 @@ npx kaleidoscope-video
 
 The setup checks your machine, asks 4 questions (folder, voice, Manim, script agent), shows the plan, and installs only what you choose. It works without a GPU: then the Kokoro voice speaks and the CPU draws the frames.
 
-Later, in Claude Code, `/setup-kaleidoscope` changes the voice or the GPU.
+Later, in Claude Code, `/setup-kaleidoscope` changes the voice, the GPU or the Whisper model.
+
+**GPUs.** An NVIDIA GPU speaks the voice, draws the frames and encodes the video. On a Mac with Apple
+silicon, the voice runs on Metal, Chrome draws with Metal and VideoToolbox encodes (the Mac path is new
+and not yet tested on a Mac; without a GPU the engine uses the CPU and makes the same frames, slower).
+
+**Whisper.** `make config --whisper large` times the words and checks the voice with Whisper large-v3-turbo
+in place of the small base.en. On a test video it placed the cues within 0.01 s of where the speech
+starts, against 0.05 to 0.1 s with the small model. The installer chooses it on an NVIDIA GPU.
+
+**Disk space** (estimates for a new install):
+
+| Install | About |
+|---|---|
+| Everything, NVIDIA GPU: Chatterbox voice, large Whisper, Manim | 12 GB |
+| Everything, Mac: Chatterbox on Metal, Manim with BasicTeX | 7 GB (12 GB with the full MacTeX) |
+| Smallest: Kokoro voice, no Manim | 1.5 GB |
+
+The biggest parts are PyTorch for the voice (about 5 GB with CUDA), the Chatterbox model (3 GB), the large
+Whisper (1.6 GB), and explainroo with its small models (1 GB). Chrome, Node and ffmpeg add about 0.6 GB if
+they are not installed yet.
 
 [`INSTALL.md`](INSTALL.md) has the manual setup.
 

@@ -39,6 +39,27 @@ def hear(model, audio):
             for s in segments for w in (s.words or [])]
 
 
+def snap(words, audio, sr=16000):
+    """Moves each word start that lies in silence to where the sound begins.
+
+    faster-whisper can start a word inside the pause before it: a cue came 0.5 s early with
+    large-v3-turbo, while the audio was silent from 2.30 to 2.97 s. Silence is 40 dB under the peak.
+    """
+    import numpy as np
+    hop = sr // 100
+    n = len(audio) // hop
+    if not n:
+        return words
+    rms = np.sqrt(np.mean(audio[: n * hop].reshape(n, hop) ** 2, axis=1))
+    loud = rms > rms.max() * 0.01
+    for w in words:
+        i, last = int(w["start"] * 100), int(w["end"] * 100) - 5
+        while i < min(last, n) and not loud[i]:
+            i += 1
+        w["start"] = round(max(w["start"], i / 100), 3)
+    return words
+
+
 def main():
     takes, name = json.load(open(sys.argv[1])), sys.argv[2]
     todo = [t for t in takes if not os.path.exists(t.replace(".wav", f".heard-{name}.json"))]
@@ -55,6 +76,7 @@ def main():
             print(f"hear: GPU failed ({str(e).splitlines()[0][:80]}), using the CPU")
             model = WhisperModel(name, device="cpu", compute_type="int8")
             words = hear(model, audio)
+        words = snap(words, audio)
         with open(t.replace(".wav", f".heard-{name}.json"), "w") as f:
             json.dump(words, f)
     print(f"hear: {len(todo)} take(s) heard with {name}")

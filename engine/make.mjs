@@ -3,7 +3,7 @@
 // scenes.js, video.json) and gives you a narrated MP4 with soft subtitles.
 //
 //   node make.mjs doctor                    check Chrome, ffmpeg, explainroo, MathJax
-//   node make.mjs config [--voice auto|chatterbox|kokoro] [--gpu auto|off]
+//   node make.mjs config [--voice auto|chatterbox|kokoro] [--gpu auto|off] [--whisper base|large]
 //   node make.mjs init <dir> --title "..."  new project with learning-pace voice settings
 //   node make.mjs build [dir]               voice, manim, check, sheet, review: every step before you look
 //   node make.mjs final [dir]               render, verify
@@ -45,10 +45,11 @@ const EXR = process.env.EXPLAINROO_HOME || path.join(os.homedir(), '.explainroo'
 const CHROME = process.env.CHROME || ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'].find((c) => spawnSync('which', [c]).status === 0);
 // The settings of this machine, written by "make config", the installer or /setup-kaleidoscope.
 // config.json is not in git. voice: chatterbox (natural, best on a GPU), kokoro (small, fast on a CPU)
-// or auto. gpu: auto or off.
+// or auto. gpu: auto or off. whisper: base (small, fast, explainroo's own) or large (large-v3-turbo,
+// more exact word times and voice checks; needs faster-whisper in engine/tts/.venv, about 1.6 GB).
 const CONFIG_FILE = path.join(ENGINE, '..', 'config.json');
-const CONFIG_DEFAULT = { voice: 'auto', gpu: 'auto', kokoroVoice: 'af_heart' };
-const CONFIG_CHOICES = { voice: ['auto', 'chatterbox', 'kokoro'], gpu: ['auto', 'off'] };
+const CONFIG_DEFAULT = { voice: 'auto', gpu: 'auto', whisper: 'base', kokoroVoice: 'af_heart' };
+const CONFIG_CHOICES = { voice: ['auto', 'chatterbox', 'kokoro'], gpu: ['auto', 'off'], whisper: ['base', 'large'] };
 const readConfig = () => { try { return { ...CONFIG_DEFAULT, ...JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) }; } catch { return { ...CONFIG_DEFAULT }; } };
 const CONFIG = readConfig();
 
@@ -193,7 +194,7 @@ function config() {
   const kv = opt('--kokoro-voice');
   if (kv !== undefined) { cur.kokoroVoice = kv; changed = true; }
   if (changed) fs.writeFileSync(CONFIG_FILE, JSON.stringify(cur, null, 2) + '\n');
-  console.log(`voice   ${cur.voice}${cur.voice === 'auto' ? ` (now: ${fs.existsSync(TTS_PY) ? 'chatterbox' : 'kokoro'})` : ''}${cur.voice !== 'chatterbox' ? `, Kokoro voice ${cur.kokoroVoice}` : ''}\ngpu     ${cur.gpu}\nfile    ${CONFIG_FILE}${fs.existsSync(CONFIG_FILE) ? '' : ' (not written yet: these are the defaults)'}`);
+  console.log(`voice   ${cur.voice}${cur.voice === 'auto' ? ` (now: ${fs.existsSync(TTS_PY) ? 'chatterbox' : 'kokoro'})` : ''}${cur.voice !== 'chatterbox' ? `, Kokoro voice ${cur.kokoroVoice}` : ''}\ngpu     ${cur.gpu}\nwhisper ${cur.whisper}${cur.whisper === 'large' ? ' (large-v3-turbo)' : ' (base.en)'}\nfile    ${CONFIG_FILE}${fs.existsSync(CONFIG_FILE) ? '' : ' (not written yet: these are the defaults)'}`);
 }
 
 // ---------- doctor ----------
@@ -220,7 +221,11 @@ async function doctor() {
     for (const l of (r.stdout + r.stderr).split('\n')) if (/speech check/.test(l)) line(l.startsWith('ok'), 'whisper', l.replace(/^\S+\s+\S+(\s\S+)?\s+/, ''));
   }
   const g = gpu();
-  console.log(`info settings     voice ${voiceEngine()}, frames by ${g.renderer}, encode ${g.nvenc ? 'NVENC (GPU)' : 'libx264 (CPU)'}`);
+  if (CONFIG.whisper === 'large') {
+    const fw = fs.existsSync(TTS_PY) && spawnSync(TTS_PY, ['-c', 'import faster_whisper'], { encoding: 'utf8' }).status === 0;
+    line(fw, 'whisper big', fw ? 'large-v3-turbo through faster-whisper (word timing and voice checks)' : 'faster-whisper is missing in engine/tts/.venv: pip install faster-whisper, or "make config --whisper base"');
+  }
+  console.log(`info settings     voice ${voiceEngine()}, frames by ${g.renderer}, encode ${encName(g)}`);
   process.exit(ok ? 0 : 1);
 }
 
@@ -247,7 +252,21 @@ function init() {
 // one call, so the tone carries across sentences; the pause is silence we add.
 const TTS_PY = path.join(ENGINE, 'tts', '.venv', 'bin', 'python');
 // What Whisper hears in a spoken part (cached next to it).
+const LARGE_WHISPER = 'large-v3-turbo', HEAR = path.join(ENGINE, 'tts', 'hear.py');
+const largeWhisper = () => CONFIG.whisper === 'large' && fs.existsSync(TTS_PY);
+// With the large Whisper, all new takes of a round are heard in one run, so the model loads once.
+function hearAll(raws) {
+  if (!largeWhisper()) return;
+  const todo = raws.filter((r) => !fs.existsSync(r.replace(/\.wav$/, `.heard-${LARGE_WHISPER}.json`)));
+  if (!todo.length) return;
+  const list = path.join(os.tmpdir(), `xv-hear-${process.pid}.json`);
+  fs.writeFileSync(list, JSON.stringify(todo));
+  const r = spawnSync(TTS_PY, [HEAR, list, LARGE_WHISPER], { stdio: 'inherit' });
+  fs.rmSync(list, { force: true });
+  if (r.status !== 0) die('the large Whisper failed (see above). "make config --whisper base" goes back to the small one.');
+}
 async function heardWords(raw) {
+  if (largeWhisper()) { hearAll([raw]); return JSON.parse(fs.readFileSync(raw.replace(/\.wav$/, `.heard-${LARGE_WHISPER}.json`), 'utf8')); }
   const wordsFile = raw.replace(/\.wav$/, '.words.json');
   if (!fs.existsSync(wordsFile)) {
     const { readWav, resample } = await import(pathToFileURL(path.join(EXR, 'src', 'wav.js')).href);
@@ -347,6 +366,7 @@ async function chatterbox(dir, shadow, cfg) {
     const r = spawnSync(TTS_PY, [path.join(ENGINE, 'tts', 'chatterbox_voice.py'), jobs], { stdio: 'inherit' });
     if (r.status !== 0) die('Chatterbox failed (see above)');
     const done = JSON.parse(fs.readFileSync(jobs + '.out.json', 'utf8')).scenes.flatMap((sc) => sc.parts);
+    hearAll(done.map((p) => p.raw));
     for (const [i, part] of done.entries()) {
       const list = takes.get(part.id) || [];
       if (!list.some((x) => x.seed === part.seed)) list.push({ seed: part.seed, raw: part.raw, report: await takeReport(part) });
@@ -486,9 +506,13 @@ async function voice() {
   fs.mkdirSync(shadow, { recursive: true });
   const cfg = JSON.parse(fs.readFileSync(path.join(dir, 'video.json'), 'utf8'));
   // An unchanged script keeps its voice. A new run moves cue times by itself, so it would make a look wrong.
-  const stampFile = path.join(dir, 'build', 'voice.stamp'), stampNow = createHash('sha1').update(fs.readFileSync(path.join(dir, 'script.md'))).update(JSON.stringify([cfg._tts || {}, cfg.fps, cfg.lead, cfg.hold, cfg.end])).digest('hex');
+  const stampFile = path.join(dir, 'build', 'voice.stamp'), stampNow = createHash('sha1').update(fs.readFileSync(path.join(dir, 'script.md'))).update(JSON.stringify([cfg._tts || {}, cfg.fps, cfg.lead, cfg.hold, cfg.end, CONFIG.whisper])).digest('hex');
   if (!flag('--again') && fs.existsSync(path.join(dir, 'build', 'timeline.json')) && fs.existsSync(stampFile) && fs.readFileSync(stampFile, 'utf8') === stampNow) return console.log('voice: script unchanged, so the voice stays. Use --again to make it again.');
   fs.copyFileSync(path.join(dir, 'script.md'), path.join(shadow, 'script.md'));
+  // explainroo keeps each scene's word times by the recording, not by the model: a new Whisper times again.
+  const vdir = path.join(dir, 'build', 'voice'), mark = path.join(vdir, 'whisper.txt'), want = largeWhisper() ? LARGE_WHISPER : 'base.en';
+  if (fs.existsSync(vdir) && (fs.existsSync(mark) ? fs.readFileSync(mark, 'utf8') : 'base.en') !== want) for (const f of fs.readdirSync(vdir)) if (f.endsWith('.json')) fs.rmSync(path.join(vdir, f));
+  fs.mkdirSync(vdir, { recursive: true }); fs.writeFileSync(mark, want);
   // Relative links, so a project folder can move. A link left from an old location is replaced.
   for (const [name, target] of [['build', '..'], ['scenes.js', path.join('..', '..', 'scenes.js')]]) {
     const l = path.join(shadow, name);
@@ -505,7 +529,10 @@ async function voice() {
   // and retake each part, then hand explainroo the recordings to time.
   const spoken = engine === 'kokoro' ? { ...cfg, voice: cfg._tts?.kokoroVoice || CONFIG.kokoroVoice, speed: cfg._tts?.speed ?? 0.78 } : await chatterbox(dir, shadow, cfg);
   fs.writeFileSync(path.join(shadow, 'video.json'), JSON.stringify(spoken, null, 2));
-  const r = spawnSync('node', [path.join(EXR, 'bin', 'explainroo.js'), 'voice', shadow], { stdio: 'inherit' });
+  // The large Whisper also times the words: asr-hook.mjs changes explainroo's transcribeWords.
+  const hook = largeWhisper() ? ['--import', pathToFileURL(path.join(ENGINE, 'asr-hook.mjs')).href] : [];
+  const r = spawnSync('node', [...hook, path.join(EXR, 'bin', 'explainroo.js'), 'voice', shadow], { stdio: 'inherit',
+    env: { ...process.env, XV_TTS_PY: TTS_PY, XV_HEAR: HEAR, XV_WHISPER_MODEL: LARGE_WHISPER } });
   if (r.status !== 0) die('explainroo voice failed (see above)');
   const tl = JSON.parse(fs.readFileSync(path.join(dir, 'build', 'timeline.json'), 'utf8'));
   fs.writeFileSync(path.join(dir, 'build', 'timeline.js'), `window.TIMELINE = ${JSON.stringify(tl)};\n`);
@@ -721,25 +748,32 @@ function serve(dir) {
 // not change; only the device does. XV_GPU=0 forces the old CPU path (SwiftShader and libx264).
 // Vulkan was tested and crashes the GPU process on this driver, so ANGLE uses EGL.
 const NV_ENV = { __NV_PRIME_RENDER_OFFLOAD: '1', __GLX_VENDOR_LIBRARY_NAME: 'nvidia', __VK_LAYER_NV_optimus: 'NVIDIA_only', __EGL_VENDOR_LIBRARY_FILENAMES: '/usr/share/glvnd/egl_vendor.d/10_nvidia.json' };
-const GPU_FLAGS = ['--use-gl=angle', '--use-angle=gl-egl', '--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--ozone-platform=headless'];
+// A Mac (Apple silicon or AMD) draws with Metal and encodes with VideoToolbox. Not tested on a Mac yet:
+// the probe below falls back to the CPU path when Chrome does not get the GPU.
+const MAC = process.platform === 'darwin';
+const GPU_FLAGS = MAC ? ['--use-gl=angle', '--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu-rasterization']
+  : ['--use-gl=angle', '--use-angle=gl-egl', '--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--ozone-platform=headless'];
+const GPU_ENV = MAC ? {} : NV_ENV;
+const encName = (g) => (g.nvenc ? 'NVENC (GPU)' : g.vt ? 'VideoToolbox (GPU)' : 'libx264 (CPU)');
 const CPU_FLAGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'];
 let gpuMemo;
 function gpu() {
   if (gpuMemo) return gpuMemo;
-  if (process.env.XV_GPU === '0' || CONFIG.gpu === 'off' || !CHROME) return (gpuMemo = { chrome: false, nvenc: false, renderer: 'SwiftShader (CPU)' });
+  if (process.env.XV_GPU === '0' || CONFIG.gpu === 'off' || !CHROME) return (gpuMemo = { chrome: false, nvenc: false, vt: false, renderer: 'SwiftShader (CPU)' });
   const ver = (spawnSync(CHROME, ['--version'], { encoding: 'utf8' }).stdout || '').trim().replace(/\W+/g, '_');
   const cache = path.join(os.tmpdir(), `xv-gpu-${ver}.json`);
   try { return (gpuMemo = JSON.parse(fs.readFileSync(cache, 'utf8'))); } catch { /* probe below */ }
   // Probe: does WebGL get the NVIDIA GPU with these flags?
   const page = 'data:text/html,' + encodeURIComponent("<body><script>const g=document.createElement('canvas').getContext('webgl');const e=g&&g.getExtension('WEBGL_debug_renderer_info');document.body.textContent='R='+(e?g.getParameter(e.UNMASKED_RENDERER_WEBGL):'none')</script>");
   const prof = fs.mkdtempSync(path.join(os.tmpdir(), 'xv-gpu-probe-'));
-  const r = spawnSync(CHROME, ['--headless=new', '--no-sandbox', `--user-data-dir=${prof}`, ...GPU_FLAGS, '--dump-dom', page], { encoding: 'utf8', timeout: 30000, env: { ...process.env, ...NV_ENV } });
+  const r = spawnSync(CHROME, ['--headless=new', '--no-sandbox', `--user-data-dir=${prof}`, ...GPU_FLAGS, '--dump-dom', page], { encoding: 'utf8', timeout: 30000, env: { ...process.env, ...GPU_ENV } });
   fs.rmSync(prof, { recursive: true, force: true });
   const renderer = ((r.stdout || '').match(/R=([^<]*)/) || [])[1] || 'none';
-  const chromeGpu = /nvidia|geforce|rtx/i.test(renderer);
+  const chromeGpu = /nvidia|geforce|rtx/i.test(renderer) || (MAC && /apple|metal|amd|radeon/i.test(renderer));
   const nvenc = /h264_nvenc/.test(spawnSync('ffmpeg', ['-hide_banner', '-encoders'], { encoding: 'utf8' }).stdout || '')
     && spawnSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'color=black:s=256x144:d=0.2', '-c:v', 'h264_nvenc', '-f', 'null', '-']).status === 0;
-  gpuMemo = { chrome: chromeGpu, nvenc, renderer: chromeGpu ? renderer : 'SwiftShader (CPU)' };
+  const vt = MAC && !nvenc && spawnSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'color=black:s=256x144:d=0.2', '-c:v', 'h264_videotoolbox', '-f', 'null', '-']).status === 0;
+  gpuMemo = { chrome: chromeGpu, nvenc, vt, renderer: chromeGpu ? renderer : 'SwiftShader (CPU)' };
   try { fs.writeFileSync(cache, JSON.stringify(gpuMemo)); } catch { /* no cache */ }
   return gpuMemo;
 }
@@ -755,7 +789,7 @@ async function chrome(url, { width = 1920, height = 1080, page = '/?render=1', v
   const proc = spawn(CHROME, ['--headless=new', '--no-sandbox', '--hide-scrollbars', '--mute-audio', '--remote-debugging-port=0', `--user-data-dir=${profile}`,
     // The GPU when the probe found one (see gpu()), else WebGL in software (SwiftShader).
     ...(gpu().chrome ? GPU_FLAGS : CPU_FLAGS), '--force-color-profile=srgb',
-    `--window-size=${width},${height}`, 'about:blank'], { stdio: 'ignore', env: gpu().chrome ? { ...process.env, ...NV_ENV } : process.env });
+    `--window-size=${width},${height}`, 'about:blank'], { stdio: 'ignore', env: gpu().chrome ? { ...process.env, ...GPU_ENV } : process.env });
   let target, port;
   for (let i = 0; i < 150 && !port; i++) {
     try { port = +fs.readFileSync(path.join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0]; } catch { await new Promise((r) => setTimeout(r, 100)); }
@@ -955,6 +989,7 @@ const X264 = (fps, draft) => ['-vf', 'scale=out_color_matrix=bt709:out_range=tv,
   // NVENC on the GPU when it works, with constant quality 17 like the x264 CRF; else libx264.
   ...(gpu().nvenc
     ? ['-c:v', 'h264_nvenc', '-preset', draft ? 'p4' : 'p7', '-tune', 'hq', '-rc', 'vbr', '-cq', draft ? '26' : '17', '-b:v', '0', '-profile:v', 'high']
+    : gpu().vt ? ['-c:v', 'h264_videotoolbox', '-b:v', draft ? '10M' : '24M', '-maxrate', draft ? '14M' : '32M', '-profile:v', 'high', '-allow_sw', '1']
     : ['-c:v', 'libx264', '-preset', draft ? 'veryfast' : 'medium', '-crf', draft ? '26' : '17', '-profile:v', 'high', '-x264-params', 'weightp=0']),
   // A keyframe every second and no B-frames, so a seek in VLC never shows smeared colour blocks.
   '-g', String(fps), '-keyint_min', String(fps), '-bf', '0',
@@ -967,7 +1002,7 @@ async function render() {
   const musicFile = track ? musicTrack(dir, track, tl.duration) : null;
   const sfxFile = cfg.sfx ? sfxBus(dir, tl, await sfxEvents(dir, tl)) : null;
   const draft = flag('--draft'), fps = tl.fps;
-  { const g = gpu(); console.log(`render: frames drawn by ${g.renderer}; encode ${g.nvenc ? 'NVENC (GPU)' : 'libx264 (CPU)'}`); }
+  { const g = gpu(); console.log(`render: frames drawn by ${g.renderer}; encode ${encName(g)}`); }
   const from = +opt('--from', 0), to = Math.min(+opt('--to', tl.duration), tl.duration);
   const partial = argv.includes('--from') || argv.includes('--to');
   const total = Math.round((to - from) * fps);

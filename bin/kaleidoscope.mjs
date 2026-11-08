@@ -98,6 +98,8 @@ if (voice === 'chatterbox') {
     : mac ? [] : ['--index', 'https://download.pytorch.org/whl/cpu', '--index-strategy', 'unsafe-best-match'];
   if (!fs.existsSync(py)) run('Make the voice environment', uv, ['venv', '--python', '3.12', path.join(tts, '.venv')]);
   run(`Install Chatterbox (${gpuName ? 'CUDA' : mac ? 'Metal or CPU' : 'CPU'})`, uv, ['pip', 'install', '--python', py, ...torchArgs, 'chatterbox-tts', 'setuptools<81'], { env: { UV_HTTP_TIMEOUT: '600' } });
+  // The large Whisper (make config --whisper large) runs in the same environment.
+  run('Install faster-whisper (large Whisper for word timing)', uv, ['pip', 'install', '--python', py, 'faster-whisper', 'librosa']);
 }
 if (manim) {
   const m = path.join(dir, 'engine', 'manim');
@@ -106,7 +108,8 @@ if (manim) {
 }
 if (agents) steps.push({ title: `Link the script agent into ${tilde(agentsDir)}`, link: 'agents' });
 steps.push({ title: 'Add the /setup-kaleidoscope command', link: 'setup' });
-run('Save the settings', 'node', [path.join(dir, 'engine', 'make.mjs'), 'config', '--voice', voice, '--gpu', 'auto']);
+// The large Whisper is the default on an NVIDIA GPU; on a Mac or a CPU it is slower, so the small one stays.
+run('Save the settings', 'node', [path.join(dir, 'engine', 'make.mjs'), 'config', '--voice', voice, '--gpu', 'auto', '--whisper', voice === 'chatterbox' && gpuName ? 'large' : 'base']);
 run('Compute the clay shapes', 'node', [path.join(dir, 'engine', 'make.mjs'), 'bake'], { mayFail: true });
 run('Check everything', 'node', [path.join(dir, 'engine', 'make.mjs'), 'doctor'], { mayFail: true });
 

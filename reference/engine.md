@@ -159,7 +159,7 @@ one shadow-casting light, shadow map 1024.
 | `make build <dir>` | **one shot**: voice, manim, check, sheet, stable, review, in order; stops at the first ERROR. Finished steps are cached |
 | `make final <dir>` | **one shot**: render, verify |
 | `make doctor` | checks the tools, and prints this machine's voice and GPU |
-| `make config` | prints or changes this machine's settings in `config.json`: `--voice auto\|chatterbox\|kokoro`, `--gpu auto\|off` |
+| `make config` | prints or changes this machine's settings in `config.json`: `--voice auto\|chatterbox\|kokoro`, `--gpu auto\|off`, `--whisper base\|large` (large-v3-turbo for word timing and voice checks) |
 | `make bake [--only mascot\|models]` | computes the clay shapes once, to `styles/library/clay/cache/`. About a minute on few cores. Run it after a change to the kit |
 | `make clay [sheet]` | draws vetting sheets to `styles/library/clay/sheets/`: `m-tank` one model, `body`, `hair`, `expressions`, `group`, `group2`, `stands`, `room`, or all with no name |
 | `make init <dir> --title "..."` | new project |

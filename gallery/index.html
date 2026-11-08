@@ -312,14 +312,15 @@ footer a { color: var(--paper-ink); }
   <div class="wrap split">
     <div>
       <h2>Install</h2>
-      <p class="intro">One command checks your computer, asks 4 questions, shows the plan and installs only what you choose. A GPU is not necessary. The manual setup is in <a href="https://github.com/jjietay/kaleidoscope/blob/main/INSTALL.md">INSTALL.md</a>.</p>
+      <p class="intro">One command checks your computer, asks 4 questions, shows the plan and installs only what you choose. A GPU is not necessary. Disk space: about 12 GB for everything on an NVIDIA GPU, 7 GB on a Mac, and 1.5 GB for the smallest install (Kokoro voice, no Manim). The manual setup is in <a href="https://github.com/jjietay/kaleidoscope/blob/main/INSTALL.md">INSTALL.md</a>.</p>
     </div>
     <div>
 <pre><code>npx kaleidoscope-video</code></pre>
       <p>Later, <code>/setup-kaleidoscope</code> in Claude Code changes these:</p>
       <ul class="settings">
         <li><b>voice</b><span>Chatterbox on a GPU, or Kokoro on a CPU.</span></li>
-        <li><b>gpu</b><span>Auto, or off.</span></li>
+        <li><b>gpu</b><span>Auto, or off. NVIDIA on Linux; Metal and VideoToolbox on a Mac (new, not yet tested on a Mac).</span></li>
+        <li><b>whisper</b><span>Base, or large: large-v3-turbo times the words more exactly.</span></li>
       </ul>
       <p style="margin:0">Then ask for a video in the conversation where the topic came up:</p>
       <ul class="prompts">
