@@ -83,15 +83,6 @@ export const MODELS = {
     pose(g) { for (let i = 3; i < 10; i++) g[`b0-${i}`].position.x += AB.slide; for (let i = 7; i < 10; i++) g[`b1-${i}`].position.x += AB.slide; },
     moving: 'Beads slide: 7 of 10 and 3 of 10',
   },
-  sandcone: {
-    label: 'Cone of sand (Parzen window)',
-    make() {
-      const m = def();
-      m.add('heap', heap, C.sand, { step: 0.06 });
-      return m;
-    },
-    moving: 'No moving parts',
-  },
   hoop: {
     label: 'Hoop on the floor (k-NN region)',
     make() {
@@ -106,22 +97,6 @@ export const MODELS = {
       return m;
     },
     moving: 'No moving parts',
-  },
-  bellslider: {
-    label: 'Gaussian arch on a track',
-    step: 0.042,
-    make() {
-      const m = def();
-      m.add('sleepers', (x, y, z) => { const i = clamp(Math.round((x + 5) / 2), 0, 5) * 2 - 5; return rbox(x, y, z, i, 0.07, 0, 0.24, 0.07, 0.9, 0.06); }, PAL.ink);
-      for (const sz of [-1, 1]) m.add(`rail${sz}`, (x, y, z) => rbox(x, y, z, 0, 0.24, sz * 0.52, 6, 0.1, 0.11, 0.07), PAL.ink);
-      m.add('carriage', (x, y, z) => rbox(x, y, z, 0, 0.95, 0, 1.25, 0.24, 0.72, 0.18), PAL.cream, { pivot: [0, 0.58, 0], free: true });
-      for (const sx of [-1, 1]) for (const sz of [-1, 1]) m.add(`wheel${sx}${sz}`, (x, y, z) => rcyl(x, y, z, sx * 0.78, 0.58, sz * 0.52, 'z', 0.24, 0.1, 0.05), PAL.ink, { parent: 'carriage', step: 0.014 });
-      m.add('arch', archField, C.arch, { parent: 'carriage', pivot: [0, AY, 0] });
-      return m;
-    },
-    rest(g) { g.carriage.position.x = -3; },
-    pose(g) { g.carriage.position.x = 2; g.arch.scale.x = 1.4; },
-    moving: 'Carriage slides, arch widens',
   },
   thermometer: {
     label: 'Thermometer (log-likelihood)',
@@ -167,7 +142,6 @@ export const MODELS = {
 export const JOINS = {
   abacus: [[/^rod/, 'frame'], [/^b(\d)-\d$/, 'rod$1']],
   hoop: [...Array(8).keys()].map((i) => [`stripe${i}`, `stripe${(i + 1) % 8}`]),
-  bellslider: [[/^rail/, 'sleepers'], [/^wheel-?1-1$/, 'rail-1'], [/^wheel-?11$/, 'rail1'], [/^wheel/, 'carriage'], ['arch', 'carriage']],
   thermometer: [['bulb', 'base'], ['collar', 'bulb'], ['collar', 'tube'], ['ticks', 'tube'], ['fill', 'bulb']],
   compass: [['knob', 'hinge'], ['legA', 'hinge'], ['legB', 'hinge'], ['needle', 'legA'], ['clamp', 'legB'], ['pencil', 'clamp'], ['lead', 'pencil']],
 };

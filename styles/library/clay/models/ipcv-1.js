@@ -4,18 +4,8 @@ import { smin, smax, ell, cone, rbox, rcyl, torus, mix, clamp } from '../sdf.js'
 import { def, stand, PAL } from '../models.js';
 
 // Colours of this video. Blue is the class "male" and plum is the class "female".
-const BLUE = '#3d63b8', PLUM = '#8e3f8f', SAND = '#d9c08a';
+const BLUE = '#3d63b8', PLUM = '#8e3f8f';
 const FRAME = '#5b6474', FROST = '#c2d4e4', SLATE = '#4a5466';
-
-// Density curves. A ribbon is 9 units long for u from -3.2 to 3.2, so 1 u is 9 / 6.4 units.
-// Its bell is 3.5 units high at the mean, measured from y = 0.
-const SX = 9 / 6.4, PEAK = 3.5;
-const bell = (x, mu) => { const u = x / SX - mu; return PEAK * Math.exp(-u * u / 2); };
-// Signed distance to the curve y = bell(x), divided by the slope, so it is near true distance.
-const under = (x, y, mu) => { const u = x / SX - mu, s = -PEAK * u * Math.exp(-u * u / 2) / SX; return (y - bell(x, mu)) / Math.hypot(1, s); };
-// A flat profile e(x, y) made into a wall of half thickness h along z, with round edges of radius r.
-const slab = (e, z, h, r) => { const qx = e + r, qz = Math.abs(z) - h + r; return Math.hypot(Math.max(qx, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qz), 0) - r; };
-const WALL = 0.125;
 
 function pawnSpec(color, label) {
   return {
@@ -29,19 +19,6 @@ function pawnSpec(color, label) {
         const head = ell(x, y, z, 0, 1.05, 0, 0.26, 0.26, 0.26);
         return smin(smin(smin(base, body, 0.16), collar, 0.06), head, 0.05);
       }, color);
-      return m;
-    },
-    moving: 'No moving parts',
-  };
-}
-
-function ribbonSpec(color, label) {
-  return {
-    label,
-    make() {
-      const m = def();
-      m.add('wall', (x, y, z) => slab(Math.max(under(x, y, 0), -y, Math.abs(x) - 3.2 * SX), z, WALL, 0.1), color);
-      m.add('base', (x, y, z) => rbox(x, y, z, 0, 0.09, 0, 4.6, 0.09, 0.15, 0.07), color);
       return m;
     },
     moving: 'No moving parts',
@@ -124,18 +101,6 @@ export const MODELS = {
     pose(g) { g.beam.rotation.z = 0.25; g.panL.rotation.z = -0.25; g.panR.rotation.z = -0.25; },
     moving: 'Beam tips, pans stay level',
   },
-  ribbonA: ribbonSpec(BLUE, 'Density curve, blue'),
-  ribbonB: ribbonSpec(PLUM, 'Density curve, plum'),
-  errorFill: {
-    label: 'Error region (overlap of two curves)',
-    make() {
-      const m = def();
-      // Top edge: min of two bells with means at u = -1.5 and u = 1.5. It ends at u = -1.7 and 1.7.
-      m.add('fill', (x, y, z) => slab(Math.max(under(x, y, -1.5), under(x, y, 1.5), -y, Math.abs(x) - 1.7 * SX), z, WALL, 0.1) + Math.sin(x * 41) * Math.sin(y * 43) * Math.sin(z * 47) * 0.004, SAND);
-      return m;
-    },
-    moving: 'No moving parts',
-  },
 };
 
 export const JOINS = {
@@ -143,6 +108,4 @@ export const JOINS = {
   sign: [['board', 'frame'], ['rim', 'board']],
   stadiometer: [['column', 'plate'], ['ticks', 'column'], ['slider', 'column'], ['bar', 'slider']],
   balance: [['column', 'base'], ['hub', 'column'], ['beam', 'hub'], ['pointer', 'hub'], [/^hanger(.)$/, 'beam'], [/^hanger(.)$/, 'pan$1']],
-  ribbonA: [['wall', 'base']],
-  ribbonB: [['wall', 'base']],
 };

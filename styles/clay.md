@@ -102,6 +102,37 @@ it in the right way. See them in `make clay m-<name>`.
 | `radio` | radio with an antenna | `knob` |
 | `servo` | servo motor | `horn` |
 | `node` | network node | `light` |
+| `door`, `sign` | classroom door with a frosted window; school sign board | `leaf` swings; `board` turns 180° |
+| `pawnA`, `pawnB` | student token, blue and plum | none |
+| `stadiometer` | height-measuring post | `slider` moves on y |
+| `balance` | beam balance with level pans | `beam` tips, `panL`, `panR` stay level |
+| `apple`, `pear` | fruit for class clouds | none |
+| `tape` | tape measure | `strip` scales in x, and its marks stretch with it |
+| `fence` | waist-high fence panel and post, 4 long; set copies 4 apart | none |
+| `filmstrip` | film strip of 6 almost equal frames | none |
+| `beadA`, `beadB` | training-sample bead, blue and plum | none |
+| `abacus` | abacus with 2 rods of 10 beads | `b0-0` … `b1-9` slide in x |
+| `hoop` | striped hoop on the floor, radius 1 | scale the root in x and z |
+| `thermometer` | thermometer | `fill` scales in y |
+| `compass` | drawing compass | `hinge`, `legA`, `legB` |
+| `portrait` | made-up clay face in a frame on an easel | none |
+| `salmon`, `seabass` | fish for class clouds | none |
+| `lamp` | spotlight on a stand | `head` aims |
+| `screen` | projection screen | `panel` turns |
+| `gauge` | dial gauge | `needle` turns about z |
+| `humanoid` | orange biped robot, no brand | `pelvis`, `torso`, `head`, `armL/R`, `foreL/R`, `thighL/R`, `shinL/R`, `footL/R` |
+| `vat`, `jar` | vat full of sample balls; jar with a few | `lid` of the jar lifts off |
+| `seesaw` | playground seesaw, plank 14 long | `plank` tips |
+| `discs` | two overlapping plates and their lens | none |
+| `scoreboard` | board with a dark face and 4 bars | `bar0` … `bar3` scale in y |
+| `neuron` | neuron with 3 inputs and 1 output | `glow` scales |
+| `pipe` | pipe with a valve | `wheel` turns, `gate` scales |
+| `rampStep`, `rampSigmoid`, `rampRelu` | ramps whose tops follow the activations, for a rolling ball | none |
+| `tokenCone`, `tokenCube` | XOR tokens, blue and plum | none |
+| `bowl`, `terrain` | error bowl; bumpy slab with a local minimum, for a rolling ball | none |
+
+The rows from `door` down are in `styles/library/clay/models/ipcv-*.js`. The head comment and the
+notes of each file give their sizes, joint positions and surface formulas.
 
 Small objects are larger than real size, so they stay readable. Set `k` for each scene.
 

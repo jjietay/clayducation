@@ -12,14 +12,6 @@ const hash = (i) => { const v = Math.sin(i * 12.9898 + 4.1) * 43758.5453; return
 // Distance to the nearest ball of a list of [x, y, z] centres.
 function ballDist(x, y, z, list, r) { let d = 9; for (const [a, b, c] of list) d = Math.min(d, Math.hypot(x - a, y - b, z - c) - r); return d; }
 
-// A slab whose lower face follows lo and whose upper face follows hi (both at this x), with half
-// width hx, half depth hz and rounded edges r. s is the slope of the faces at this x.
-function curvedSlab(x, y, z, hx, hz, lo, hi, s, r) {
-  const dy = Math.max(lo - y, y - hi) / Math.sqrt(1 + s * s);
-  const qx = Math.abs(x) - hx + r, qy = dy + r, qz = Math.abs(z) - hz + r;
-  return Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - r;
-}
-
 // Signed distance to a triangle in 2D, with the corners a, b and c.
 function tri2(px, py, ax, ay, bx, by, cx, cy) {
   let d = 1e9;
@@ -54,19 +46,6 @@ const JAR_BALLS = (() => {
   out.plum.push([0, y0 + 0.04, 0]);
   return out;
 })();
-
-// The spectrum: column k stands at x = (k - 5.5) * 0.72, and its height above the plate top
-// (y = 0.24) is 4.2 / (1 + 0.55 k).
-const COL = { n: 12, pitch: 0.72, top: 0.24, half: 0.25 };
-const COLUMN_X = Array.from({ length: COL.n }, (_, k) => (k - (COL.n - 1) / 2) * COL.pitch);
-const COLUMN_H = Array.from({ length: COL.n }, (_, k) => 4.2 / (1 + 0.55 * k));
-
-// The press: the lower face of the ram is at low + drop * g(u), with u from 0 (left end, x = -2.95)
-// to 1 (right end, x = 2.95) and g(u) = (1/(u + b) - 1/(1 + b)) / (1/b - 1/(1 + b)): 1 at the left, 0 at the right.
-const MOLD = { half: 2.95, b: 0.3, drop: 1.2, low: 2.6, top: 4.32, face: 0.24, depth: 0.32, travel: 1.8, rodTop: 7.35 };
-const moldU = (x) => clamp((x + MOLD.half) / (2 * MOLD.half), 0, 1);
-const moldFace = (x) => { const u = moldU(x), b = MOLD.b; return MOLD.low + MOLD.drop * (1 / (u + b) - 1 / (1 + b)) / (1 / b - 1 / (1 + b)); };
-const moldSlope = (x) => { const u = moldU(x), b = MOLD.b; return MOLD.drop / (2 * MOLD.half) / ((u + b) * (u + b)) / (1 / b - 1 / (1 + b)); };
 
 // The scoreboard: four bar slots in the lower half of the face. Bar i is built at its rest height
 // SB.rest[i], so a height v is scale.y = v / SB.rest[i]. The slot holds a bar up to about 1.06 tall. PAL is read only in make(), because models.js imports this file.
@@ -111,20 +90,6 @@ export const MODELS = {
     pose(g) { g.lid.position.x += 0.5; g.lid.position.y += 0.45; g.lid.rotation.z = -0.55; },
     moving: 'Lid lifts and tilts off',
   },
-  columns: {
-    label: 'Eigenvalue spectrum columns',
-    make() {
-      const m = def();
-      m.add('plate', (x, y, z) => rbox(x, y, z, 0, COL.top / 2, 0, 4.5, COL.top / 2, 0.5, 0.08), PAL.ink, { step: 0.06 });
-      for (let k = 0; k < COL.n; k++) {
-        const cx = COLUMN_X[k], h = COLUMN_H[k], lo = COL.top - 0.04, r = Math.min(0.12, h / 2);
-        m.add(`col${k}`, (x, y, z) => rbox(x, y, z, cx, (lo + COL.top + h) / 2, 0, COL.half, (COL.top + h - lo) / 2, COL.half, r), PAL.teal, { pivot: [cx, COL.top, 0], step: 0.032 });
-      }
-      return m;
-    },
-    pose(g) { for (let k = 0; k < COL.n; k++) g[`col${k}`].scale.y = k < 3 ? 1.15 : 0.55; },
-    moving: 'Each column scales in height',
-  },
   seesaw: {
     // Real size against the mascot (5 units for 1 m): a 2.8 m plank with the axle at about 0.6 m.
     label: 'Seesaw',
@@ -160,32 +125,6 @@ export const MODELS = {
     },
     moving: 'No moving parts',
   },
-  mold: {
-    label: 'Press with a shaped plate',
-    make() {
-      const m = def(), PZ = -1.05;
-      m.add('frame', (x, y, z) => {
-        let d = 9;
-        for (const s of [-1, 1]) {
-          d = Math.min(d, rbox(x, y, z, s * 3.25, 2.62, PZ, 0.25, 2.62, 0.25, 0.1));
-          d = smin(d, rbox(x, y, z, s * 3.25, 0.1, PZ, 0.45, 0.1, 0.42, 0.08), 0.08);
-        }
-        d = smin(d, rbox(x, y, z, 0, 4.95, PZ, 3.5, 0.3, 0.27, 0.12), 0.1);
-        d = smin(d, rbox(x, y, z, 0, 4.95, -0.42, 0.55, 0.3, 0.78, 0.12), 0.1);
-        return smin(d, rcyl(x, y, z, 0, 5.3, 0, 'y', 0.34, 0.1, 0.05), 0.06);
-      }, PAL.ink, { step: 0.05 });
-      m.add('ram', (x, y, z) => {
-        const body = curvedSlab(x, y, z, MOLD.half, MOLD.depth, moldFace(x) + MOLD.face - 0.02, MOLD.top, moldSlope(x), 0.1);
-        return smin(body, cone(x, y, z, 0, MOLD.top - 0.1, 0, 0, MOLD.top + 0.25, 0, 0.2, 0.15), 0.1);
-      }, PAL.steel, { pivot: [0, MOLD.top, 0], free: true, step: 0.045 });
-      m.add('screw', (x, y, z) => cone(x, y, z, 0, MOLD.top + 0.05, 0, 0, MOLD.rodTop, 0, 0.15, 0.15) + 0.018 * Math.sin(Math.atan2(z, x) + y * 18), PAL.steel, { parent: 'ram', step: 0.02 });
-      m.add('face', (x, y, z) => curvedSlab(x, y, z, MOLD.half, MOLD.depth + 0.02, moldFace(x), moldFace(x) + MOLD.face, moldSlope(x), 0.05), PAL.teal, { parent: 'ram', step: 0.04 });
-      m.add('handle', (x, y, z) => { const Y = MOLD.rodTop; return Math.min(cone(x, y, z, -0.85, Y, 0, 0.85, Y, 0, 0.09, 0.09), ell(x, y, z, -0.92, Y, 0, 0.17, 0.17, 0.17), ell(x, y, z, 0.92, Y, 0, 0.17, 0.17, 0.17), ell(x, y, z, 0, Y, 0, 0.2, 0.15, 0.2)); }, PAL.ink, { parent: 'ram' });
-      return m;
-    },
-    pose(g) { g.ram.position.y -= MOLD.travel; },
-    moving: 'Ram presses down',
-  },
   scoreboard: {
     label: 'Scoreboard with four bars',
     make() {
@@ -212,9 +151,7 @@ export const MODELS = {
 export const JOINS = {
   vat: [['blue', 'body'], ['plum', 'blue']],
   jar: [['blue', 'body'], ['plum', 'body'], ['lid', 'body']],
-  columns: [[/^col/, 'plate']],
   seesaw: [['plank', 'fulcrum'], [/^seat/, 'plank'], [/^handle/, 'plank']],
   discs: [['plateA', 'plateB'], ['overlap', 'plateA'], ['overlap', 'plateB']],
-  mold: [['screw', 'frame'], ['screw', 'ram'], ['face', 'ram'], ['handle', 'screw']],
   scoreboard: [[/^leg/, 'board'], ['face', 'board'], [/^bar/, 'face']],
 };

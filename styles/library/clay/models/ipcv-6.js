@@ -7,10 +7,10 @@ import { def, stand, PAL } from '../models.js';
 const C = {
   violet: '#7a5cc8', lilac: '#b8a5ec', glow: '#fff1c9', valve: '#6d7480', gate: '#f4ecd8', wheel: '#cf4f45',
   step: '#4a56a6', sigmoid: '#2f9e8f', relu: '#7a5cc8', blue: '#3d63b8', plum: '#8e3f8f',
-  basin: '#e8dcc3', shell: '#5d6b84', crust: '#e8d3a8', ground: '#9a6a4f', smooth: '#2f9e8f', wiggly: '#cf4f45',
+  basin: '#e8dcc3', shell: '#5d6b84', crust: '#e8d3a8', ground: '#9a6a4f',
 };
 
-// All models are at true size. A large model sets a coarse mesh step and a thin wire sets a fine one
+// All models are at true size. A large model sets a coarse mesh step and a thin part sets a fine one
 // (the spec's step), so the triangle counts stay near the rest of the kit.
 
 // 2D rounded box in the x-y plane, and a 2D shape pushed out along z to |z| <= hz with round edges r.
@@ -64,41 +64,6 @@ const bump = (u) => (Math.abs(u) < 1 ? (1 + Math.cos(Math.PI * u)) / 2 : 0);
 const dbump = (u, w) => (Math.abs(u) < 1 ? -Math.PI * Math.sin(Math.PI * u) / (2 * w) : 0);
 const terrH = (x) => 2.4 - 0.8 * bump((x + 2.5) / 1.6) - 1.8 * bump((x - 2.5) / 1.8) + 0.3 * bump(x / 1.1);
 const terrD = (x) => -0.8 * dbump((x + 2.5) / 1.6, 1.6) - 1.8 * dbump((x - 2.5) / 1.8, 1.8) + 0.3 * dbump(x / 1.1, 1.1);
-
-// ---------- boundary wires ----------
-// Both lie on the floor along x from -4 to 4, tube centre at y = 0.2, tube radius 0.065.
-//   smooth: z = 1 - (x / 4)²                                           (one bend, z = 0 at both ends)
-//   wiggly: z = 1 - (x / 4)² + 0.9 asin(0.93 sin(3 pi (x + 4) / 4)) / asin(0.93)
-// The wiggly wire goes through the same end points (-4, 0) and (4, 0), with 6 sharp bends at
-// x = -3.33, -2, -0.67, 0.67, 2, 3.33.
-const WY = 0.2, WR = 0.065;
-const wireZ = {
-  smooth: (x) => 1 - (x / 4) ** 2,
-  wiggly: (x) => 1 - (x / 4) ** 2 + 0.9 * Math.asin(0.93 * Math.sin(3 * Math.PI * (x + 4) / 4)) / Math.asin(0.93),
-};
-function wireSpec(kind, label, color, n) {
-  const zf = wireZ[kind], dx = 8 / n, P = Array.from({ length: n + 1 }, (_, i) => [-4 + i * dx, zf(-4 + i * dx)]);
-  const feetX = [-4, -2, 0, 2, 4];
-  const tube = (x, y, z) => {
-    const i0 = Math.max(0, Math.floor((x + 4 - 0.3) / dx)), i1 = Math.min(n - 1, Math.ceil((x + 4 + 0.3) / dx));
-    let d = 0.3;
-    for (let i = i0; i <= i1; i++) d = Math.min(d, cone(x, y, z, P[i][0], WY, P[i][1], P[i + 1][0], WY, P[i + 1][1], WR, WR));
-    for (const e of [-4, 4]) d = Math.min(d, ell(x, y, z, e, WY, 0, 0.1, 0.1, 0.1));
-    return d;
-  };
-  const feet = (x, y, z) => { let d = 9; for (const fx of feetX) d = Math.min(d, rcyl(x, y, z, fx, 0.08, zf(fx), 'y', 0.13, 0.08, 0.05)); return d; };
-  return {
-    label,
-    step: 0.0175,
-    make() {
-      const m = def();
-      m.add('wire', tube, color);
-      m.add('feet', feet, PAL.ink);
-      return m;
-    },
-    moving: 'No moving parts',
-  };
-}
 
 export const MODELS = {
   neuron: {
@@ -196,8 +161,6 @@ export const MODELS = {
     },
     moving: 'No moving parts',
   },
-  wireSmooth: wireSpec('smooth', 'Smooth boundary wire', C.smooth, 48),
-  wireWiggly: wireSpec('wiggly', 'Wiggly boundary wire', C.wiggly, 240),
 };
 
 export const JOINS = {
@@ -205,6 +168,4 @@ export const JOINS = {
   pipe: [[/^flange/, 'tube'], ['valve', 'tube'], ['window', 'valve'], ['gate', 'window'], ['stem', 'valve'], ['wheel', 'stem']],
   bowl: [['basin', 'shell'], ['foot', 'shell']],
   terrain: [['crust', 'ground']],
-  wireSmooth: [['feet', 'wire']],
-  wireWiggly: [['feet', 'wire']],
 };

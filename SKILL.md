@@ -26,9 +26,10 @@ only when the topic itself is unclear. Every check below is yours to run and to 
 **Clay for things that act, Manim for plots, and the mascot is in every video.** Read `styles/clay.md`.
 The user chose the clay look over the old style mix for consistency across videos. The 2D styles are deleted.
 
-- **Do not force a plot into clay (the user asked).** A part whose picture is a curve, a distribution,
-  a contour, a projection or other geometry in a plane is a Manim part, on Manim's dark background
-  (`styles/math-manim.md`). Objects that act, and the mascot's physical work, stay in clay. A video
+- **Do not force a plot into clay (the user asked).** When a 2D Manim picture helps the viewer understand
+  more than clay does (a curve, a distribution, a contour, a projection or other geometry in a plane),
+  make that part a Manim part, on Manim's dark background (`styles/math-manim.md`). Never build a clay
+  model that copies a mathematical curve: the user had those removed. Objects that act, and the mascot's physical work, stay in clay. A video
   can go from a clay part to a Manim part and back, with the same colour for the same thing.
 
 - **One look, many parts.** The video is split into parts of about 15 to 40 s (hook, each idea,

@@ -4,30 +4,13 @@ import { smin, smax, ell, cone, rbox, rcyl, torus, mix, clamp } from '../sdf.js'
 import { def, stand, PAL } from '../models.js';
 
 // Colours of this set. Robot orange, map yellow and target green stay free for their roles.
-const C = { apple: '#cf4f45', pear: '#b5c94a', stem: '#6b5138', ring: '#2f6fd6', frame: '#56657a' };
+const C = { apple: '#cf4f45', pear: '#b5c94a', stem: '#6b5138', frame: '#56657a' };
 
 // A leaf: a flat ellipse turned by angle a in the x-y plane about (cx, cy).
 const leaf = (x, y, z, cx, cy, a, len, w) => {
   const c = Math.cos(a), s = Math.sin(a), px = x - cx, py = y - cy, u = c * px - s * py, v = s * px + c * py;
   return ell(u, v + Math.abs(u) * 0.05, z, 0, 0, 0, len, 0.032, w);
 };
-
-// The Gaussian hill: top surface y = B + A exp(-r² / 2σ²) on a plate of radius R.
-const HILL = { A: 2.6, S: 1.5, B: 0.14, R: 4.7 };
-function hill(x, y, z) {
-  const { A, S, B, R } = HILL, r = Math.hypot(x, z), e = A * Math.exp(-r * r / (2 * S * S)), slope = e * r / (S * S);
-  const top = (y - B - e) / Math.sqrt(1 + slope * slope);
-  const plate = smax(smax(top, -y, 0.02), r - R, 0.12);
-  return smin(plate, torus(x, y, z, 0, 0.13, 0, 'y', R - 0.1, 0.13), 0.08);
-}
-
-// A contour ring on the floor: a flat, rounded band, radius 1 to its centre line.
-const RING = { w: 0.075, h: 0.045, r: 0.04, y: 0.065 };
-const band = (x, y, z) => {
-  const dx = Math.abs(Math.hypot(x, z) - 1) - RING.w + RING.r, dy = Math.abs(y - RING.y) - RING.h + RING.r;
-  return Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) + Math.min(Math.max(dx, dy), 0) - RING.r;
-};
-const DASHES = 24;
 
 // Film strip: 6 frames along x, sprocket holes on both edges.
 const FILM = { cy: 1.0, hx: 3.5, hy: 0.8, hz: 0.06, n: 6, pitch: 1.15 };
@@ -60,38 +43,6 @@ export const MODELS = {
       return m;
     },
     moving: 'No moving parts',
-  },
-  hill: {
-    label: 'Gaussian density hill',
-    make() {
-      const m = def();
-      // A coarse mesh step keeps the large smooth surface at a low triangle count.
-      m.add('hill', hill, PAL.cream, { step: 0.064 });
-      return m;
-    },
-    moving: 'No moving parts. Scale m.root in x, y and z',
-  },
-  ringCircle: {
-    label: 'Dashed contour ring',
-    make() {
-      const m = def(), step = 2 * Math.PI / DASHES;
-      m.add('dashes', (x, y, z) => {
-        // Each dash is a short rounded bar on the ring, 60 % of each step long.
-        const a = Math.round(Math.atan2(z, x) / step) * step, c = Math.cos(a), s = Math.sin(a);
-        return rbox(x * c + z * s, y, z * c - x * s, 1, RING.y, 0, RING.w, RING.h, 0.3 * step, RING.r);
-      }, PAL.ink);
-      return m;
-    },
-    moving: 'No moving parts. Scale m.root in x and z',
-  },
-  ringEllipse: {
-    label: 'Solid contour ring',
-    make() {
-      const m = def();
-      m.add('ring', band, C.ring);
-      return m;
-    },
-    moving: 'No moving parts. Scale m.root in x and z',
   },
   tape: {
     label: 'Tape measure',
