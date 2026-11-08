@@ -21,10 +21,10 @@ You need Node 22+, Google Chrome or Chromium, ffmpeg, Python 3.12 with
 git clone https://github.com/jjietay/kaleidoscope.git ~/.claude/skills/kaleidoscope
 cd ~/.claude/skills/kaleidoscope
 
-# Reviewer agents: Claude Code reads them from ~/.claude/agents
+# The script agent: Claude Code reads it from ~/.claude/agents
 mkdir -p ~/.claude/agents
 for f in agents/video-*.md; do ln -sf "$PWD/$f" ~/.claude/agents/; done
-# The /setup-kaleidoscope command (token budget, voice, GPU)
+# The /setup-kaleidoscope command (voice, GPU, temperature guard)
 ln -sfn "$PWD/setup" ~/.claude/skills/setup-kaleidoscope
 
 # Word timing: explainroo (its Whisper model). doctor --fetch also gets the Kokoro voice model,
@@ -54,7 +54,8 @@ git clone --depth 1 https://github.com/vincentsch/explainroo ~/.explainroo
 sudo apt install ffmpeg texlive texlive-latex-extra dvisvgm libcairo2-dev libpango1.0-dev pkg-config
 (cd engine/manim && uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python manim)
 
-# Settings: the token budget of the review, and the voice (chatterbox, or kokoro without a GPU)
-node engine/make.mjs config --budget medium --voice chatterbox
+# Settings: the voice (chatterbox, or kokoro without a GPU). Then compute the clay shapes.
+node engine/make.mjs config --voice chatterbox
+node engine/make.mjs bake
 node engine/make.mjs doctor
 ```

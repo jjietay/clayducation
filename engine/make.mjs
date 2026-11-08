@@ -3,16 +3,24 @@
 // scenes.js, video.json) and gives you a narrated MP4 with soft subtitles.
 //
 //   node make.mjs doctor                    check Chrome, ffmpeg, explainroo, MathJax
-//   node make.mjs config [--budget high|medium|low] [--voice auto|chatterbox|kokoro] [--gpu auto|off]
+//   node make.mjs config [--voice auto|chatterbox|kokoro] [--gpu auto|off] [--guard auto|off]
 //   node make.mjs init <dir> --title "..."  new project with learning-pace voice settings
-//   node make.mjs build [dir]               voice, manim, check, sheet, review: every step before the agents look
+//   node make.mjs build [dir]               voice, manim, check, sheet, review: every step before you look
 //   node make.mjs final [dir]               render, verify
-//   node make.mjs voice [dir]               narration + word timings (explainroo) + pacing report
+//   node make.mjs voice [dir] [--again]     narration + word timings (explainroo) + pacing report; skips an unchanged script
 //   node make.mjs manim [dir] [--scene id] [--all] [--draft]   render changed Manim scenes to frames
 //   node make.mjs check [dir]               scene errors, missing cues, text outside the safe area, pacing
 //   node make.mjs sheet [dir] [--scene id] [--every s]   contact sheets to build/sheet-N.png
+//   node make.mjs stable [dir] [--every s]  draws each sampled frame twice: a frame that differs is a GPU drop-out
 //   node make.mjs still [dir] <t|scene|scene@t|scene@end|scene@#mark|scene@word> ...
-//   node make.mjs review [dir] [--fps n]    build/review/: the pack the reviewer agents read
+//   node make.mjs review [dir] [--fps n]    build/review/: motion flags, measured overlaps and a grid at each cue
+//   node make.mjs bake [--only mascot|models]   compute the clay shapes once, to styles/library/clay/cache
+//   node make.mjs attached                  measures that every part of every model touches the rest
+//   node make.mjs clay [sheet]              vetting sheets of the mascot and models, to styles/library/clay/sheets
+//   node make.mjs look [dir] [--scene a,b]  after each edit: measure the changed scenes, draw their near frames and moving parts
+//   node make.mjs look [dir] --ok <digits>  the CHECK digit of each image, in order: "build" can run. --moving-ok <digits>: the same for the strips of a build: "final" can run
+//   node make.mjs collide [dir] [--scene a,b]   only the measures: mascot, objects and text against each other
+//   node make.mjs selftest                  plants each known fault, and confirms that the engine catches it
 //   node make.mjs subtitles [dir]           build/subtitles.srt again from the timeline (no new voice)
 //   node make.mjs render [dir] [--draft] [--from s --to s] [--workers n] [--remix]
 //   node make.mjs verify [dir]              duration, loudness, black frames, streams
@@ -35,11 +43,11 @@ const ENGINE = path.dirname(fileURLToPath(import.meta.url));
 const EXR = process.env.EXPLAINROO_HOME || path.join(os.homedir(), '.explainroo');
 const CHROME = process.env.CHROME || ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'].find((c) => spawnSync('which', [c]).status === 0);
 // The settings of this machine, written by "make config", the installer or /setup-kaleidoscope.
-// config.json is not in git. budget: how many tokens the review uses (SKILL.md, "Token budget").
-// voice: chatterbox (natural, best on a GPU), kokoro (small, fast on a CPU) or auto. gpu: auto or off.
+// config.json is not in git. voice: chatterbox (natural, best on a GPU), kokoro (small, fast on a CPU)
+// or auto. gpu: auto or off. guard: auto keeps heavy jobs under the temperature limits; off does not.
 const CONFIG_FILE = path.join(ENGINE, '..', 'config.json');
-const CONFIG_DEFAULT = { budget: 'high', voice: 'auto', gpu: 'auto', kokoroVoice: 'af_heart' };
-const CONFIG_CHOICES = { budget: ['high', 'medium', 'low'], voice: ['auto', 'chatterbox', 'kokoro'], gpu: ['auto', 'off'] };
+const CONFIG_DEFAULT = { voice: 'auto', gpu: 'auto', guard: 'auto', kokoroVoice: 'af_heart' };
+const CONFIG_CHOICES = { voice: ['auto', 'chatterbox', 'kokoro'], gpu: ['auto', 'off'], guard: ['auto', 'off'] };
 const readConfig = () => { try { return { ...CONFIG_DEFAULT, ...JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) }; } catch { return { ...CONFIG_DEFAULT }; } };
 const CONFIG = readConfig();
 
@@ -50,7 +58,7 @@ const opt = (k, d) => { const i = argv.indexOf(k); return i < 0 ? d : argv[i + 1
 const positional = () => {
   const out = [];
   for (let i = 1; i < argv.length; i++) {
-    if (argv[i].startsWith('--')) { if (!['--draft', '--all', '--remix'].includes(argv[i])) i++; continue; }
+    if (argv[i].startsWith('--')) { if (!['--draft', '--all', '--remix', '--again'].includes(argv[i])) i++; continue; }
     out.push(argv[i]);
   }
   return out;
@@ -171,7 +179,7 @@ function voiceEngine(cfg = {}) {
 
 // ---------- config ----------
 // make config                         print this machine's settings
-// make config --budget medium --voice kokoro --gpu off    change them
+// make config --voice kokoro --gpu off    change them
 function config() {
   const cur = readConfig();
   let changed = false;
@@ -184,7 +192,7 @@ function config() {
   const kv = opt('--kokoro-voice');
   if (kv !== undefined) { cur.kokoroVoice = kv; changed = true; }
   if (changed) fs.writeFileSync(CONFIG_FILE, JSON.stringify(cur, null, 2) + '\n');
-  console.log(`budget  ${cur.budget}\nvoice   ${cur.voice}${cur.voice === 'auto' ? ` (now: ${fs.existsSync(TTS_PY) ? 'chatterbox' : 'kokoro'})` : ''}${cur.voice !== 'chatterbox' ? `, Kokoro voice ${cur.kokoroVoice}` : ''}\ngpu     ${cur.gpu}\nfile    ${CONFIG_FILE}${fs.existsSync(CONFIG_FILE) ? '' : ' (not written yet: these are the defaults)'}`);
+  console.log(`voice   ${cur.voice}${cur.voice === 'auto' ? ` (now: ${fs.existsSync(TTS_PY) ? 'chatterbox' : 'kokoro'})` : ''}${cur.voice !== 'chatterbox' ? `, Kokoro voice ${cur.kokoroVoice}` : ''}\nguard   ${cur.guard}\ngpu     ${cur.gpu}\nfile    ${CONFIG_FILE}${fs.existsSync(CONFIG_FILE) ? '' : ' (not written yet: these are the defaults)'}`);
 }
 
 // ---------- doctor ----------
@@ -211,7 +219,7 @@ async function doctor() {
     for (const l of (r.stdout + r.stderr).split('\n')) if (/speech check/.test(l)) line(l.startsWith('ok'), 'whisper', l.replace(/^\S+\s+\S+(\s\S+)?\s+/, ''));
   }
   const g = gpu();
-  console.log(`info settings     budget ${CONFIG.budget}, voice ${voiceEngine()}, frames by ${g.renderer}, encode ${g.nvenc ? 'NVENC (GPU)' : 'libx264 (CPU)'}`);
+  console.log(`info settings     voice ${voiceEngine()}, frames by ${g.renderer}, encode ${g.nvenc ? 'NVENC (GPU)' : 'libx264 (CPU)'}`);
   process.exit(ok ? 0 : 1);
 }
 
@@ -490,6 +498,9 @@ async function voice() {
   const shadow = path.join(dir, 'build', '_voice');
   fs.mkdirSync(shadow, { recursive: true });
   const cfg = JSON.parse(fs.readFileSync(path.join(dir, 'video.json'), 'utf8'));
+  // An unchanged script keeps its voice. A new run moves cue times by itself, so it would make a look wrong.
+  const stampFile = path.join(dir, 'build', 'voice.stamp'), stampNow = createHash('sha1').update(fs.readFileSync(path.join(dir, 'script.md'))).update(JSON.stringify([cfg._tts || {}, cfg.fps, cfg.lead, cfg.hold, cfg.end])).digest('hex');
+  if (!flag('--again') && fs.existsSync(path.join(dir, 'build', 'timeline.json')) && fs.existsSync(stampFile) && fs.readFileSync(stampFile, 'utf8') === stampNow) return console.log('voice: script unchanged, so the voice stays. Use --again to make it again.');
   fs.copyFileSync(path.join(dir, 'script.md'), path.join(shadow, 'script.md'));
   // Relative links, so a project folder can move. A link left from an old location is replaced.
   for (const [name, target] of [['build', '..'], ['scenes.js', path.join('..', '..', 'scenes.js')]]) {
@@ -515,6 +526,7 @@ async function voice() {
   subtitles(dir, tl);
   pacing(tl, true);
   pauses(tl, true);
+  fs.writeFileSync(stampFile, stampNow);
 }
 
 // The gap after each full stop and each comma, as the viewer hears it, for the report.
@@ -742,7 +754,7 @@ function gpu() {
 }
 
 // ---------- Chrome over the DevTools protocol ----------
-async function chrome(url, { width = 1920, height = 1080 } = {}) {
+async function chrome(url, { width = 1920, height = 1080, page = '/?render=1', video = true } = {}) {
   if (!CHROME) die('no Chrome found; set CHROME=/path/to/chrome');
   // Outside any repo: the profile holds symlinks that trip tools walking the tree.
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'xv-chrome-'));
@@ -776,15 +788,17 @@ async function chrome(url, { width = 1920, height = 1080 } = {}) {
   const viewport = (w, h) => send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false });
   await viewport(width, height);
   await send('Page.enable');
-  await send('Page.navigate', { url: `${url}/?render=1` });
-  for (let i = 0; i < 200 && (await evaluate('typeof window.seek').catch(() => '')) !== 'function'; i++) await new Promise((r) => setTimeout(r, 50));
-  await evaluate('seek(0)');
-  await evaluate('document.fonts.ready.then(() => true)');
+  await send('Page.navigate', { url: `${url}${page}` });
+  if (video) {
+    for (let i = 0; i < 200 && (await evaluate('typeof window.seek').catch(() => '')) !== 'function'; i++) await new Promise((r) => setTimeout(r, 50));
+    await evaluate('seek(0)');
+    await evaluate('document.fonts.ready.then(() => true)');
+  }
   // A capture with a clip and a scale below 1 can show the canvas of an earlier seek:
-  // the review pack showed shapes from later in a scene "flashing" on frames before
+  // a review grid showed shapes from later in a scene "flashing" on frames before
   // their cue, a flicker that the render did not have (tested: same frames, full-size
   // stills clean, scaled strips wrong, twice in a row). So the sheets and the review
-  // pack capture at full size and let their grid page scale the image down.
+  // grids capture at full size and let their grid page scale the image down.
   const shot = async ({ format = 'png', quality, scale = 1 } = {}) => Buffer.from((await send('Page.captureScreenshot', { format, quality, ...(scale !== 1 ? { clip: { x: 0, y: 0, width, height, scale } } : {}) })).data, 'base64');
   const close = async () => { ws.close(); await new Promise((r) => { proc.once('exit', r); proc.kill(); }); fs.rmSync(profile, { recursive: true, force: true, maxRetries: 5 }); };
   return { send, evaluate, shot, close, viewport };
@@ -870,6 +884,33 @@ async function sheet() {
   console.log('Look at every sheet: clipped or tiny text, overlaps, empty frames, the same picture held too long.');
 }
 
+// Narration that only reads symbols: three sentences in a row with symbols and no plain sentence.
+function formulaRuns(script) {
+  const out = [];
+  const isSymbol = (shown) => !/^[A-Z][A-Za-z0-9]+$/.test(shown) && !/^[\d.,()\s-]+$/.test(shown);
+  for (const part of script.split(/^## /m).slice(1)) {
+    const id = part.split(/[\s{]/)[0], body = part.split('\n').slice(1).filter((l) => !l.startsWith('>')).join(' ').replace(/\[[^\]]*\]/g, ' ');
+    let run = 0, count = 0, first = '';
+    for (const raw of body.split(/(?<=[.!?])\s+/)) {
+      const syms = [...raw.matchAll(/\{([^}|]+)\|[^}]+\}/g)].filter((m) => isSymbol(m[1])).length;
+      // A sentence with enough plain words explains something, even if it also names a symbol.
+      const plain = raw.replace(/\{[^}]*\}/g, ' ').toLowerCase().match(/[a-z]{2,}/g)?.filter((w) => !['equals', 'plus', 'minus', 'times', 'over', 'is', 'and', 'so', 'the', 'to', 'of', 'at', 'we', 'get', 'with', 'then', 'here', 'this', 'that'].includes(w)).length || 0;
+      if (!syms || plain >= 6) { run = 0; count = 0; continue; }
+      if (!run) first = raw.replace(/\{([^}|]+)\|[^}]+\}/g, '$1').trim();
+      run++; count += syms;
+      if (run === 3 && count >= 4) { out.push(`${id}: three sentences in a row only read symbols, from "${first.slice(0, 60)}". Say what the terms mean in plain words (reference/script.md, "Formulas")`); break; }
+    }
+  }
+  return out;
+}
+// A Manim scene with formulas and nothing else to look at.
+function manimFormulaAlone(dir) {
+  const f = path.join(dir, 'manim_scenes.py');
+  if (!fs.existsSync(f)) return [];
+  const pic = /\b(Axes|NumberPlane|ThreeDAxes|Surface|Arrow|Vector|Dot|Circle|Square|Rectangle|Polygon|Line|Sphere|Cube|Arc|plot|ImageMobject|SVGMobject)\b/;
+  return fs.readFileSync(f, 'utf8').split(/^class /m).slice(1).filter((c) => /\b(MathTex|Tex)\s*\(/.test(c) && !pic.test(c)).map((c) => `${c.split(/[\s(]/)[0]} (Manim): a formula with no picture (reference/script.md, "Formulas")`);
+}
+
 async function check() {
   const dir = projectDir(positional()[0]), tl = timeline(dir);
   const problems = new Set(), layout = new Set();
@@ -889,6 +930,18 @@ async function check() {
       }
     }
     for (const e of await page.evaluate('window.__errors')) problems.add(e.split('\n')[0]);
+    const looks = await page.evaluate('window.__looks()');
+    for (const l of looks.filter((x) => x.texAlone)) layout.add(`${l.id}: a formula with no picture. Show what it does with an object, and name each term on that object (reference/script.md, "Formulas")`);
+    // The clay look (styles/clay.md): every scene in 3D, and the mascot in the video.
+    if (JSON.parse(fs.readFileSync(path.join(dir, 'video.json'), 'utf8'))._look === 'clay') {
+      const flat = looks.filter((x) => !x.has3d).map((x) => x.id);
+      if (flat.length) problems.add(`not in 3D: ${flat.join(', ')}. Use s.clay(), or manim({ threeD: true }) for a Manim scene whose picture is 3D`);
+      if (!looks.some((x) => x.mascot)) problems.add('the mascot is in no scene. Add g.mascot() (styles/clay.md)');
+      const none = looks.filter((x) => !x.mascot && !x.manim).map((x) => x.id);
+      if (none.length) layout.add(`the mascot is not in: ${none.join(', ')}`);
+      const still = looks.filter((x) => x.heroTravel !== null && x.heroTravel < 0.5).map((x) => x.id);
+      if (still.length) layout.add(`the mascot stays in one spot in: ${still.join(', ')}. Have him walk, pull, push or carry something (styles/clay.md)`);
+    }
     // Sound effects: too many, two accents close together, an accent on a word.
     if (renderCfg(dir).sfx) for (const w of sfxLint(Object.values(await page.evaluate('window.__sfx || {}')), timelineWords(tl))) layout.add(`sfx ${w}`);
   });
@@ -901,6 +954,8 @@ async function check() {
   }
   const script = fs.readFileSync(path.join(dir, 'script.md'), 'utf8');
   if (/[\u2013\u2014]/.test(script.replace(/^>.*$/gm, ''))) problems.add('script.md has an en or em dash in narration. The voice reads them badly: use a full stop or a comma.');
+  for (const w of formulaRuns(script)) layout.add(w);
+  for (const w of manimFormulaAlone(dir)) layout.add(w);
   const pace = pacing(tl, false);
   for (const p of problems) console.log(`ERROR ${p}`);
   for (const l of layout) console.log(`WARN  ${l}`);
@@ -936,6 +991,7 @@ async function render() {
   // --remix: new audio (music track or level, voice) on the frames of the last full render.
   const remix = flag('--remix');
   if (remix && (partial || draft || !fs.existsSync(silent))) die('--remix needs a full render first (no --draft, --from or --to)');
+  if (!partial && !draft && !remix) renderGate(dir, tl);
   if (!remix) {
   fs.rmSync(partsDir, { recursive: true, force: true });
   fs.mkdirSync(partsDir, { recursive: true });
@@ -1067,25 +1123,11 @@ async function verify() {
 }
 
 // ---------- review ----------
-// Builds build/review/, the pack the reviewer agents read. An agent cannot watch
-// an MP4 or hear the voice, so the video becomes stills, words with times, and
-// motion as numbers. The numbers find a one-frame jump that a picture hides.
+// Builds build/review/: a grid at each cue with the spoken words, and motion as numbers.
+// The numbers find a one-frame jump that a picture hides.
 const fmt = (t) => t.toFixed(1);
 const stamp = (t) => t.toFixed(1).padStart(5, '0');
 
-function sentencesOf(tl) {
-  const out = [];
-  for (const s of tl.scenes) {
-    let cur = [];
-    const flush = () => { if (cur.length) out.push({ scene: s.id, a: s.start + cur[0].start, b: s.start + cur.at(-1).end, words: cur }); cur = []; };
-    for (const w of s.words) { cur.push(w); if (/[.?!]$/.test(w.text)) flush(); }
-    flush();
-    if (!s.words.length) out.push({ scene: s.id, a: s.start, b: s.start + s.dur / 2, words: [{ text: '(no narration)', start: 0 }] });
-  }
-  return out;
-}
-
-// The words around a scene time, with "▶" before the word spoken at that time.
 function wordsAround(s, tRel) {
   const i = s.words.findIndex((w) => w.start >= tRel - 0.02);
   if (i < 0) return s.words.slice(-8).map((w) => w.text).join(' ') + ' ▶(after the voice)';
@@ -1133,7 +1175,7 @@ function motion(tl, frames, fps) {
     // Two traced things that touch, and two texts that cover each other.
     const episodes = {};
     for (const f of fs_) {
-      const vis = f.items.filter((it) => it.o > 0.3);
+      const vis = f.items.filter((it) => it.o > 0.3 && !it.pass);
       for (let a = 0; a < vis.length; a++) for (let b = a + 1; b < vis.length; b++) {
         const A = vis[a], B = vis[b];
         let hit = false, what = '';
@@ -1153,15 +1195,16 @@ function motion(tl, frames, fps) {
 }
 
 async function review() {
+  let collisions = [];
   const dir = projectDir(positional()[0]), tl = timeline(dir);
   requireManim(dir);
   const fps = +opt('--fps', tl.fps);
   const out = path.join(dir, 'build', 'review');
   fs.rmSync(out, { recursive: true, force: true });
-  for (const d of ['stills', 'cues', 'film']) fs.mkdirSync(path.join(out, d), { recursive: true });
+  fs.mkdirSync(path.join(out, 'cues'), { recursive: true });
+  fs.mkdirSync(path.join(out, 'moving'), { recursive: true });
   const sceneOf = (id) => tl.scenes.find((s) => s.id === id);
   const inScene = (s, t) => Math.min(s.start + s.dur - 0.03, Math.max(s.start + 0.03, t));
-  const sentences = sentencesOf(tl);
   const write = (f, txt) => fs.writeFileSync(path.join(out, f), txt);
   const t0 = Date.now();
 
@@ -1186,6 +1229,15 @@ async function review() {
       }
     }
     const errors = new Set((await page.evaluate('window.__errors')).map((e) => e.split('\n')[0]));
+    // The mascot against every object, and object against object (styles/library/clay.js).
+    const hit = {};
+    for (const f of frames) for (const h of f.hits || []) { const e = (hit[`${f.scene}|${h}`] ??= { scene: f.scene, what: h, from: f.t, to: f.t }); e.to = f.t; }
+    collisions = Object.values(hit).sort((a, b) => a.from - b.from);
+    write('collisions.md', `# Collisions\n\nThe mascot against every object on every frame, and each object against each other object on every third frame.\n\n` + (collisions.length ? collisions.map((e) => `- ${fmt(e.from)} to ${fmt(e.to)} s, ${e.scene}: ${e.what}`).join('\n') : 'No collisions.') + '\n');
+    for (const e of collisions.slice(0, 25)) console.log(`ERROR collision ${fmt(e.from)} to ${fmt(e.to)} s, ${e.scene}: ${e.what}`);
+    if (collisions.length > 25) console.log(`ERROR ${collisions.length - 25} more collisions in ${path.join(out, 'collisions.md')}`);
+    // Things in 3D join the motion measures, so a jump or a teleport of a robot or the mascot is flagged.
+    for (const f of frames) for (const r of f.moved?.roots || []) f.items.push({ k: r.k, x: r.x, y: r.y, w: 0, h: 0, o: 1, manual: true });
     const m = motion(tl, frames, fps);
 
     // Cues the scenes really use, in time order; two cues at one moment become one.
@@ -1203,13 +1255,7 @@ async function review() {
     const shot = async (t) => { await page.evaluate(`seek(${t})`); return (await page.shot({ format: 'jpeg', quality: 85 })).toString('base64'); };
     const grids = [];
 
-    // Pass 2a: one still at the end of each sentence, for the learner.
-    for (const st of sentences) {
-      const s = sceneOf(st.scene), t = inScene(s, st.b + 0.5);
-      st.still = `stills/${stamp(t)}-${st.scene}.jpg`;
-      fs.writeFileSync(path.join(out, st.still), Buffer.from(await shot(t, 2 / 3), 'base64'));
-    }
-    // Pass 2b: before, on and after each cue, for the alignment check.
+    // Before, on and after each cue, so the main session can check picture against voice.
     for (const c of cues) {
       const s = sceneOf(c.scene);
       c.file = `cues/${stamp(c.t)}-${c.scene}-${c.names[0].replace(/[^\w]+/g, '')}.jpg`;
@@ -1220,50 +1266,35 @@ async function review() {
       }
       grids.push({ file: c.file, cols: 2, w: 768, h: 432, title: `${c.scene}: cue ${c.names.join(', ')} at ${fmt(c.t)} s`, cells });
     }
-    // Pass 2c: film strips, frame by frame, at each flag and each scene change;
-    // 8 frames across each of the longest movements; 8 across each cue in a
-    // scene with nothing traced (canvas only).
-    const film = [];
-    // A strip that is more than half inside another strip shows nothing new.
-    const strip = (t, step, why, scene) => {
-      const b = t + 7 * step, inside = (f) => Math.max(0, Math.min(b, f.t + 7 * f.step) - Math.max(t, f.t)) > 0.5 * (b - t);
-      if (!film.some(inside)) film.push({ t, step, why, scene });
-    };
-    for (const f of m.flags.slice(0, 24)) strip(f.t - 4 / fps, 1 / fps, f.msg, f.scene);
-    for (const s of tl.scenes.slice(1)) strip(s.start - 4 / fps, 1 / fps, `scene change into "${s.id}"`, s.id);
-    for (const mv of [...m.moves].sort((a, b) => b.dist - a.dist).slice(0, 16)) strip(mv.a - 0.1, (mv.b - mv.a + 0.3) / 7, `movement of "${mv.k}" (${fmt(mv.a)} to ${fmt(mv.b)} s)`, mv.scene);
-    for (const s of tl.scenes) if (!m.moves.some((mv) => mv.scene === s.id)) for (const c of cues.filter((c) => c.scene === s.id)) strip(c.t, 2.4 / 7, `after cue ${c.names[0]} in "${s.id}" (no traced movement in this scene)`, s.id);
-    for (const f of film) {
-      f.file = `film/${stamp(f.t)}-${f.scene}-${film.indexOf(f)}.jpg`;
+    // Every movement of the mascot or an object gets its own dense strip, because a fault while a thing
+    // moves falls between the frames of a sheet. The list comes from the measured motion, not from a guess.
+    const moving = movingStrips(frames), movingChecks = [];
+    for (const v of moving) {
       const cells = [];
-      for (let k = 0; k < 8; k++) { const t = Math.max(0, Math.min(tl.duration - 0.01, f.t + k * f.step)); cells.push({ label: `${fmt(t)} s${f.step < 0.05 ? `  frame ${Math.round(t * fps)}` : ''}`, img: await shot(t, 0.25) }); }
-      grids.push({ file: f.file, cols: 4, w: 480, h: 270, title: f.why, cells });
+      for (let k = 0; k < 12; k++) { const t = v.a + ((v.b - v.a) * k) / 11; cells.push({ label: `${fmt(t)} s`, img: await shot(inScene(sceneOf(v.scene), t), 0.25) }); }
+      v.file = `moving/${stamp(v.a)}-${v.scene}-${moving.indexOf(v)}.jpg`;
+      grids.push({ file: v.file, cols: 4, w: 480, h: 270, title: `${v.thing} moves, ${v.scene}, ${fmt(v.a)} to ${fmt(v.b)} s`, cells, check: checkDigit(movingChecks, v.file) });
     }
+    write('moving-checks.json', JSON.stringify(movingChecks));
+    const still = [...voiceWithoutMotion(dir, tl, frames), ...stillFormulas(dir, frames), ...formulasRunTogether(frames)];
+    for (const w of still) console.log(`ERROR ${w}`);
+    collisions.push(...still.map((what) => ({ what })));
+    write('moving.md', `# Things that move\n\nMeasured from every frame. Read every strip: look at contact, clearance, feet, and whether the thing moves the way the voice says.\n\n` + moving.map((v) => `- ${fmt(v.a)} to ${fmt(v.b)} s, ${v.scene}, ${v.thing}: ${v.file}\n  voice: ${wordsAround(sceneOf(v.scene), v.a - sceneOf(v.scene).start)}`).join('\n') + '\n' + (still.length ? `\n## The voice says that something moves, and nothing moves\n${still.map((w) => `- ${w}`).join('\n')}\n` : ''));
     // Last: compose the grids. This replaces the stage, so nothing is drawn after it.
-    for (const g of grids) {
-      const rows = Math.ceil(g.cells.length / g.cols), W_ = g.cols * (g.w + 8) + 8, H_ = 44 + rows * (g.h + 36) + 8;
-      await page.viewport(W_, H_);
-      await page.evaluate(`document.body.innerHTML = ${JSON.stringify(`<div style="background:#222;color:#eee;font:600 20px Inter,sans-serif;padding:8px;width:${W_ - 16}px"><div style="height:36px">${g.title.replace(/</g, '&lt;')}</div><div style="display:grid;grid-template-columns:repeat(${g.cols},${g.w}px);gap:8px">${g.cells.map((c) => `<div><div style="height:28px;font-size:18px">${c.label}</div><img width="${g.w}" height="${g.h}" src="data:image/jpeg;base64,${c.img}"></div>`).join('')}</div></div>`)}; document.body.style.overflow='visible'; true`);
-      fs.writeFileSync(path.join(out, g.file), Buffer.from((await page.send('Page.captureScreenshot', { format: 'jpeg', quality: 85, clip: { x: 0, y: 0, width: W_, height: H_, scale: 1 } })).data, 'base64'));
-    }
+    await composeGrids(page, grids, out);
 
     // ---- the text files ----
-    const sceneHead = (s) => `## ${s.id}${s.attrs?.core ? ' (core)' : ''}: ${fmt(s.start)} to ${fmt(s.start + s.dur)} s\n`;
-    write('transcript.md', `# Transcript\n\nWhat the voice says, sentence by sentence, with the still that shows the screen at the end of that sentence. This is all the viewer gets.\n\n` +
-      tl.scenes.map((s) => sceneHead(s) + sentences.filter((x) => x.scene === s.id).map((x) => `- ${fmt(x.a)} to ${fmt(x.b)} s: ${x.words.map((w) => w.text).join(' ')}\n  screen: ${x.still}`).join('\n')).join('\n\n') + '\n');
-
     write('cues.md', `# Cues\n\nEach moment where a scene starts something on a spoken word or a [#marker]. "▶" marks the word spoken at the cue. Each grid shows the screen 0.5 s before the cue, on it, and 0.4 s and 1 s after.\n\n` +
       cues.map((c) => `## ${fmt(c.t)} s, ${c.scene}: ${c.names.join(', ')}\nvoice: ${wordsAround(sceneOf(c.scene), c.tRel)}\ngrid: ${c.file}`).join('\n\n') + '\n');
 
-    const untraced = tl.scenes.filter((s) => !(m.traced[s.id] || []).some((k) => !k.startsWith('text ') && !k.startsWith('tex ')) && !m.moves.some((mv) => mv.scene === s.id)).map((s) => s.id);
     write('motion.md', `# Motion\n\nMeasured from every frame (${fps} frames a second, ${frames.length} frames). Speeds are in stage px a second (the stage is 1920 x 1080). ` +
-      `"abrupt" means the movement starts or ends at more than 40 % of its top speed, with no ease. That is correct for a snap style and wrong for a weighted one.\n\n` +
-      `Traced: text, formulas, every element moved with set(), and points given with s.trace(). Things drawn on a canvas or in Three.js without s.trace() are not in these numbers: ` +
-      (untraced.length ? `scenes with nothing traced that moves: ${untraced.join(', ')}. Use their film strips.` : 'every scene has traced movement.') + '\n\n' +
+      `"abrupt" means the movement starts or ends at more than 40 % of its top speed, with no ease. That is correct for a snap style and wrong for a weighted one. ` +
+      `Traced: text, formulas, every element moved with set(), and points given with s.trace().\n\n` +
       `## Flags (${m.flags.length})\n` + (m.flags.length ? m.flags.map((f) => `- ${fmt(f.t)} s, ${f.scene}, ${f.kind}: ${f.msg}`).join('\n') : 'none') + '\n\n' +
       `## Movements (${m.moves.length})\n| scene | item | from s | to s | distance px | top speed px/s | start | end |\n|---|---|---|---|---|---|---|---|\n` +
-      m.moves.map((mv) => `| ${mv.scene} | ${mv.k} | ${fmt(mv.a)} | ${fmt(mv.b)} | ${Math.round(mv.dist)} | ${Math.round(mv.peak)} | ${mv.abruptA ? 'abrupt' : 'eased'} | ${mv.abruptB ? 'abrupt' : 'eased'} |`).join('\n') + '\n\n' +
-      `## Film strips\n` + film.map((f) => `- ${f.file}: ${f.why}${f.step < 0.05 ? ', frame by frame' : ''}`).join('\n') + '\n');
+      m.moves.map((mv) => `| ${mv.scene} | ${mv.k} | ${fmt(mv.a)} | ${fmt(mv.b)} | ${Math.round(mv.dist)} | ${Math.round(mv.peak)} | ${mv.abruptA ? 'abrupt' : 'eased'} | ${mv.abruptB ? 'abrupt' : 'eased'} |`).join('\n') + '\n');
+    for (const f of m.flags.slice(0, 20)) console.log(`WARN motion ${fmt(f.t)} s, ${f.scene}, ${f.kind}: ${f.msg}`);
+    if (m.flags.length > 20) console.log(`WARN motion: ${m.flags.length - 20} more in ${path.join(out, 'motion.md')}`);
 
     const onscreen = {};
     for (const f of frames) for (const it of f.items || []) if (it.isText && it.o > 0.5) { const key = `${f.scene}|${it.text}`; onscreen[key] ??= { scene: f.scene, t: f.t, text: it.text }; }
@@ -1273,52 +1304,16 @@ async function review() {
     // Overlaps measured on every frame: text on text, and text on traced things
     // (set() elements and s.trace() points with a size). Canvas drawing that is not
     // traced is not in these numbers: the overlap agent looks at the frames for it.
-    const ov = {}, box = (it) => ({ left: it.x - (it.w || 0) / 2, right: it.x + (it.w || 0) / 2, top: it.y - (it.h || 0) / 2, bottom: it.y + (it.h || 0) / 2 });
-    for (const f of frames) {
-      const its = (f.items || []).filter((it) => it.o > 0.3 && it.w > 0 && it.h > 0);
-      for (let i = 0; i < its.length; i++) for (let j = i + 1; j < its.length; j++) {
-        const a = its[i], b = its[j];
-        if (!a.isText && !b.isText) continue;
-        const A = box(a), B = box(b);
-        // A label inside its own box (fully contained, not a text) is the design, not an overlap.
-        const inside = (p, q) => p.left >= q.left && p.right <= q.right && p.top >= q.top && p.bottom <= q.bottom;
-        if (!(a.isText && b.isText) && (inside(A, B) || inside(B, A))) continue;
-        const w = Math.min(A.right, B.right) - Math.max(A.left, B.left), h = Math.min(A.bottom, B.bottom) - Math.max(A.top, B.top);
-        if (!(w > 6 && h > 6)) continue;
-        const key = `${f.scene}|${a.k}|${b.k}`;
-        const e = (ov[key] ??= { scene: f.scene, a: a.k, b: b.k, from: f.t, to: f.t, area: 0, at: { x: Math.round(Math.max(A.left, B.left)), y: Math.round(Math.max(A.top, B.top)) } });
-        e.to = f.t; if (w * h > e.area) e.area = Math.round(w * h);
-      }
-    }
-    const ovList = Object.values(ov).filter((e) => e.to - e.from >= 1.5 / fps).sort((x, y) => x.from - y.from);
+    const ovList = overlapsOf(frames, fps);
     write('overlaps.md', `# Overlaps\n\nMeasured on every frame: each pair of a text or formula and another text, formula or traced element whose boxes share more than 6 px in both directions, while both are visible (opacity above 0.3). ` +
       `A text that sits fully inside a non-text box (a label in its own box) is not listed. Canvas and Three.js drawing without s.trace() is not measured: look at the frames for those.\n\n` +
       (ovList.length ? `| scene | from s | to s | item A | item B | largest overlap px² | at (x, y) |\n|---|---|---|---|---|---|---|\n` + ovList.map((e) => `| ${e.scene} | ${fmt(e.from)} | ${fmt(e.to)} | ${e.a} | ${e.b} | ${e.area} | ${e.at.x}, ${e.at.y} |`).join('\n') : 'No measured overlaps.') + '\n');
     if (ovList.length) console.log(`WARN ${ovList.length} measured overlap(s): see ${path.join(out, 'overlaps.md')}`);
 
-    const board = fs.existsSync(path.join(dir, 'storyboard.md')) ? fs.readFileSync(path.join(dir, 'storyboard.md'), 'utf8') : '';
-    const section = (name) => (board.match(new RegExp(`^## ${name}\\s*\\n([\\s\\S]*?)(?=^## |$(?![\\s\\S]))`, 'm')) || [])[1]?.replace(/^>.*\n?/gm, '').trim();
-    const viewer = section('Viewer'), quiz = section('Quiz');
-    if (!viewer || !quiz) console.log('WARN storyboard.md has no "## Viewer" or "## Quiz" section. The learner agent needs both.');
-    write('quiz.md', `# You, the viewer\n\n${viewer || '(not given)'}\n\n# Questions\n\nAnswer from the video only, and give the time where the video taught you.\n\n${quiz || '(not given)'}\n`);
-
-    const sheets = fs.readdirSync(path.join(dir, 'build')).filter((f) => /^sheet-\d+\.png$/.test(f));
-    const stale = !sheets.length || fs.statSync(path.join(dir, 'build', sheets[0])).mtimeMs < fs.statSync(path.join(dir, 'scenes.js')).mtimeMs;
-    if (stale) console.log('WARN contact sheets are missing or older than scenes.js. Run "sheet" before the overall review.');
-    write('README.md', `# Review pack: ${tl.title || slug(dir)}\n\n${fmt(tl.duration)} s, ${tl.scenes.length} scenes, made ${new Date().toISOString().slice(0, 16)}. Times are seconds from the start of the video.\n\n` +
-      `| File | What | Read by |\n|---|---|---|\n` +
-      `| transcript.md + stills/ | each sentence and the screen at its end | learner, fact checker |\n` +
-      `| quiz.md | who the viewer is, and the questions | learner |\n` +
-      `| cues.md + cues/ | each cue: the words, and the screen before, on and after it | alignment |\n` +
-      `| motion.md + film/ | movements, flags, frame-by-frame strips | physics |\n` +
-      `| onscreen.md | all text and formulas on screen | fact checker, overall, overlap |\n` +
-      `| overlaps.md | every measured overlap of text with text or with traced elements, frame by frame | overlap |\n` +
-      `| ../sheet-*.png | contact sheets, 3 frames a scene | overall |\n` +
-      `| ../../script.md, ../../storyboard.md, ../../scenes.js | the plan and the code | everyone except the learner |\n` +
-      (errors.size ? `\nScene errors while tracing:\n${[...errors].map((e) => `- ${e}`).join('\n')}\n` : ''));
     for (const e of errors) console.log(`ERROR ${e}`);
-    console.log(`${out}\n${sentences.length} sentence stills, ${cues.length} cue grids, ${film.length} film strips, ${m.moves.length} movements, ${m.flags.length} motion flags, in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+    console.log(`${out}\n${cues.length} cue grids, ${m.moves.length} movements, ${m.flags.length} motion flags, ${collisions.length} collisions, ${moving.length} movement strips, in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   });
+  if (collisions.length) process.exit(1);
 }
 
 // ---------- preview ----------
@@ -1330,6 +1325,260 @@ async function preview() {
 }
 
 // One shot: every mechanical step in order, stopping at the first one that fails.
+// ---------- the closed loop: look before each build and each render ----------
+// After every edit: "make look" measures the changed scenes and draws their near frames and their moving
+// parts. Nothing heavy runs until someone has read them. The user found renders that started before
+// anyone had looked at a frame, and faults that a look at the frames would have shown in seconds.
+const hash12 = (x) => createHash('sha1').update(x).digest('hex').slice(0, 16);
+function sourceHashes(dir, tl) {
+  const blocks = {}; let common = '', cur = null;
+  for (const line of fs.readFileSync(path.join(dir, 'scenes.js'), 'utf8').split('\n')) {
+    const m = !cur && line.match(/^scene\('([\w-]+)'/);
+    if (m) { cur = m[1]; blocks[cur] = ''; }
+    if (cur) { blocks[cur] += line + '\n'; if (/^\}\);?\s*$/.test(line) || (m && /\}\);?\s*$/.test(line))) cur = null; } else common += line + '\n';
+  }
+  // Anything that all scenes share: their helpers, the Manim code, the kit and the runtime.
+  const shared = [path.join(dir, 'manim_scenes.py'), path.join(dir, 'video.json'), path.join(ENGINE, 'make.mjs'), path.join(ENGINE, 'runtime.js'), path.join(CLAY, '..', 'clay.js'), path.join(CLAY, '..', 'eqn.js'), ...['sdf.js', 'mascot.js', 'models.js'].map((f) => path.join(CLAY, f))];
+  const src = path.join(dir, 'src');
+  if (fs.existsSync(src)) shared.push(...fs.readdirSync(src).sort().map((f) => path.join(src, f)));
+  for (const f of shared) if (fs.existsSync(f)) common += fs.readFileSync(f, 'utf8');
+  const script = fs.readFileSync(path.join(dir, 'script.md'), 'utf8'), section = {};
+  for (const part of script.split(/^## /m).slice(1)) section[part.split(/[\s{]/)[0]] = part;
+  const scenes = {};
+  for (const x of tl.scenes) scenes[x.id] = hash12((blocks[x.id] || '') + (section[x.id] || '') + JSON.stringify([x.dur, x.marks]));
+  return { common: hash12(common), scenes };
+}
+const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
+const lookFile = (dir, n) => path.join(dir, 'build', 'look', n);
+const changedSince = (cur, old) => (!old || old.common !== cur.common ? Object.keys(cur.scenes) : Object.keys(cur.scenes).filter((k) => old.scenes[k] !== cur.scenes[k]));
+const gateOff = (dir) => readJson(path.join(dir, 'video.json'))?._gate === false;
+function gate() {
+  const dir = projectDir(positional()[0]);
+  if (gateOff(dir)) return;
+  const changed = changedSince(sourceHashes(dir, timeline(dir)), readJson(lookFile(dir, 'passed.json'))?.hashes);
+  if (changed.length) die(`no look at these changed scenes: ${changed.join(', ')}.\nRun "make look ${dir}", read every image it lists, fix what you see, then run "make look ${dir} --ok <the digits>".`);
+  console.log('gate: every changed scene has had a look');
+}
+function renderGate(dir, tl) {
+  if (gateOff(dir)) return;
+  const cur = JSON.stringify(sourceHashes(dir, tl)), passed = readJson(lookFile(dir, 'passed.json')), built = readJson(lookFile(dir, 'built.json')), moved = readJson(lookFile(dir, 'moving-ok.json'));
+  if (!passed || JSON.stringify(passed.hashes) !== cur) die(`the source changed after the last look. Run "make look ${dir}" first.`);
+  if (!built || JSON.stringify(built.hashes) !== cur) die(`the source changed after the last build. Run "make build ${dir}" first.`);
+  const rev = path.join(dir, 'build', 'review');
+  if (!/No collisions/.test(fs.readFileSync(path.join(rev, 'collisions.md'), 'utf8'))) die(`there are collisions: see ${path.join(rev, 'collisions.md')}.`);
+  if (!/No measured overlaps/.test(fs.readFileSync(path.join(rev, 'overlaps.md'), 'utf8'))) die(`there are overlaps: see ${path.join(rev, 'overlaps.md')}.`);
+  if (!moved || JSON.stringify(moved.hashes) !== cur) die(`nobody has read the movement strips of this build. Read every strip in ${path.join(rev, 'moving.md')}, in order, then run "make look ${dir} --moving-ok <the CHECK digits>". With no strips, give 0 digits.`);
+}
+function built() {
+  const dir = projectDir(positional()[0]);
+  fs.mkdirSync(path.dirname(lookFile(dir, 'x')), { recursive: true });
+  fs.writeFileSync(lookFile(dir, 'built.json'), JSON.stringify({ hashes: sourceHashes(dir, timeline(dir)) }));
+}
+// Each movement, from what was measured on each frame. Things that move at one time share one strip.
+function movingStrips(frames) {
+  const runs = [], open = {};
+  // A formula that cancels, or a term that moves across it, gets a strip like an object that moves.
+  for (const f of frames) for (const thing of [...(f.moved?.parts || []), ...(f.acting ? ['formula'] : [])]) {
+    const key = `${f.scene}|${thing}`;
+    if (open[key] && f.t - open[key].to <= 0.8) open[key].to = f.t;
+    else { if (open[key]) runs.push(open[key]); open[key] = { scene: f.scene, things: [thing], from: f.t, to: f.t }; }
+  }
+  runs.push(...Object.values(open));
+  const merged = [];
+  for (const r of runs.filter((x) => x.to - x.from >= 0.25).sort((a, b) => (b.to - b.from) - (a.to - a.from))) {
+    const same = merged.find((m) => m.scene === r.scene && Math.min(m.to, r.to) - Math.max(m.from, r.from) > 0.8 * (r.to - r.from));
+    if (same) same.things.push(...r.things); else merged.push(r);
+  }
+  const out = [];
+  for (const r of merged.sort((a, b) => a.from - b.from)) {
+    const span = r.to - r.from, parts = Math.ceil(span / 8);
+    for (let p = 0; p < parts; p++) out.push({ scene: r.scene, thing: [...new Set(r.things)].join(', '), a: r.from + (span * p) / parts, b: r.from + (span * (p + 1)) / parts });
+  }
+  return out;
+}
+// A sentence that says something moves must have something moving on screen. The voice once moved a term
+// across an equation while the screen stayed still. A sentence that only means it in words goes in
+// "_stillVoice" in video.json, with a part of its text.
+const MOTION = /\b(moves?|moving|pushe?s?|pulls?|drags?|slides?|lifts?|drops?|swaps?|flips?|carr(?:y|ies)|throws?)\b/i;
+// A formula that only sits on the screen is no better than notes. A formula shown for 3 s or more must
+// move, build or bounce while it is shown. Scene labels pinned to a moving thing pass by themselves.
+function stillFormulas(dir, frames) {
+  if (readJson(path.join(dir, 'video.json'))?._look !== 'clay') return [];
+  // One formula is one row of eqn() pieces, so an "=" that stays while its terms move is correct.
+  const seen = {};
+  for (const f of frames) for (const it of f.items || []) {
+    if (!it.isText || !String(it.k).startsWith('tex ') || it.o < 0.1) continue;
+    const key = `${f.scene}|${it.group || it.k}`, g = (seen[key] ??= { scene: f.scene, k: it.k, from: f.t, to: f.t, moved: false, parts: {} }), r = (g.parts[it.k] ??= { x: it.x, y: it.y, w: it.w });
+    g.to = f.t;
+    if (Math.abs(it.x - r.x) >= 3 || Math.abs(it.y - r.y) >= 3 || Math.abs(it.w - r.w) >= 3) g.moved = true;
+  }
+  return Object.values(seen).filter((g) => g.to - g.from >= 3 && !g.moved).map((g) => `${fmt(g.from)} s, ${g.scene}: a formula sits still for ${fmt(g.to - g.from)} s: ${g.k}. Build it with eqn(): it must do what the voice says`);
+}
+// Two formulas on one line with almost no gap read as one wrong formula.
+function formulasRunTogether(frames) {
+  const seen = {};
+  for (const f of frames) {
+    const rows = {};
+    for (const it of f.items || []) if (it.isText && it.group && it.o > 0.5 && !it.pass) {
+      const r = (rows[it.group] ??= { l: 1e9, r: -1e9, t: 1e9, b: -1e9, k: it.k });
+      r.l = Math.min(r.l, it.x - it.w / 2); r.r = Math.max(r.r, it.x + it.w / 2); r.t = Math.min(r.t, it.y - it.h / 2); r.b = Math.max(r.b, it.y + it.h / 2);
+    }
+    const list = Object.entries(rows);
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+      const [ga, A] = list[i], [gb, B] = list[j], high = Math.min(A.b, B.b) - Math.max(A.t, B.t), gap = Math.max(A.l, B.l) - Math.min(A.r, B.r);
+      if (high < 0.4 * Math.min(A.b - A.t, B.b - B.t) || gap >= 40) continue;
+      const e = (seen[`${f.scene}|${ga}|${gb}`] ??= { scene: f.scene, a: A.k, b: B.k, from: f.t, to: f.t }); e.to = f.t;
+    }
+  }
+  return Object.values(seen).map((e) => `overlap ${fmt(e.from)} to ${fmt(e.to)} s, ${e.scene}: two formulas run together: ${e.a} and ${e.b}`);
+}
+const CANCEL = /\bcancels?\b/i;
+function voiceWithoutMotion(dir, tl, frames, only) {
+  const allowed = readJson(path.join(dir, 'video.json'))?._stillVoice || [], out = [];
+  for (const sc of tl.scenes) {
+    if (only && !only.includes(sc.id)) continue;
+    let cur = [];
+    for (const w of sc.words || []) {
+      cur.push(w);
+      if (!/[.!?]["')\]]*$/.test(w.text)) continue;
+      const text = cur.map((x) => x.text).join(' '), a = sc.start + cur[0].start, b = sc.start + w.end + 1.5, first = cur[0]; cur = [];
+      if (allowed.some((x) => text.includes(x))) continue;
+      const fs_ = frames.filter((f) => f.scene === sc.id && f.t >= a && f.t <= b), range = {};
+      // "The mass cancels" needs a cancel on screen. Other motion does not count: a mascot who walks
+      // past a formula is not a term that cancels.
+      if (CANCEL.test(text) && !fs_.some((f) => f.cancelling)) out.push(`${fmt(sc.start + first.start)} s, ${sc.id}: the voice says something cancels, and nothing cancels on screen: "${text.slice(0, 70)}". Use eqn() or s.cancelling(), or list it in "_stillVoice" in video.json`);
+      if (!MOTION.test(text)) continue;
+      let moved = fs_.some((f) => f.moved?.parts?.length);
+      for (const f of fs_) for (const it of f.items || []) if (it.isText && it.o > 0.1) {
+        const r = (range[it.k] ??= { x0: it.x, x1: it.x, y0: it.y, y1: it.y }); r.x0 = Math.min(r.x0, it.x); r.x1 = Math.max(r.x1, it.x); r.y0 = Math.min(r.y0, it.y); r.y1 = Math.max(r.y1, it.y);
+        if (r.x1 - r.x0 > 12 || r.y1 - r.y0 > 12) moved = true;
+      }
+      if (!moved) out.push(`${fmt(sc.start + first.start)} s, ${sc.id}: the voice says something moves, and nothing moves: "${text.slice(0, 70)}". Show it, or list it in "_stillVoice" in video.json`);
+    }
+  }
+  return out;
+}
+// One digit on each image. The gate opens only with the digits of all images, in order, so a look must
+// really read each one: a plain "ok" was a promise, and the promise was broken more than once.
+function checkDigit(records, file) {
+  const digit = createHash('sha1').update(file + Date.now() + records.length).digest()[0] % 10, salt = createHash('sha1').update(`${file}${Math.random()}`).digest('hex').slice(0, 12);
+  records.push({ file, salt, hash: hash12(salt + digit) });
+  return digit;
+}
+function checkCode(records, code, what) {
+  const digits = String(code).replace(/\D/g, '');
+  if (digits.length !== records.length) die(`${what}: this needs ${records.length} digit(s), one from each image in the order listed, and you gave ${digits.length}.`);
+  const wrong = records.filter((r, i) => hash12(r.salt + digits[i]) !== r.hash).map((r) => r.file);
+  if (wrong.length) die(`${what}: the digit is wrong for ${wrong.length} image(s). Read them again:\n${wrong.join('\n')}`);
+}
+async function composeGrids(page, grids, out) {
+  for (const g of grids) {
+    const rows = Math.ceil(g.cells.length / g.cols), W_ = g.cols * (g.w + 8) + 8, H_ = 52 + rows * (g.h + 36) + 8;
+    await page.viewport(W_, H_);
+    await page.evaluate(`document.body.innerHTML = ${JSON.stringify(`<div style="background:#222;color:#eee;font:600 20px Inter,sans-serif;padding:8px;width:${W_ - 16}px"><div style="height:44px;display:flex;justify-content:space-between;align-items:center"><span>${g.title.replace(/</g, '&lt;')}</span>${g.check === undefined ? '' : `<span style="font-size:34px;color:#ffd166">CHECK ${g.check}</span>`}</div><div style="display:grid;grid-template-columns:repeat(${g.cols},${g.w}px);gap:8px">${g.cells.map((c) => `<div><div style="height:28px;font-size:18px">${c.label}</div><img width="${g.w}" height="${g.h}" src="data:image/jpeg;base64,${c.img}"></div>`).join('')}</div></div>`)}; document.body.style.overflow='visible'; true`);
+    fs.writeFileSync(path.join(out, g.file), Buffer.from((await page.send('Page.captureScreenshot', { format: 'jpeg', quality: 85, clip: { x: 0, y: 0, width: W_, height: H_, scale: 1 } })).data, 'base64'));
+  }
+}
+// Boxes of text and traced things that share more than 6 px in both directions, on every frame.
+function overlapsOf(frames, fps) {
+  const ov = {}, box = (it) => ({ left: it.x - (it.w || 0) / 2, right: it.x + (it.w || 0) / 2, top: it.y - (it.h || 0) / 2, bottom: it.y + (it.h || 0) / 2 });
+  for (const f of frames) {
+    // pass: a term that flies across a formula on purpose while it cancels (styles/library/eqn.js).
+    const its = (f.items || []).filter((it) => it.o > 0.3 && it.w > 0 && it.h > 0 && !it.pass);
+    for (let i = 0; i < its.length; i++) for (let j = i + 1; j < its.length; j++) {
+      const a = its[i], b = its[j];
+      if (!a.isText && !b.isText) continue;
+      const A = box(a), B = box(b);
+      // A label inside its own box (fully contained, not a text) is the design, not an overlap.
+      const inside = (p, q) => p.left >= q.left && p.right <= q.right && p.top >= q.top && p.bottom <= q.bottom;
+      if (!(a.isText && b.isText) && (inside(A, B) || inside(B, A))) continue;
+      const w = Math.min(A.right, B.right) - Math.max(A.left, B.left), h = Math.min(A.bottom, B.bottom) - Math.max(A.top, B.top);
+      if (!(w > 6 && h > 6)) continue;
+      const key = `${f.scene}|${a.k}|${b.k}`;
+      const e = (ov[key] ??= { scene: f.scene, a: a.k, b: b.k, textOnText: a.isText && b.isText, from: f.t, to: f.t, area: 0, at: { x: Math.round(Math.max(A.left, B.left)), y: Math.round(Math.max(A.top, B.top)) } });
+      e.to = f.t; if (w * h > e.area) e.area = Math.round(w * h);
+    }
+  }
+  // Text on text counts at any length: two labels that cross-fade on one spot cover each other.
+  return Object.values(ov).filter((e) => e.textOnText || e.to - e.from >= 1.5 / fps).sort((x, y) => x.from - y.from);
+}
+// Every frame of some scenes: what collides, what overlaps, what moves, and the page errors.
+async function measureScenes(page, tl, ids, dir) {
+  const frames = [], hit = {};
+  for (const sc of tl.scenes.filter((x) => ids.includes(x.id))) for (let i = 0, n = Math.round(sc.dur * tl.fps); i < n; i++) {
+    const t = sc.start + i / tl.fps, f = await page.evaluate(`seek(${t}).then(() => __traceFrame())`);
+    frames.push({ t, ...f });
+    for (const h of f.hits || []) { const e = (hit[`${f.scene}|${h}`] ??= { scene: f.scene, what: h, from: t, to: t }); e.to = t; }
+  }
+  const faults = Object.values(hit).sort((a, b) => a.from - b.from).map((e) => `collision ${fmt(e.from)} to ${fmt(e.to)} s, ${e.scene}: ${e.what}`);
+  faults.push(...stillFormulas(dir, frames), ...formulasRunTogether(frames));
+  for (const e of overlapsOf(frames, tl.fps)) faults.push(`overlap ${fmt(e.from)} to ${fmt(e.to)} s, ${e.scene}: ${e.a} and ${e.b}`);
+  for (const e of await page.evaluate('window.__errors')) faults.push(e.split('\n')[0]);
+  return { frames, faults };
+}
+async function look() {
+  const dir = projectDir(positional()[0]), tl = timeline(dir), cur = sourceHashes(dir, tl), base = path.dirname(lookFile(dir, 'x')), ok = opt('--ok'), movOk = opt('--moving-ok');
+  fs.mkdirSync(base, { recursive: true });
+  if (movOk !== undefined) {
+    if (JSON.stringify(readJson(lookFile(dir, 'built.json'))?.hashes) !== JSON.stringify(cur)) die('the source changed after the last build. Build first, then read the strips.');
+    checkCode(readJson(path.join(dir, 'build', 'review', 'moving-checks.json')) || [], movOk, 'moving-ok');
+    fs.writeFileSync(lookFile(dir, 'moving-ok.json'), JSON.stringify({ hashes: cur }));
+    return console.log('look: the movement strips of this build are recorded as read. "make final" can run.');
+  }
+  if (ok !== undefined) {
+    const pending = readJson(lookFile(dir, 'pending.json'));
+    if (!pending) die('no look to confirm. Run "make look" first.');
+    if (pending.faults.length) die(`the last look has ${pending.faults.length} fault(s). Fix them and look again.`);
+    const old = readJson(lookFile(dir, 'passed.json'))?.hashes, still = changedSince(cur, pending.hashes);
+    if (still.length) die(`these scenes changed after the last look: ${still.join(', ')}. Look again.`);
+    const left = changedSince(cur, old).filter((id) => !pending.scenes.includes(id));
+    if (left.length) die(`these changed scenes were not in the last look: ${left.join(', ')}. Look again.`);
+    checkCode(pending.checks || [], ok, 'ok');
+    fs.writeFileSync(lookFile(dir, 'passed.json'), JSON.stringify({ hashes: cur, at: new Date().toISOString() }));
+    return console.log('look: recorded. "make build" can run.');
+  }
+  const ids = opt('--scene')?.split(',') || changedSince(cur, readJson(lookFile(dir, 'passed.json'))?.hashes);
+  if (!ids.length) { fs.writeFileSync(lookFile(dir, 'pending.json'), JSON.stringify({ hashes: cur, scenes: [], faults: [], checks: [] })); return console.log('look: no scene changed since the last look.'); }
+  for (const f of fs.readdirSync(base)) if (f.endsWith('.jpg')) fs.rmSync(path.join(base, f));
+  const grids = [], list = [], checks = [];
+  const faults = await withPage(dir, async (page) => {
+    const { frames, faults } = await measureScenes(page, tl, ids, dir);
+    for (const l of (await (async () => { const out = new Set(); for (const f of frames.filter((_, i) => i % 15 === 0)) { await page.evaluate(`seek(${f.t})`); for (const x of await page.evaluate('layoutIssues()')) out.add(`${f.scene}: ${x}`); } return out; })())) faults.push(l);
+    faults.push(...voiceWithoutMotion(dir, tl, frames, ids));
+    const shot = async (t) => { await page.evaluate(`seek(${t})`); return (await page.shot({ format: 'jpeg', quality: 85 })).toString('base64'); };
+    for (const id of ids) {
+      const sc = tl.scenes.find((x) => x.id === id), inS = (t) => Math.min(sc.start + sc.dur - 0.03, Math.max(sc.start + 0.03, t));
+      // Near frames: the start, the end, and on and just after each cue.
+      const times = [sc.start, ...Object.values(sc.marks || {}).flatMap((m) => [sc.start + m + 0.05, sc.start + m + 1]), sc.start + sc.dur - 0.7, sc.start + sc.dur / 2].map(inS).sort((a, b) => a - b).filter((t, i, a) => !i || t - a[i - 1] > 0.2);
+      for (let g = 0; g < times.length; g += 9) {
+        const cells = [];
+        for (const t of times.slice(g, g + 9)) cells.push({ label: `${id} @ ${fmt(t - sc.start)} s (${fmt(t)})`, img: await shot(t) });
+        const file = `${stamp(sc.start)}-${id}-near-${g / 9}.jpg`; grids.push({ file, cols: 3, w: 640, h: 360, title: `${id}: near frames`, cells }); list.push(file);
+      }
+    }
+    for (const v of movingStrips(frames)) {
+      const sc = tl.scenes.find((x) => x.id === v.scene), cells = [];
+      for (let k = 0; k < 12; k++) { const t = Math.min(sc.start + sc.dur - 0.03, v.a + ((v.b - v.a) * k) / 11); cells.push({ label: `${fmt(t)} s`, img: await shot(t) }); }
+      const file = `${stamp(v.a)}-${v.scene}-moving-${list.length}.jpg`; grids.push({ file, cols: 4, w: 480, h: 270, title: `${v.thing} moves, ${v.scene}, ${fmt(v.a)} to ${fmt(v.b)} s`, cells }); list.push(file);
+    }
+    // Time order, and each image gets its digit in the order that the list prints.
+    grids.sort((a, b) => (a.file < b.file ? -1 : 1));
+    for (const g of grids) g.check = checkDigit(checks, g.file);
+    await composeGrids(page, grids, base);
+    return faults;
+  });
+  fs.writeFileSync(lookFile(dir, 'pending.json'), JSON.stringify({ hashes: cur, scenes: ids, faults, checks }));
+  for (const f of faults) console.log(`ERROR ${f}`);
+  console.log(`look: ${ids.length} scene(s), ${faults.length} fault(s). Read each image, in order:`);
+  for (const f of list.sort()) console.log(path.join(base, f));
+  console.log(faults.length ? 'Fix the faults, then look again.' : `Each image has a CHECK digit at its top right. Then run: make look ${dir} --ok <the ${checks.length} digits, in this order>`);
+  process.exit(faults.length ? 1 : 0);
+}
+async function selftest() {
+  const r = spawnSync(process.execPath, [path.join(ENGINE, 'test', 'selftest.mjs')], { stdio: 'inherit', env: process.env });
+  process.exit(r.status ?? 1);
+}
+
 function steps(names) {
   const d = positional()[0] || '.';
   for (const n of names) {
@@ -1338,7 +1587,7 @@ function steps(names) {
     if (r.status !== 0) die(`stopped at "${n}". Fix it, then run the same command again: finished steps are cached.`);
   }
 }
-const build = () => steps(['voice', 'manim', 'check', 'sheet', 'review']);
+const build = () => steps(['voice', 'gate', 'manim', 'check', 'sheet', 'stable', 'review', 'built']);
 const final = () => steps(['render', 'verify']);
 
 async function subtitlesCmd() {
@@ -1348,7 +1597,135 @@ async function subtitlesCmd() {
   for (const i of issues) console.log(`WARN ${i}`);
   if (!issues.length) console.log('subtitles: one line per cue, no problems found');
 }
-const commands = { doctor, config, init, build, final, voice, subtitles: subtitlesCmd, manim, check, sheet, still, review, render, verify, preview };
-if (!commands[cmd]) { console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 18).map((l) => l.replace(/^\/\/ ?/, '')).join('\n')); process.exit(cmd ? 1 : 0); }
+// ---------- the clay kit ----------
+const CLAY = path.join(ENGINE, '..', 'styles', 'library', 'clay');
+async function bake() {
+  const only = opt('--only', 'all');
+  const THREE = await import(pathToFileURL(path.join(ENGINE, 'vendor', 'three.module.min.js')).href);
+  const { createMascot, CACHE } = await import(pathToFileURL(path.join(CLAY, 'mascot.js')).href);
+  const { buildModel, ALL_MODELS } = await import(pathToFileURL(path.join(CLAY, 'models.js')).href);
+  const dir = path.join(CLAY, 'cache'), file = path.join(dir, 'manifest.json'), t0 = Date.now();
+  fs.mkdirSync(dir, { recursive: true });
+  const man = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
+  CACHE.write = (k, d) => {
+    fs.writeFileSync(path.join(dir, `${k}.bin`), Buffer.concat([d.pos, d.nor, d.col, d.tri].map((a) => Buffer.from(a.buffer, a.byteOffset, a.byteLength))));
+    man[k] = { v: d.pos.length / 3, t: d.tri.length };
+  };
+  if (only !== 'models') createMascot(THREE, { step: 0.018, bodyStep: 0.03, fine: 0.012 });
+  if (only !== 'mascot') for (const n of ALL_MODELS) buildModel(THREE, n);
+  fs.writeFileSync(file, JSON.stringify(man));
+  console.log(`baked ${Object.keys(man).length} shapes in ${((Date.now() - t0) / 1000).toFixed(0)} s: ${dir}`);
+  if (only !== 'mascot') await attached();
+}
+// Every part of a model must touch the rest of it, measured from the shapes: a spring that stopped
+// short of its wall passed every other check, and every look at the frames. A model that is meant
+// to be in separate pieces says so with pieces: n.
+async function attached() {
+  const { MODELS, JOINS } = await import(pathToFileURL(path.join(CLAY, 'models.js')).href);
+  const { measureJoins } = await import(pathToFileURL(path.join(CLAY, 'joins.js')).href);
+  const man = JSON.parse(fs.readFileSync(path.join(CLAY, 'cache', 'manifest.json'), 'utf8'));
+  let bad = 0, joins = 0;
+  for (const [name, spec] of Object.entries(MODELS)) {
+    const pts = (p) => { const k = `m-${name}-${p.name}`, b = fs.readFileSync(path.join(CLAY, 'cache', `${k}.bin`)); return new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + man[k].v * 12)); };
+    const r = measureJoins(spec.make().parts, JOINS[name], spec.pieces, pts);
+    joins += r.measured; bad += r.faults.length;
+    for (const f of r.faults) console.log(`ERROR ${name}: ${f}`);
+  }
+  console.log(`attached: ${Object.keys(MODELS).length} models, ${joins} joins measured, ${bad} fault(s)`);
+  process.exit(bad ? 1 : 0);
+}
+async function claySheets() {
+  if (!fs.existsSync(path.join(CLAY, 'cache', 'manifest.json'))) die('no clay shapes. Run "make bake" first.');
+  const { MODEL_NAMES } = await import(pathToFileURL(path.join(CLAY, 'models.js')).href);
+  const pick = positional()[0], names = pick ? [pick] : ['body', 'hair', 'expressions', 'group', 'group2', 'stands', 'room', ...MODEL_NAMES.map((n) => `m-${n}`)];
+  const out = path.join(CLAY, 'sheets'), srv = await serve(ENGINE);
+  fs.mkdirSync(out, { recursive: true });
+  for (const n of names) {
+    const page = await chrome(srv.url, { width: 1800, height: 1200, page: `/_lib/clay/sheet.html?sheet=${n}`, video: false });
+    try {
+      let size = null;
+      for (let i = 0; i < 600 && !size; i++) {
+        await new Promise((r) => setTimeout(r, 100));
+        const e = await page.evaluate('window.__error || null').catch(() => null);
+        if (e) die(`${n}: ${e}`);
+        size = await page.evaluate('window.__done || null').catch(() => null);
+      }
+      if (!size) die(`${n}: the sheet did not finish`);
+      const r = await page.send('Page.captureScreenshot', { format: 'png', clip: { x: 0, y: 0, width: size.w, height: size.h, scale: 1 }, captureBeyondViewport: true });
+      fs.writeFileSync(path.join(out, `${n}.png`), Buffer.from(r.data, 'base64'));
+    } finally { await page.close(); }
+  }
+  await srv.close();
+  console.log(`${names.length} sheet(s): ${out}`);
+}
+
+// ---------- the temperature guard ----------
+// A laptop shut down at 101 C, and 4 cores with turbo on went past 95 C in about 5 s. So a heavy
+// command runs as a child on a few cores: it pauses when hot, stops at the limit, and does not
+// start with turbo on. It reads the CPU 4 times a second. Turn it off with: make config --guard off
+const HEAVY = new Set(['collide', 'look', 'selftest', 'attached', 'build', 'final', 'voice', 'manim', 'check', 'sheet', 'stable', 'still', 'review', 'render', 'verify', 'bake', 'clay']);
+const LIMITS = { pause: +process.env.XV_GUARD_PAUSE || 85, resume: +process.env.XV_GUARD_RESUME || 72, stop: +process.env.XV_GUARD_STOP || 92, gpuPause: 85, gpuResume: 70 };
+const CPU_ZONE = (() => { try { return fs.readdirSync('/sys/class/thermal').map((z) => `/sys/class/thermal/${z}`).find((z) => { try { return fs.readFileSync(`${z}/type`, 'utf8').trim() === 'x86_pkg_temp'; } catch { return false; } }); } catch { return null; } })();
+const TURBO_FILE = process.env.XV_TURBO_FILE || '/sys/devices/system/cpu/intel_pstate/no_turbo';
+function guarded() {
+  if (fs.existsSync(TURBO_FILE) && fs.readFileSync(TURBO_FILE, 'utf8').trim() !== '1') die(`CPU turbo is on, so this heavy job does not start. In a separate terminal run:\n  echo 1 | sudo tee ${TURBO_FILE}\nor run "make config --guard off" on a machine that does not need this.`);
+  const cpuC = () => +fs.readFileSync(`${CPU_ZONE}/temp`, 'utf8') / 1000;
+  const cores = `0-${Math.max(0, Math.min(8, Math.ceil(os.cpus().length / 3)) - 1)}`;
+  return new Promise((resolve) => {
+    const child = spawn('taskset', ['-c', cores, 'nice', '-n', '5', process.execPath, ...process.argv.slice(1)], { stdio: 'inherit', detached: true, env: { ...process.env, XV_GUARDED: '1' } });
+    const group = (sig) => { try { process.kill(-child.pid, sig); } catch { /* it has ended */ } };
+    let gpuC = 0, paused = false, pauses = 0, peak = 0, stopped = false;
+    const readGpu = () => { const q = spawn('nvidia-smi', ['--query-gpu=temperature.gpu', '--format=csv,noheader'], { stdio: ['ignore', 'pipe', 'ignore'] }); let o = ''; q.stdout.on('data', (d) => { o += d; }); q.on('error', () => {}); q.on('close', () => { gpuC = parseInt(o, 10) || 0; }); };
+    readGpu();
+    const timers = [setInterval(readGpu, 5000), setInterval(() => console.log(`guard: CPU ${cpuC().toFixed(0)} C, GPU ${gpuC} C`), 300000), setInterval(() => {
+      const c = cpuC(); peak = Math.max(peak, c);
+      if (c >= LIMITS.stop && !stopped) {
+        stopped = true; console.error(`guard: CPU ${c.toFixed(0)} C reached the ${LIMITS.stop} C limit, so the job stops.`);
+        group('SIGCONT'); group('SIGTERM'); setTimeout(() => group('SIGKILL'), 1000);
+      } else if (!paused && (c >= LIMITS.pause || gpuC >= LIMITS.gpuPause)) {
+        paused = true; pauses++; console.log(`guard: pause at CPU ${c.toFixed(0)} C, GPU ${gpuC} C`); group('SIGSTOP');
+      } else if (paused && c <= LIMITS.resume && gpuC <= LIMITS.gpuResume) {
+        paused = false; console.log(`guard: resume at CPU ${c.toFixed(0)} C`); group('SIGCONT');
+      }
+    }, 250)];
+    for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { group('SIGCONT'); group('SIGTERM'); });
+    child.on('exit', (code) => {
+      timers.forEach(clearInterval);
+      console.log(`guard: peak CPU ${peak.toFixed(0)} C, ${pauses} pause(s), cores ${cores}`);
+      resolve(stopped ? 3 : code ?? 1);
+    });
+  });
+}
+
+// A frame comes only from its time, so two draws of it must match. A difference means that the GPU
+// dropped something: with antialiasing on, a leg vanished from 2 frames of 8.
+async function stable() {
+  const dir = projectDir(positional()[0]), tl = timeline(dir), every = +opt('--every', 1), bad = [];
+  await withPage(dir, async (page) => {
+    const pic = async (t) => { await page.evaluate(`seek(${t})`); return page.shot({ format: 'jpeg', quality: 80 }); };
+    let n = 0;
+    for (let t = 0.04; t < tl.duration; t += every, n++) {
+      const a = await pic(t);
+      await pic(Math.max(0, t - every / 2));       // draw something else in between
+      if (!a.equals(await pic(t))) bad.push(+t.toFixed(2));
+    }
+    console.log(`stable: ${n} frames drawn twice, ${bad.length} differ`);
+  });
+  for (const t of bad.slice(0, 10)) console.log(`ERROR two draws differ at ${t} s (${tl.scenes.find((x) => t >= x.start && t < x.start + x.dur)?.id}). Look at it: "make still ${dir} ${t}"`);
+  process.exit(bad.length ? 1 : 0);
+}
+
+// The collision measures alone, fast, for one scene or all: run it after each edit, before any build.
+async function collide() {
+  const dir = projectDir(positional()[0]), tl = timeline(dir), ids = opt('--scene')?.split(',') || tl.scenes.map((x) => x.id);
+  const faults = await withPage(dir, async (page) => { const m = await measureScenes(page, tl, ids, dir); return [...m.faults, ...voiceWithoutMotion(dir, tl, m.frames, ids)]; });
+  for (const f of faults) console.log(`ERROR ${f}`);
+  console.log(`collide: ${faults.length} fault(s)`);
+  process.exit(faults.length ? 1 : 0);
+}
+
+const commands = { collide, look, gate, built, attached, selftest, doctor, config, init, build, final, voice, subtitles: subtitlesCmd, manim, check, sheet, stable, still, review, render, verify, preview, bake, clay: claySheets };
+if (!commands[cmd]) { console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 27).map((l) => l.replace(/^\/\/ ?/, '')).join('\n')); process.exit(cmd ? 1 : 0); }
+if (HEAVY.has(cmd) && !process.env.XV_GUARDED && CONFIG.guard !== 'off' && process.env.XV_GUARD !== '0' && CPU_ZONE && spawnSync('which', ['taskset']).status === 0) process.exit(await guarded());
 await commands[cmd]();
 if (cmd !== 'preview') process.exit(0);

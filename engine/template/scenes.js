@@ -1,35 +1,49 @@
 // One scene('id', { bg, setup, draw }) per "## id" in script.md.
 // setup(s) runs once: build elements. draw(s) runs every frame: set them from s.t.
-// Read the skill's reference/engine.md for the full API.
+// Read the skill's styles/clay.md and reference/engine.md.
+import { BG } from '/_lib/clay.js';
 
 scene('hook', {
-  bg: '#fdf6ec',
-  setup(s) {
-    s.title = s.text('{{title}}', { size: 110, weight: 700, color: '#2b2d42' });
+  bg: BG.cream,
+  async setup(s) {
+    s.g = await s.clay({ bg: BG.cream });
+    s.hero = await s.g.mascot();
+    s.g.orbit(0, 8, 42, [0, 3.4, 0]);
+    s.title = s.text('{{title}}', { size: 72, weight: 700, color: '#26262a', x: 960, y: 150 });
+    await s.g.ready();
   },
   draw(s) {
-    const k = s.p(0.2, 0.4, E.overshoot);
-    set(s.title, { x: 0, y: (1 - k) * 40, opacity: Math.min(1, k * 2) });
+    set(s.title, { opacity: s.p(0.2, 0.5) });
+    s.hero.blendExpression('neutral', 'thinking', s.p(0.5, 0.9));
+    s.g.render();
   },
 });
 
 scene('idea', {
-  bg: '#fdf6ec',
-  setup(s) {
-    s.dot = s.text('', { x: 960, y: 540 });
-    s.dot.style.cssText += ';width:160px;height:160px;border-radius:50%;background:#ff6b35';
+  bg: BG.sky,
+  async setup(s) {
+    s.g = await s.clay({ bg: BG.sky });
+    s.hero = await s.g.mascot({ x: -5 });
+    s.bot = await s.g.model('tank', { x: 4, ry: -0.5, k: 1.4 });
+    await s.g.ready();
   },
   draw(s) {
-    set(s.dot, { x: 0, y: 0, scale: s.p('#step', 0.4, E.overshoot) });
+    s.g.orbit(-8 + 16 * s.p(0, s.dur), 10, 44, [0, 3, 0]);
+    s.hero.blendPose('rest', 'point', s.p('#step', 0.5));
+    s.g.render();
   },
 });
 
 scene('recap', {
-  bg: '#2b2d42',
-  setup(s) {
-    s.line = s.text('Recap', { size: 96, weight: 700, color: '#fdf6ec' });
+  bg: BG.blush,
+  async setup(s) {
+    s.g = await s.clay({ bg: BG.blush });
+    s.hero = await s.g.mascot();
+    s.g.orbit(0, 8, 42, [0, 3.4, 0]);
+    await s.g.ready();
   },
   draw(s) {
-    set(s.line, { opacity: s.p(0.2, 0.5) });
+    s.hero.blendExpression('thinking', 'smile', s.p(0.2, 0.6));
+    s.g.render();
   },
 });

@@ -1,0 +1,150 @@
+<!doctype html>
+<!-- Vetting sheets for the clay kit. Drawn by "make clay". -->
+<meta charset="utf-8">
+<script type="importmap">{ "imports": { "three": "/_engine/vendor/three.module.min.js" } }</script>
+<style>
+  html, body { margin: 0; background: #e9e6df; font: 600 24px Inter, Arial, sans-serif; color: #26262a; }
+  #sheet { display: inline-grid; gap: 16px; padding: 16px; }
+  .cell { position: relative; line-height: 0; }
+  .cell img { display: block; }
+  .cap { position: absolute; left: 14px; bottom: 14px; line-height: 1.2; background: rgba(255,255,255,.88); padding: 4px 10px; border-radius: 6px; }
+  h1 { margin: 0; font-size: 30px; grid-column: 1 / -1; line-height: 1.2; }
+</style>
+<div id="sheet"></div>
+<script type="module">
+import * as THREE from 'three';
+import { createMascot, studio, EXPRESSIONS, CACHE } from './mascot.js';
+import { buildModel, MODEL_NAMES, MODELS } from './models.js';
+
+// Shapes are computed once by bake.mjs. The page only reads them, so it uses little CPU.
+const man = await (await fetch('./cache/manifest.json')).json(), saved = {};
+await Promise.all(Object.entries(man).map(async ([k, n]) => {
+  const b = await (await fetch(`./cache/${k}.bin`)).arrayBuffer();
+  const pos = new Float32Array(b, 0, n.v * 3), nor = new Float32Array(b, n.v * 12, n.v * 3), col = new Float32Array(b, n.v * 24, n.v * 3), tri = new Uint32Array(b, n.v * 36, n.t);
+  saved[k] = { pos, nor, col, tri };
+}));
+CACHE.read = (k) => saved[k];
+
+const q = new URLSearchParams(location.search), sheetName = q.get('sheet');
+const BG = '#6c9575';
+// Antialiasing on this GPU path drops whole objects at random, so draw larger and shrink instead.
+const renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true });
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;
+const scene = new THREE.Scene();
+studio(THREE, renderer, scene);
+const cam = new THREE.PerspectiveCamera(20, 1, 0.1, 200);
+const gl = renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info');
+const glName = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : 'unknown';
+
+const el = document.getElementById('sheet');
+function shoot(w, h, { pos, target, fov = 20, bg = BG }) {
+  renderer.setPixelRatio(3); renderer.setSize(w, h, false);
+  scene.background = new THREE.Color(bg);
+  cam.aspect = w / h; cam.fov = fov; cam.position.set(...pos); cam.lookAt(...target); cam.updateProjectionMatrix();
+  renderer.compile(scene, cam);
+  // Accept a frame only when two draws give the same picture.
+  let last = '', now = '';
+  for (let i = 0; i < 6; i++) { renderer.render(scene, cam); gl.finish(); now = renderer.domElement.toDataURL('image/png'); if (now === last) return now; last = now; }
+  console.log('warning: frame never settled'); return now;
+}
+function cell(src, w, h, cap) {
+  const d = document.createElement('div'); d.className = 'cell';
+  d.innerHTML = `<img src="${src}" width="${w}" height="${h}">` + (cap ? `<div class="cap">${cap}</div>` : '');
+  el.appendChild(d);
+}
+function title(t) { const h = document.createElement('h1'); h.textContent = t; el.appendChild(h); }
+async function ready() { await Promise.all([...document.images].map((i) => i.complete ? 0 : new Promise((r) => { i.onload = r; i.onerror = r; }))); const r = el.getBoundingClientRect(); return { w: Math.ceil(r.width), h: Math.ceil(r.height), gl: glName }; }
+
+// The reference is 736 x 1104, with the face at the middle: this camera frames the bust the same way.
+const BUST = { pos: [0, -0.75, 15.6], target: [0, -0.75, 0], fov: 22 };
+const views = {
+  front: { pos: [0, -2.45, 27], target: [0, -2.45, 0], fov: 20 },
+  threeq: { pos: [14, -1.2, 23], target: [0, -2.45, 0], fov: 20 },
+  side: { pos: [27, -2.45, 0], target: [0, -2.45, 0], fov: 20 },
+  back: { pos: [-11, -1.2, -25], target: [0, -2.45, 0], fov: 20 },
+};
+const sheets = {
+  async hair() {
+    el.style.gridTemplateColumns = 'repeat(4, 400px)';
+    title('Hair all around the head');
+    const m = createMascot(THREE, {}); scene.add(m.root);
+    const c = [0, 0.3, 0], d = 15.5;
+    for (const [n, a, e] of [['front', 0, 0], ['three-quarter', 40, 8], ['side', 90, 0], ['back three-quarter', 140, 10], ['back', 180, 0], ['top front', 0, 55], ['top back', 180, 55], ['other side', -90, 0]]) {
+      const A = a * Math.PI / 180, E = e * Math.PI / 180;
+      cell(shoot(400, 460, { pos: [d * Math.sin(A) * Math.cos(E), c[1] + d * Math.sin(E), d * Math.cos(A) * Math.cos(E)], target: c, fov: 17 }), 400, 460, n);
+    }
+  },
+  async body() {
+    el.style.gridTemplateColumns = 'repeat(4, 400px)';
+    title('Full body: front, three-quarter, side, back, and poses');
+    const m = createMascot(THREE, {}); scene.add(m.root);
+    for (const [k, v] of Object.entries(views)) cell(shoot(400, 720, v), 400, 720, k);
+    for (const k of ['rest', 'wave', 'point', 'think']) { m.pose[k](); m.setExpression(k === 'think' ? 'thinking' : 'neutral'); cell(shoot(400, 720, { ...views.front, pos: [4, -2.45, 32] }), 400, 720, k); }
+  },
+  async expressions() {
+    el.style.gridTemplateColumns = 'repeat(3, 440px)';
+    title('Expressions');
+    const m = createMascot(THREE, {}); scene.add(m.root);
+    let n = 1;
+    for (const k of Object.keys(EXPRESSIONS)) { m.setExpression(k); cell(shoot(440, 500, { pos: [0, -0.2, 15], target: [0, -0.2, 0], fov: 17 }), 440, 500, `${n++} ${k}`); }
+  },
+};
+// A soft contact shadow under each object.
+const shadowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'), g = x.createRadialGradient(128, 128, 10, 128, 128, 128); g.addColorStop(0, 'rgba(20,30,20,.42)'); g.addColorStop(0.6, 'rgba(20,30,20,.2)'); g.addColorStop(1, 'rgba(20,30,20,0)'); x.fillStyle = g; x.fillRect(0, 0, 256, 256); return new THREE.CanvasTexture(c); })();
+function ground(obj, y = 0.005) {
+  const b = new THREE.Box3().setFromObject(obj), s = new THREE.Vector3(), c = new THREE.Vector3(); b.getSize(s); b.getCenter(c);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2; m.position.set(c.x, y, c.z); m.scale.set(s.x * 1.45, s.z * 1.45, 1); return m;
+}
+function orbit(obj, az, el, zoom = 1) {
+  const b = new THREE.Box3().setFromObject(obj), c = new THREE.Vector3(), s = new THREE.Sphere(); b.getCenter(c); b.getBoundingSphere(s);
+  const d = s.radius / Math.sin(10 * Math.PI / 180) * 1.3 * zoom, A = az * Math.PI / 180, E = el * Math.PI / 180;
+  return { pos: [c.x + d * Math.sin(A) * Math.cos(E), c.y + d * Math.sin(E), c.z + d * Math.cos(A) * Math.cos(E)], target: [c.x, c.y, c.z], fov: 20 };
+}
+async function modelSheet(name) {
+  const m = buildModel(THREE, name), i = MODEL_NAMES.indexOf(name) + 1;
+  el.style.gridTemplateColumns = 'repeat(4, 400px)';
+  title(`${i}. ${m.label}`);
+  const sh = ground(m.root); scene.add(m.root, sh);
+  cell(shoot(400, 440, orbit(m.root, 35, 16)), 400, 440, 'Front');
+  cell(shoot(400, 440, orbit(m.root, 215, 16)), 400, 440, 'Back');
+  cell(shoot(400, 440, orbit(m.root, 30, 62)), 400, 440, 'Top');
+  if (m.hasPose) m.setPose(1);
+  cell(shoot(400, 440, orbit(m.root, -38, 14)), 400, 440, m.moving);
+}
+sheets.group = async () => {
+  el.style.gridTemplateColumns = '1600px';
+  title('All 12 models with the mascot, on one floor');
+  const hero = createMascot(THREE, {}); hero.root.position.set(0, 6.82, -2); scene.add(hero.root, ground(hero.root));
+  const at = { rack: [-13, -6], shelf: [-6.6, -6], arm: [6.2, -6], target: [11.5, -6], laptop: [-13.4, 6], tank: [-8.6, 6], sbc: [-4.4, 6], imu: [-1.1, 6], camera: [2.2, 6], drone: [7, 6], lidar: [11.3, 6], orange: [14, 6] };
+  for (const [n, [x, z]] of Object.entries(at)) { const m = buildModel(THREE, n); m.root.position.set(x, 0, z); scene.add(m.root, ground(m.root)); }
+  cell(shoot(1600, 900, { pos: [0, 24, 62], target: [0, 3.2, 0], fov: 20 }), 1600, 900, '');
+};
+sheets.stands = async () => {
+  el.style.gridTemplateColumns = '1600px';
+  title('Robot arm and depth camera on stands of different heights');
+  const row = [['arm', -13.5], ['armShort', -7.5], ['armTall', -1.2], ['cameraShort', 4.6], ['camera', 8.2], ['cameraTall', 12]];
+  for (const [n, x] of row) { const m = buildModel(THREE, n); m.root.position.x = x; scene.add(m.root, ground(m.root)); }
+  cell(shoot(1600, 900, { pos: [0, 9, 62], target: [0, 4.3, 0], fov: 20 }), 1600, 900, '');
+};
+sheets.group2 = async () => {
+  el.style.gridTemplateColumns = '1600px';
+  title('The next 12 objects with the mascot');
+  const hero = createMascot(THREE, {}); hero.root.position.set(0, 6.82, -2); scene.add(hero.root, ground(hero.root));
+  const at = { table: [-8.6, -6], conveyor: [8.8, -6], clock: [-14, -6], radio: [14.2, -6], cart: [-11.4, 6], crate: [-5.9, 6], map: [-2.2, 6.3], tag: [1.8, 6], disk: [4.9, 6], book: [7.9, 6], servo: [12, 6], node: [15.6, 6] };
+  for (const [n, [x, z]] of Object.entries(at)) { const m = buildModel(THREE, n); m.root.position.set(x, 0, z); scene.add(m.root, ground(m.root)); }
+  cell(shoot(1600, 900, { pos: [0, 24, 66], target: [0, 3.2, 0], fov: 20 }), 1600, 900, '');
+};
+sheets.room = async () => {
+  el.style.gridTemplateColumns = '1600px';
+  title('Test: objects used together');
+  const hero = createMascot(THREE, {}); hero.root.position.set(-2.4, 6.82, 2.4); hero.setExpression('thinking'); hero.pose.point(); scene.add(hero.root, ground(hero.root));
+  const put = (n, x, y, z, ry = 0, k = 1) => { const m = buildModel(THREE, n); m.root.position.set(x, y, z); m.root.rotation.y = ry; m.root.scale.setScalar(k); scene.add(m.root); if (y === 0) scene.add(ground(m.root)); return m; };
+  put('table', 4.6, 0, 0); put('laptop', 3.5, 2.76, -0.1, 0.15, 0.82); put('book', 5.8, 2.76, 0.45, -0.25, 0.62); put('orange', 5.9, 2.76, -0.72, 0, 0.5);
+  put('armShort', 12.6, 0, -1.6, -0.5); put('tank', -8.2, 0, 3.4, 0.7); put('cameraTall', -13, 0, -2.4, 0.6); put('crate', -5.6, 0, -4.2, 0.3); put('crate', -7.6, 0, -4.6, -0.2);
+  cell(shoot(1600, 900, { pos: [0, 12, 52], target: [-0.3, 3.2, 0], fov: 20 }), 1600, 900, '');
+};
+try { if (sheetName.startsWith('m-')) await modelSheet(sheetName.slice(2)); else await sheets[sheetName](); window.__done = await ready(); }
+catch (e) { window.__error = String(e.stack || e); }
+</script>

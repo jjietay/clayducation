@@ -1,3 +1,5 @@
+> **New videos use one look: read `clay.md`.** The styles below are kept only until the first clay test video passes.
+
 # Choosing styles
 
 A style is there to make an idea easier to understand. The user also wants variety: a

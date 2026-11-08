@@ -1,5 +1,6 @@
 {
   "title": "{{title}}",
+  "_look": "clay",
   "_tts": {
     "exaggeration": 0.5,
     "cfg_weight": 0.5,

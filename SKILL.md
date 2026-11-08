@@ -1,6 +1,6 @@
 ---
 name: kaleidoscope
-description: Make a narrated learning-explainer video (MP4) that teaches a concept, in one or more animation styles (Manim maths, flat vector, isometric, toy 3D, pixel art, line drawing, hand-drawn, paper cut-out and more), checked by 6 reviewer agents. Use when the user asks for a video, an explainer, an animation or a visual walkthrough of an idea, such as "make a video explaining eigenvectors", "generate an explainer on I2C", "animate how attention works". Uses what the current conversation and project already show, so run it in the conversation where the topic came up.
+description: Make a narrated learning-explainer video (MP4) that teaches a concept, in one soft 3D clay look with a silent mascot, with its script checked by one agent before the voice is made. Use when the user asks for a video, an explainer, an animation or a visual walkthrough of an idea, such as "make a video explaining eigenvectors", "generate an explainer on I2C", "animate how attention works". Uses what the current conversation and project already show, so run it in the conversation where the topic came up.
 ---
 
 # Explainer video
@@ -23,49 +23,47 @@ only when the topic itself is unclear. Every check below is yours to run and to 
 
 ## The look the user wants (read before step 6)
 
-The user's reference is `~/Documents/(a local folder)`
-(code: `video.html` in the same folder). It was made from the same style files as this
-skill. Before you choose styles, make its contact sheet and look at it:
-`ffmpeg -i <final.mp4> -vf "fps=1/8,scale=480:-1,tile=4x4" -frames:v 1 ref.png`.
+**Every picture is 3D, in one look, and the mascot is in every video.** Read `styles/clay.md`.
+The user chose this over the old style mix for consistency across videos. The 2D styles in
+`styles/` stay only until the first test video passes; do not use them for a new video.
 
-What makes it work, and what every video must do:
+- **One look, many parts.** The video is split into parts of about 15 to 40 s (hook, each idea,
+  your case, close). Each part has its own plain background, camera and setting. Next to each
+  other, two parts never share a background.
+- **The mascot does the work.** He is silent, with no lip sync, and the narrator is a voice-over. He
+  walks, pulls, pushes, carries and turns things off with his own hands, so a force in the script is
+  something the viewer sees him do. The user asked for this after a video where he only stood and
+  watched. He stays deadpan by default, and `make check` WARNs when he stays in one spot.
+- **Things must connect.** A spring reaches its wall, a pin touches its map, a hand touches what it
+  holds. The user found a spring that missed its wall after every check had passed. `make bake` measures
+  every join in `models.js` (`JOINS`), so add new joins there, and look for contact in the stills.
+- **Our own models only.** Use the kit in `styles/library/clay`. Never download a model. If a video
+  needs a new object, add it to the kit in the same look.
+- **Each part is one continuous shot.** Inside a part there are no cuts and no new slides: objects
+  arrive, move and join as the voice speaks, and the camera moves slowly. A part ends in the state
+  the next part starts from, or with a wipe in the next part's background.
+- **The picture explains; text only names.** Text stays flat and sharp, in HTML over the 3D. Per
+  frame: a kicker (small capitals, the part and a source), a title of at most 8 words, a few labels
+  of 1 to 4 words each with thin leader lines, and at most one caption line at the bottom. **Never
+  a column of sentences, never a bullet list, never a legend of what the colours mean.** About 15
+  words on screen at most.
+- **Formulas act out the voice (the user asked for this).** A fixed formula is no better than reading notes.
+  Build each one with `eqn()`: terms arrive as they are said, move when the voice moves them, strike and burst
+  when it says cancel, and bounce only when it names something important. `make look` gives a fault for a
+  formula that sits still, and for a "cancels" sentence with no cancel on screen. See `styles/clay.md`.
+- **Physical motion.** Things move like objects: an arm reaches, a ball falls and bounces, a block
+  drops and settles, a pulse travels. No build-up of static boxes.
+- **The same object keeps its colour in every video** (the robot is always orange, the map always
+  yellow).
 
-- **A mix of styles: one part, one style.** The video is split into parts of about 15 to
-  40 s (hook, each idea, your case, close). Each part has its own style from `styles/`,
-  its own background and its own type. The reference uses eight: flat cartoon (title),
-  shape-morph on navy (the question), isometric (the setup), single line with handwritten
-  labels (architecture A), pixel art with a dialogue box (architecture B), line-boil
-  characters (the failure story), paper cut-out with a photo (the demo), toy 3D (the
-  close). Two parts next to each other never share a style.
-- **Each part is one continuous shot.** Inside a part there are no cuts and no new slides:
-  the picture grows, splits, morphs, moves and gathers as the voice speaks. A new idea
-  grows out of the shape before it. A part ends in the state the next part starts from,
-  or with a wipe in the next part's background.
-- **The picture explains; text only names.** Per frame: a kicker (small capitals, the
-  part and a source, for example `THE QUESTION · INTERIM REPORT §1`), a title of at most
-  8 words, one picture, a few labels of 1 to 4 words each (typed or wiped in, with thin
-  leader lines), and at most one caption line at the bottom. **Never a column of
-  sentences, never a bullet list, never a legend of what the colours mean** (say it once
-  in the voice, or label the thing itself). About 15 words on screen at most.
-- **Characters and physical motion.** Give things a face or a body when it helps (the
-  tank, a node, a particle, a gripper, an orange). Things move like objects: an arm
-  reaches, a ball falls and bounces, a block drops and settles, a pulse travels. No
-  build-up of static boxes.
-- **Mostly light, warm backgrounds.** Cream, paper, light grey, pastel. One or two parts
-  may be dark (navy or pixel art) for contrast.
-- **The same object keeps its colour across all parts** (for example the robot is always
-  orange and the map always yellow), even when the style changes.
-
-If a storyboard breaks one of these, change the storyboard before you write code. The
-first ROS 2 videos broke them: one dark style for most scenes and columns of text on the
-right, and the user said the skill was "definitely not taking you in the right direction".
+If a storyboard breaks one of these, change the storyboard before you write code.
 
 ## Hard rules
 
 - **Do the thinking here, in the main conversation.** You write the script, the storyboard
   and the scenes yourself, because the context is here. Never give those steps to a
-  subagent: a subagent starts with no context. The reviewers in step 9 are the one
-  exception, and they start cold on purpose: they judge only what the video shows.
+  subagent: a subagent starts with no context. The script agent in step 7 is the one
+  exception, and it starts cold on purpose.
 - **Never hurry the core explanation.** The user learns from these videos. Follow the
   pacing rules in `reference/script.md` and fix every pacing WARN.
 - **Never make up a fact.** Each number, formula and claim comes from a source you checked:
@@ -74,20 +72,32 @@ right, and the user said the skill was "definitely not taking you in the right d
 - **"Your case" is optional.** Add it only when this conversation or project really holds
   a matching example (a bug the user hit, a fix, a measured number). Never invent one.
 - **No overlaps.** No visual may cover another: text on text, text on a graphic, or a
-  graphic that hides another graphic. Each label, formula, arrow and drawing gets its own
-  space. `check` WARNs on overlapping texts, `review` writes every measured overlap to
-  `overlaps.md`, and the `video-overlap` agent checks the frames in both review rounds.
-  Fix every overlap WARN and every true "must" from that agent before `make final`.
+  graphic that hides another graphic. Each label, formula, arrow and object gets its own
+  space. `check` WARNs on overlapping texts, and `review` writes every measured overlap to
+  `overlaps.md`. Crowding is the user's judgement, so look for it in the frames at full size.
+  Fix every overlap before `make final`.
 - **Subtitles have one line.** Each cue is at most 42 characters and no two cues show at
   the same time, so a player never shows two lines. The engine does this; `verify` reports
   a cue that breaks the rule. Do not change `SUB_MAX` in `make.mjs` to make a cue fit.
-- **Gates:** do not run `make final` until `make build` passes with no ERROR and no
-  overlap WARN, you have looked at every contact sheet, the review is done and its
-  fixes are in, and the **rebuild check** (step 8b) of the last rebuild is done.
-- **Check what you rebuilt (the user asked for this).** After every rebuild, look at
-  frames of each part you changed before you send it to review or to render (step 8b).
-  The 3-frame contact sheet is not enough: a fault inside a changed part can fall
-  between its frames.
+- **The closed loop (the user asked for this, and the engine enforces it).** After every edit:
+  `make look`, read every image it lists, fix what you see, and look again. Only then build. Never edit
+  and build blindly, because a build is long and a look takes seconds. Each image has a CHECK digit at its
+  top right, and the gates open only with the digits of all images, in order:
+  1. Edit. If you changed `script.md`, run `make voice`.
+  2. `make look <dir>`: it measures each changed scene on every frame, and draws its near frames and its
+     moving parts. Read them all. Then `make look <dir> --ok <digits>`. `make build` stops without this.
+  3. `make build <dir>`. It stops on any collision.
+  4. Read every strip in `build/review/moving.md`. Then `make look <dir> --moving-ok <digits>`.
+  5. `make final <dir>`. It stops if the source changed after the look or the build, or if a collision or
+     an overlap is open.
+  Run each step as its own command, stop on the first failure, and confirm that an edit applied.
+- **Every reader checks near frames and moving parts.** Any agent or session that judges a video reads the
+  near frames of each edited part, and all frames of each thing that moves: the mascot and objects, during
+  their whole movement. A sample of the video does not count: a hand went through a table between the
+  sampled frames.
+- **A new fault gets a guardrail.** When the user finds a fault, first add it to `reference/faults.md` and to
+  `engine/test/selftest.mjs`, and confirm that the test fails on it. Then fix the video. Do not only fix the
+  video. Run `make selftest` after each change to a check.
 
 ## What the user asked for (keep these)
 
@@ -107,32 +117,26 @@ Each was asked for or chosen by ear. The engine does most of them by itself.
 | Audio | 48 kHz stereo | yes; `verify` checks it |
 | Subtitles | soft, never burned in; the user's mpv shows them small (`sub-scale=0.7`) | yes |
 | One subtitle line | one line per cue, at most 42 characters, no two cues at the same time. The user saw two lines in video 1 of the ROS 2 set | yes; `verify` reports a cue that breaks it |
-| No overlaps | no text or graphic covers another one | `check` WARN for texts, `overlaps.md` and the `video-overlap` agent for the rest |
-| Look | a mix of styles, one per part, like `docs/interim/video_mix/build/final.mp4` in the FYP folder: characters, physical motion, few words, light backgrounds. Rejected: one dark style for the whole video, text columns, colour legends, build-up slides | you, see "The look the user wants" |
-| Maths | Manim (3Blue1Brown's library), not hand-drawn canvas, for a part whose idea is a formula or a geometric map | you, see `styles/math-manim.md` |
+| No overlaps | no text or graphic covers another one | `check` WARN for texts, `overlaps.md` and your frame checklist for the rest |
+| Look | one 3D clay look with the silent mascot, and our own models. Rejected: downloaded models, a dark video, text columns, colour legends, build-up slides | `make check` ERROR for a scene that is not 3D or a video with no mascot; the rest is you, see "The look the user wants" |
+| Maths | the five formula steps (need, picture, formula, meaning, test). Manim for a formula that changes step by step, with a 3D picture: `manim({ threeD: true })`, not hand-drawn canvas | `make check` WARNs on a formula alone; the rest is you, see `reference/script.md` and `styles/math-manim.md` |
+| Heat | a heavy command does not start with turbo on, runs on few cores, pauses at 85 C and stops at 92 C. The laptop shut down at 101 C | yes; the guard in `make.mjs` |
 | Quiz | none in the storyboard | you |
 | Watching | `mpv <dir>/out/<slug>.mp4` | put it in the report |
 
-## Token budget and machine settings
+## Machine settings
 
 Run `make config` before step 1. It prints this machine's settings, which the installer or
-`/setup-kaleidoscope` wrote. The `budget` line sets how many tokens the review uses:
-
-| Budget | Review rounds | Reviewers | Models | Fix list |
-|---|---|---|---|---|
-| `high` | 2 | all 6 | as in the table in step 9 | `video-compiler` (Opus) |
-| `medium` | 1 | all 6 | pass `model: "sonnet"` to each reviewer except `video-factcheck` | `video-compiler` with `model: "sonnet"` |
-| `low` | 1 | `video-factcheck` and `video-overlap` | pass `model: "sonnet"` to both | no compiler: read the two reports yourself |
-
-Every budget keeps the engine checks, the contact sheets, the rebuild check (step 8b) and
-`verify`, and every true "must" gets fixed. If the user asks for a different review in the
-conversation, do what they ask.
+`/setup-kaleidoscope` wrote.
 
 The `voice` line names the voice: Chatterbox (natural, best on an NVIDIA GPU or Apple
 silicon) or Kokoro (small and fast on a CPU, at about 150 words a minute). A project can
 choose its own in `video.json`: `"_tts": {"engine": "kokoro"}`. Without a GPU, Chrome draws
 the frames with SwiftShader and ffmpeg encodes with libx264; a render takes longer, and the
 frames are the same.
+
+The `guard` line is the temperature guard. If a heavy command stops because turbo is on, ask the
+user to turn it off in a separate terminal: it needs their password, and `!` cannot ask for one.
 
 ## Workflow
 
@@ -153,43 +157,41 @@ frames are the same.
    ```
 
 5. **Write `script.md`.** Read `reference/script.md` first: learning order, how the voice
-   reads, pacing, writing rules, markup, voice traps.
+   reads, pacing, **formulas**, writing rules, markup, voice traps. Compute each number with
+   code where you can, and do not type it from memory.
 
-6. **Write `storyboard.md`.** Read "The look the user wants" above and look at the
-   reference sheet. Then:
+6. **Write `storyboard.md`.** Read `styles/clay.md`. Then:
    - Split the script into **parts** (about 15 to 40 s each; a part can hold several
-     `## scene` ids that share one picture). Give each part one style from
-     `styles/README.md` ("By type of idea" says which style shows which idea best), and
-     never the same style in two parts in a row. Read only the style files you chose.
-   - For each part, write: the style, the background, the one picture that carries the
-     idea, how it moves on each cue, the kicker and title, the labels (1 to 4 words each),
-     the caption (one line or none), and how the part hands over to the next one.
-   - List "Facts and sources", "Your case" and "## Viewer" (what the user knows before
-     this video). **No quiz**: the user asked for none. The learner agent judges from the
-     viewer and the hook question.
-   - **Look in the shared library first** (`styles/library/README.md`, pictures in
-     `gallery/png/library-*.png`). For each prop and character in the plan, use the library item
-     of that style when one exists, and draw new only what is missing.
+     `## scene` ids that share one picture).
+   - For each part, write: the background, the camera, what the mascot does, the objects, how
+     they move on each cue, the kicker and title, the labels (1 to 4 words each), the caption
+     (one line or none), and how the part hands over to the next one.
+   - For each formula, write the five steps and the cue that carries each one.
+   - List "Facts and sources", "Your case" and "## Viewer" (what the user knows before this
+     video). **No quiz**: the user asked for none.
 
-7. **Build the scenes.** Read `reference/engine.md`. Each "## id" in `script.md` needs one
-   `scene('id', ...)` in `scenes.js`. Show each thing when the voice says it (`s.p('#cue')`,
-   `s.p('word')`); give each canvas or Three.js thing that moves an `s.trace()`. When one
-   part holds several scene ids, the next scene starts from the exact last frame of the one
-   before, so the part looks like one shot. Load fonts before canvas text: the runtime
-   loads every declared font, so use only the fonts listed in `reference/engine.md`.
-   **Sound effects**: in each scene's `setup`, add `s.sfx(...)` at the moments the style file
-   marks (a landing, a stamp, a card that slides in), about one sound a beat at most. The kit
-   and its rules are in `SOUND.md`; `check` warns when there are too many.
-   **Maths scenes use Manim**: write them in `manim_scenes.py` and put
-   `scene('<id>', manim())` in `scenes.js`.
-   **Import shared drawings from the library** (`import { barrel } from '/_lib/flat.js'`, see
-   `reference/engine.md`, "Shared library"), and the colour roles from `/_lib/common.js`,
-   instead of copying helpers into the project.
+7. **Check the plan with one agent.** Start one `video-script` agent. Give it the project folder
+   and the report path `<dir>/build/reports/script.md`. It checks every fact and every formula
+   before any voice exists, when a fix costs almost nothing. Read its report, fix every true
+   "must" and each "should" that serves the learning goal. Check a claim before you act on it: a
+   reviewer can be wrong. Do not run it a second time unless a fix changes the facts.
 
-8. **Build and look.**
+8. **Build the scenes.** Read `reference/engine.md` and `styles/clay.md`. Each "## id" in
+   `script.md` needs one `scene('id', ...)` in `scenes.js`. Show each thing when the voice says it
+   (`s.p('#cue')`, `s.p('word')`). When one part holds several scene ids, the next scene starts
+   from the exact last frame of the one before, so the part looks like one shot. Load fonts before
+   canvas text: use only the fonts listed in `reference/engine.md`.
+   **Sound effects**: in each scene's `setup`, add `s.sfx(...)` at the moments of contact (a
+   landing, a stamp), about one sound a beat at most. The kit and its rules are in `SOUND.md`.
+   **Maths scenes that use Manim**: write them in `manim_scenes.py`, and put
+   `scene('<id>', manim({ threeD: true }))` in `scenes.js` when the picture is 3D.
+
+9. **Build and look.**
    ```bash
-   make build <dir>     # voice, manim, check, sheet, review pack: stops at the first ERROR
+   make build <dir>     # voice, manim, check, sheet, stable, review: stops at the first ERROR
    ```
+   Run `make look` first (see "The closed loop"). Never chain `make build` and `make final`: the user found
+   5 renders that started before anyone had looked at a frame, and the gates now refuse this.
    The voice comes first, and the scenes follow its measured word times, so the picture
    never runs ahead of the voice. Then act on everything it prints, and run it again
    (finished steps are cached):
@@ -198,131 +200,88 @@ frames are the same.
      part or set a seed: `"_tts": {"seeds": {"stay#5": 20}}`). Read the transcript of any
      scene below 100 % confirmed: digits for spelt-out numbers are fine, a changed word is not.
    - **manim / check:** "started late" (shorten the animation before the cue), text outside
-     the safe area or too small, scene errors.
+     the safe area or too small, scene errors, a formula with no picture, symbols with no plain sentence.
    - **overlap:** `check` prints `"A" overlaps "B"` and `review` prints "measured
      overlap(s)". Move, resize or re-time one of the two things. Do not accept an overlap
      because it is short: the viewer pauses videos to read.
-   - **sheet:** read every `build/sheet-N.png`. Look for clipped or tiny text, overlaps,
-     empty frames, the same picture too long in a core scene, a picture that does not match
-     the words. Then compare it with the reference sheet: does each part have its own
-     style and background? Is any frame a slide (boxes and sentences, nothing moving)?
-     More than about 15 words on screen? A column of text or a colour legend? Fix those
-     before the review. `make sheet <dir> --scene <id>` and `make still <dir> <scene>@<cue>` look closer.
+   - **collisions:** `review` gives an ERROR when the mascot goes into an object, an object goes into
+     another, or a 3D thing covers text. After each edit, run `make collide <dir> --scene <id>` before you
+     build. The user found a hand through a table and a robot through a target between the frames.
+   - **motion:** `review` prints jumps, pops and speeds. A pop or a jump needs a fix, unless it is
+     on purpose.
+   - **stable:** an ERROR means that two draws of one frame differ, so the GPU dropped something.
+     Read the frame it names, and do not render until it passes.
+   - **sheet:** read every `build/sheet-N.png`. Look for clipped or tiny text, overlaps, empty
+     frames, the same picture too long in a core scene, a picture that does not match the words.
+     `make sheet <dir> --scene <id>` and `make still <dir> <scene>@<cue>` look closer.
 
-8b. **Rebuild check: look at the parts you changed.** After every `make build` that
-    follows a change (to `script.md`, `scenes.js` or the engine), and before review or
-    `make final`:
-    - List the scenes you changed (and the scene after each one, because a hand-over
-      wipe can change too).
-    - For each one, `make sheet <dir> --scene <id>` (one frame a second) and read it.
-    - For each changed cue, `make still <dir> <scene>@<cue>`, and read it. A still is
-      drawn by a fresh browser, like the first frame of a render worker, so it shows
-      first-frame faults that a sheet hides (for example, a WebGL object that is missing
-      or pale in the first frame it appears).
-    - Fix what you see and check again. Say in your status line which scenes you checked.
-    In a Three.js scene, hide an object with a tiny scale (`1e-4`), not with
-    `visible = false`. On the GPU path, an object that is first drawn mid-scene can miss
-    its first frame.
+9b. **Look after each edit.** This is "The closed loop" above. `make look` finds what changed by itself, from
+    `scenes.js`, `script.md`, the kit and the runtime. A change that all scenes share means a look at all
+    scenes. Say in your status line which scenes you looked at. In a Three.js scene, hide an object with a
+    tiny scale (`1e-4`), not with `visible = false`, because an object first drawn mid-scene can miss its
+    first frame.
 
-9. **Review with agents** (two rounds with budget `high`; see "Token budget" for `medium`
-   and `low`). `make build` made the review pack
-   (`<dir>/build/review`). In each round, start the agents **in parallel, in one message**,
-   with the Agent tool. Give each one only two paths: the review pack, and its report file
-   `<dir>/build/reports/r<N>/<agent name>.md`. Give the learner no hint about the topic.
-   Each reviewer writes its full report to that file and answers with one line.
-   **Do not read the reports yourself.** When all reviewers of a round are done, start one
-   `video-compiler` agent (see below). It reads all the reports and gives you one short,
-   checked fix list. With budget `high` (the user's choice on their own machine), two rounds:
+10. **Frame checklist.** The reviewers are gone, so this check is yours, and it must be honest.
+    For each part, read the full-size still at its end (`make still`) and its cue grids
+    (`build/review/cues/`, listed with the spoken words in `build/review/cues.md`). Write one
+    line for each answer to `build/self-check.md`:
+    1. With the sound off, what does this picture show? Write it before you read the script again.
+    2. At each cue, does the screen show what the voice says, at that moment?
+    3. Does each formula sit on an object, with its meaning said in plain words?
+    4. Does any text touch a graphic or another text? Which gap is the tightest, and is the frame
+       crowded while other space is empty?
+    5. What physical work is the mascot doing here? Is he clear of the title and labels, and do his
+       hands touch what they hold? Does every spring, wire and joint connect at both ends?
+    6. Is there a pop, a jump or an object that floats?
+    Fix each "no", then repeat step 9b for what you changed.
 
-   | Round | Agents | Then |
-   |---|---|---|
-   | 1 | all 6 below | sort the notes, fix, `make build <dir>` again |
-   | 2 | all 6 again, on the new pack | fix every true "must" (and cheap shoulds), `make build <dir>` again, look at the sheets |
+    **Moving things get the closest look (the user asked).** `build/review/moving.md` lists every movement
+    of the mascot and of each object, measured from the frames, and each has a dense strip. Read every strip,
+    in order: contact, clearance, feet, and whether the thing moves the way the voice says.
 
-   Start a new round only after the fixes of the round before are built, so each agent
-   sees the fixed video. Never skip round 2 because round 1 found little.
-
-   | subagent_type | Model | Checks |
-   |---|---|---|
-   | `video-learner` | Opus | learns from the transcript and stills only, answers the hook question with timestamps, says where it got lost |
-   | `video-alignment` | Sonnet | each cue: does the screen show what the voice says, on time |
-   | `video-physics` | Sonnet | jumps, pops, speed, easing, collisions, scene changes |
-   | `video-overall` | Opus | legibility, layout, colour meaning, style rules |
-   | `video-factcheck` | Opus | every claim, number and formula, worked out again |
-   | `video-overlap` | Sonnet | no visual covers another: confirms each row of `overlaps.md` in the frames, and finds text on graphics and graphics on graphics that the engine cannot measure |
-   | `video-compiler` | Opus | after each round: reads all the reports and `review-brief.md`, merges, checks each "must" in the frames, drops what the brief rejected, and returns one sorted fix list (also in `reports/r<N>/fixes.md`) |
-
-   **The compiler and the brief.** The compiler starts cold, so it gets its context from
-   `<dir>/review-brief.md`, which you write before round 1 and update after each round:
-   who the viewer is and what the user asked for, the decisions you took, each suggestion
-   you rejected and why, known engine artefacts, and a short list of the fixes of each
-   round. Give the compiler the project path, the round number and the report folder.
-   Read only its answer. If it lists items under "Decide", choose and note the choice in
-   the brief.
-
-   **Do not rebuild a review pack while an agent reads it.** `make review` deletes
-   `build/review` first. Wait until every agent of the round is done. The reports are in
-   `build/reports`, which `make review` does not touch.
-
-   Sort the fixes:
-   - Fix every "must" that is true. Check each claim against the frames or the code first:
-     a reviewer can be wrong.
-   - Fix a "should" or "could" when it serves the learning goal and costs little.
-   - Reject a suggestion that conflicts with what you know about the user (the reviewers
-     do not know them), or with the table above, and note why.
-   - After the fixes, `make build <dir>` again.
-   - In round 2, the brief lists the round 1 fixes, so the compiler checks that each one
-     holds and that no fix made a new problem.
-     A fix moves things, so the overlap check runs in every round.
-   - After round 2, do not start a third round (the user chose two). Fix the round 2
-     "musts", build again, look at every sheet, and say in the report what is still open.
-
-10. **Render and verify.**
+11. **Render and verify.**
     ```bash
-    make final <dir>     # render (out/<slug>.mp4, soft subtitles, .srt) and verify
+    make final <dir>     # render (out/<slug>.mp4, soft subtitles, .srt) and verify. The gates must pass first
     ```
-    A 3-minute video renders in about 2 minutes. `verify` must print "no problems found".
+    A 3-minute video renders in about 2 minutes on a GPU. `verify` must print "no problems found".
     It also checks the `.srt`: one line per cue, at most 42 characters, no two cues at once.
-    Then check the rendered file itself: take frames from the MP4 in each changed part and
-    near each Three.js part
+    Then check the rendered file itself: take frames from the MP4 in each part
     (`ffmpeg -ss <t> -i out/<slug>.mp4 -frames:v 1 build/final-<t>.png`, or a tile of
     `fps=1` for a short range) and read them. Report this check with the result.
 
-11. **Report** in a few lines:
+12. **Report** in a few lines:
     - `mpv <dir>/out/<slug>.mp4` and the length,
-    - the styles you used and why, and any default you chose at step 2,
+    - any default you chose at step 2,
     - "your case": what you used, or that there was none,
-    - facts you could not verify,
-    - the learner's answer to the hook question in round 2, and the reviewer suggestions you rejected, with why,
-    - the overlap result of round 2: clean, or what is left and why,
-    - the two weakest moments, so the user knows where to look.
+    - facts you could not verify, and what the script agent found,
+    - the overlap result, the tightest moments, and the two weakest moments, so the user knows
+      where to look.
 
-12. **Grow the library.** After the video passes `verify`, move each new drawing that a
-    later video could use (a prop, a character, a helper) from `scenes.js` into the matching
-    `styles/library/<style>.js`, with a one-line comment. Add it to `styles/library/README.md` and to
-    `gallery/scenes.js` (the library part), run `make build gallery`, check the gallery sheets,
-    and update its picture `gallery/png/library-<module>.png`. Only drawings that passed the rebuild
-    check (step 8b) go in. Say in the report what you added.
+13. **Grow the kit.** After the video passes `verify`, move each new object that a later video
+    could use from `scenes.js` into `styles/library/clay/models.js`. Run `make bake` and
+    `make clay m-<name>`, read its sheet, and say in the report what you added.
 
 ## Files in this skill
 
 | File | Read it |
 |---|---|
 | `reference/script.md` | before step 5: learning order, how the voice reads, pacing, writing rules, markup, voice traps |
-| `styles/README.md` | at step 6: which style suits which type of idea |
-| `styles/<name>.md` | only the styles you chose: rules, avoid list, code skeleton |
-| `styles/README.md`, "Styles adapted from lemo-opuscar" | which styles are adapted from lemo-opuscar (MIT), with links to their posters |
-| `styles/library/README.md` | at step 6: the shared drawings, by style; pictures in `gallery/png/library-*.png` |
-| `reference/engine.md` | before step 7: the scene API and every command |
+| `reference/faults.md` | every fault that has happened, and what stops it now. Read it before you change a check |
+| `styles/clay.md` | at step 6: the look, the mascot and his controls, every model and its moving parts |
+| `styles/library/clay/` | the kit: `sdf.js` (shapes), `mascot.js`, `models.js`; `make bake` saves the shapes, `make clay` draws vetting sheets |
+| `styles/math-manim.md` | only for a formula that changes step by step |
+| `reference/engine.md` | before step 8: the scene API and every command |
 | `SOUND.md` | when you choose the music or add sound effects, or the user asks for a new track or sound: the rules, the tracks and their recipes, the sound kit and its levels |
-| `agents/video-*.md` | the 6 reviewers and the compiler (step 9), linked from `~/.claude/agents/`. You do not need to read them |
-| `setup/SKILL.md` | the `/setup-kaleidoscope` skill, which writes `config.json` (budget, voice, GPU) with `make config` |
+| `agents/video-script.md` | the script agent (step 7), linked from `~/.claude/agents/`. You do not need to read it |
+| `setup/SKILL.md` | the `/setup-kaleidoscope` skill, which writes `config.json` (voice, GPU, guard) with `make config` |
 
 ## If something fails
 
-- Claude Code reads the agent files (`~/.claude/agents/video-*.md`) when a session starts.
-  After you add or change an agent, the change applies only in a new session. In the old
-  session a reviewer can still answer with its full report instead of writing a file.
+- Claude Code reads agent files (`~/.claude/agents/video-*.md`) when a session starts. After you
+  add or change an agent, the change applies only in a new session. In the old session, start a
+  `general-purpose` agent and give it the text of `agents/video-script.md`.
+- If `make check` says "not in 3D" for an old project, leave out `"_look": "clay"` in its `video.json`.
+- "the clay shapes are missing": run `make bake`. It takes about a minute on few cores.
 
 - `make doctor` checks Node 22+, ffmpeg, Chrome, explainroo at `~/.explainroo` (Whisper),
   Chatterbox (in `engine/tts/.venv`, GPU), Three.js, MathJax, Manim (in `engine/manim/.venv`) and LaTeX.
@@ -335,4 +294,4 @@ frames are the same.
 - The render uses the NVIDIA GPU (Chrome drawing and WebGL, NVENC encode) when the engine finds one; the probe
   result is cached in `/tmp/xv-gpu-<chrome version>.json` (delete it after a driver change). If frames look wrong or
   Chrome fails on the GPU, run with `XV_GPU=0` (the old CPU path). Never make a render faster by lowering the fps,
-  the capture size or the review coverage: the user asked for speed from the GPU only.
+  or the capture size: the user asked for speed from the GPU only.

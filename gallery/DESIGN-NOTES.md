@@ -40,7 +40,7 @@ The old page had several of these: a centred hero, a row of pill badges, four pa
 6. **Restrained colour with fixed roles.** Warm paper, warm ink, hairline rules and one signal red. The red is the colour of the fix loop in the pipeline figure, and it marks links and figure numbers only. No gradients, no glows. The frames give the page its colour. One dark band (like a light table) holds the sample frames so that the light frames stand out.
    Sources: [925 Studios](https://www.925studios.co/blog/ai-slop-web-design-guide) (colours named by purpose), [Stripe style reference (Refero)](https://styles.refero.design/style/48e5de76-05d5-4c4e-a269-c7c245b291ec) (restrained colour, hairline rules).
 
-7. **Rules and rows, not cards.** Lists are lists. The pipeline steps, the reviewer agents and the music tracks are rows split by 1 px rules. The 29 styles are an index with one line each, like the plain dated list on Bartosz Ciechanowski's archive page, not a cloud of chips.
+7. **Rules and rows, not cards.** Lists are lists. The pipeline steps, the checks and the music tracks are rows split by 1 px rules. The 29 styles are an index with one line each, like the plain dated list on Bartosz Ciechanowski's archive page, not a cloud of chips.
    Sources: [Ciechanowski archives](https://ciechanow.ski/archives/), [Krebs](https://adriankrebs.ch/blog/design-slop/) (identical feature cards, coloured card borders).
 
 8. **Varied rhythm.** The sample frames sit in a row of two large pictures and then rows of three. Sections change between paper and the dark band. Spacing changes with the weight of the content.

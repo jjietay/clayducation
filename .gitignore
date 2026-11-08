@@ -8,3 +8,7 @@ gallery/assets/
 
 # This machine's settings (make config, the installer, /setup-kaleidoscope)
 config.json
+
+# The clay kit: made by "make bake" and "make clay"
+styles/library/clay/cache/
+styles/library/clay/sheets/

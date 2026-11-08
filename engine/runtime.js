@@ -252,6 +252,8 @@ export function manim(extra = {}) {
     bg: extra.bg || '#000',
     // only a plain Manim scene shows exactly its Manim frames; verify compares those frame by frame
     manimOnly: !extra.setup && !extra.draw,
+    // threeD: true marks a Manim scene whose picture is really 3D, for the rule in "make check".
+    threeD: !!extra.threeD,
     async setup(s) {
       const r = await fetch(`/build/manim/${s.id}/info.json`);
       if (!r.ok) throw new Error(`scene ${s.id}: no Manim frames. Run "make manim".`);
@@ -285,11 +287,17 @@ class Scene {
   constructor(info, def) {
     Object.assign(this, { id: info.id, start: info.start, dur: info.dur, words: info.words || [], marks: info.marks || {}, attrs: info.attrs || {} });
     this.def = def;
-    this.W = W; this.H = H; this.SAFE = SAFE; this.t = 0; this._trace = {};
+    this.W = W; this.H = H; this.SAFE = SAFE; this._t = 0; this._T = 0; this._trace = {};
+    // A scene that writes over one of these breaks silently: s.H = robot once sent every label off screen.
+    for (const k of ['id', 'start', 'dur', 'words', 'marks', 'attrs', 'W', 'H', 'SAFE']) Object.defineProperty(this, k, { writable: false, configurable: false, value: this[k] });
     this.root = el('div', { class: 'scene', 'data-id': info.id });
     this.root.style.cssText = `position:absolute;inset:0;overflow:hidden;display:none;background:${def.bg || '#000'}`;
     stage.appendChild(this.root);
   }
+  // Call it in draw while something cancels on screen, so the voice check can see it.
+  cancelling(on = true) { if (on) this._cancelNow = true; }
+  get t() { return this._t; }
+  get T() { return this._T; }
   // A sound effect at a cue: s.sfx('stamp', '#slam'). Call it in setup, once for each sound.
   // at: seconds after the cue. x: the stage x of the thing, for the pan. Also gain (dB),
   // pitch (semitones), dur and peak. The kit is in engine/sfx.mjs; video.json turns it on.
@@ -365,10 +373,14 @@ class Scene {
   }
   // Three.js in this scene. Returns { THREE, renderer, scene, camera }. Call
   // render() at the end of draw. ortho: true gives a true isometric camera.
+  // The clay look: the mascot, the shared models and one soft studio (styles/clay.md).
+  async clay(opts) { return (await import('/_lib/clay.js')).clay(this, opts); }
   async three({ ortho = false, view = 10, bg = null, z = 0 } = {}) {
     const THREE = await import('three');
-    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: !bg });
-    renderer.setPixelRatio(1);
+    this.has3d = true;
+    // Antialiasing on the GPU path drops whole objects at random. Twice the pixels make the edges smooth.
+    const renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true, alpha: !bg });
+    renderer.setPixelRatio(2);
     renderer.setSize(W, H, false);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -431,14 +443,20 @@ window.seek = async function (T) {
     // still loading used to draw a half-built scene (a Manim scene with no frame list).
     s.setupDone ??= Promise.resolve(s.def.setup?.(s));
     await s.setupDone;
-    s.t = T - s.start;
-    s.T = T;
-    s._trace = {};
+    s._t = T - s.start;
+    s._T = T;
+    s._trace = {}; s._cancelNow = false;
     await s.def.draw?.(s);
   } catch (e) {
     report(`scene ${s.id} at ${(T - s.start).toFixed(2)} s: ${e.stack || e}`);
   }
 };
+// What "make check" needs for the look rules. Each scene must have been drawn once before this.
+window.__looks = () => list.map((s) => ({
+  id: s.id, has3d: !!s.has3d || !!s.def.threeD, mascot: !!s.hasMascot, manim: !!s.manim, heroTravel: s._hero ? s._hero.travel || 0 : null,
+  // A formula with nothing else in the picture: no 3D object and no drawing.
+  texAlone: !!s.root.querySelector('[data-tex]') && !s.manim && (s.has3d ? s.clayCount === 0 : !s.root.querySelector('canvas, svg:not([data-tex] svg)')),
+}));
 window.sceneAt = (T) => (list.find((x) => T >= x.start && T < x.start + x.dur) || list[list.length - 1])?.id;
 
 // Two boxes overlap when they share more than OVERLAP_PX in both directions.
@@ -462,7 +480,8 @@ window.layoutIssues = function () {
     if (hidden) continue;
     const r = n.getBoundingClientRect();
     const label = (n.dataset.tex || n.textContent).trim().slice(0, 40);
-    if (r.left < SAFE.x - 1 || r.top < SAFE.y - 1 || r.right > SAFE.x + SAFE.w + 1 || r.bottom > SAFE.y + SAFE.h + 1)
+    // A term in flight is judged when it lands.
+    if (n.dataset.pass !== '1' && (r.left < SAFE.x - 1 || r.top < SAFE.y - 1 || r.right > SAFE.x + SAFE.w + 1 || r.bottom > SAFE.y + SAFE.h + 1))
       out.push(`"${label}" leaves the safe area (box ${Math.round(r.left)},${Math.round(r.top)} to ${Math.round(r.right)},${Math.round(r.bottom)})`);
     if (!n.dataset.tex && parseFloat(cs.fontSize) * (r.height / (n.offsetHeight || r.height)) < 28)
       out.push(`"${label}" is ${Math.round(parseFloat(cs.fontSize))} px; 28 px is the smallest readable size`);
@@ -470,7 +489,7 @@ window.layoutIssues = function () {
   }
   for (let i = 0; i < shown.length; i++) for (let j = i + 1; j < shown.length; j++) {
     const a = shown[i], b = shown[j];
-    if (a.n.contains(b.n) || b.n.contains(a.n)) continue;
+    if (a.n.contains(b.n) || b.n.contains(a.n) || a.n.dataset.pass === '1' || b.n.dataset.pass === '1') continue;
     const o = overlapOf(a.r, b.r);
     if (o) out.push(`"${a.label}" overlaps "${b.label}" (${Math.round(o.w)} x ${Math.round(o.h)} px at ${Math.round(Math.max(a.r.left, b.r.left))},${Math.round(Math.max(a.r.top, b.r.top))})`);
   }
@@ -508,10 +527,10 @@ window.__traceFrame = function () {
     }
     const r = n.getBoundingClientRect();
     const text = n.dataset.tex || (n.dataset.text === '1' ? n.textContent.trim() : '');
-    items.push({ k: trKeys.get(n), x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height, o: seenOpacity(n, current.root), text, isText: !!text });
+    items.push({ k: trKeys.get(n), x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height, o: seenOpacity(n, current.root), text, isText: !!text, pass: n.dataset.pass === '1', group: n.dataset.eqn || null });
   }
   for (const [k, v] of Object.entries(current._trace)) items.push({ k, ...v, o: v.o ?? 1, manual: true });
-  return { scene: current.id, items };
+  return { scene: current.id, items, acting: !!current._cancelNow || !!current.root.querySelector('[data-acting="1"]'), cancelling: !!current._cancelNow || !!current.root.querySelector('[data-cancelling="1"]'), hits: current._collide?.(items) || [], moved: current._movers?.() || null };
 };
 
 // ---------- preview in a normal browser ----------

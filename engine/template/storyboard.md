@@ -1,13 +1,16 @@
 # {{title}}: storyboard
 
-> One row per scene. Write it after "voice", when you know each scene's length.
-> Style comes from styles/README.md. Every new thing on screen names the cue it appears on.
+> One row per part. A part is one continuous shot of 15 to 40 s, and can hold several scene ids.
+> Look: styles/clay.md. Every new thing on screen names the cue it appears on.
 
-| scene | style | length | what the viewer must understand | what appears, on which cue |
-|---|---|---|---|---|
-| hook | | | | |
-| idea | | | | |
-| recap | | | | |
+| part (scene ids) | background | camera | mascot does | objects | what the viewer must understand | what appears, on which cue |
+|---|---|---|---|---|---|---|
+| hook | | | | | | |
+| idea | | | | | | |
+| recap | | | | | | |
+
+## Formulas
+> For each formula: need, picture, formula, meaning, test (reference/script.md). Say which cue carries each step.
 
 ## Facts and sources
 > Every number and claim in script.md, with where it was checked. Mark anything unchecked.
@@ -17,8 +20,4 @@
 
 ## Viewer
 > What the user knows before this video, in 2 or 3 lines: their level, the words they use,
-> what they have not learned yet. The learner agent reads this. Say nothing about the answers.
-
-## Quiz
-> 3 to 5 questions that a viewer can answer only if the video taught the concept. No answers.
-> The learner agent answers them from the video and gives the time where it learned each one.
+> what they have not learned yet. The script agent reads this.

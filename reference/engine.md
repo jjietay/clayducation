@@ -41,7 +41,7 @@ scene('mechanism', {
 
 Store what you build on `s` (`s.title`, `s.ctx`, ...). Draw functions can be `async`.
 
-**A scene with two or more parts (styles) in one `scene()`:** the review pack draws frames out of time order,
+**A scene with two or more parts (styles) in one `scene()`:** `make review` draws frames out of time order,
 so set every element of every part on every frame, at the top of `draw`, before any part branch or early
 return (wipes, labels, headers). Hide the canvas (and Three.js `renderer.domElement`) of each part that is not
 active with `style.display = 'none'`: a canvas that is only cleared can keep its old image in a capture.
@@ -105,7 +105,7 @@ import { K, BG, header, showHeader, label, lab, makeWipe, endWipe } from '/_lib/
 import { barrel, folderBack, folderLip, tile } from '/_lib/flat.js';
 import { world, showK } from '/_lib/toy3d.js';
 ```
-One module per style (`common`, `flat`, `morph`, `iso`, `boil`, `paper`, `pixel`, `toy3d`, `riso`, `blueprint`, `hud`, `toon`, `whiteboard`, `transit`, `watercolour`, `newsreel`).
+**New videos use the clay kit: read `styles/clay.md`.** `s.clay()` needs no import. Older modules, one per style (`common`, `flat`, `morph`, `iso`, `boil`, `paper`, `pixel`, `toy3d`, `riso`, `blueprint`, `hud`, `toon`, `whiteboard`, `transit`, `watercolour`, `newsreel`).
 `styles/library/README.md` lists every item; `gallery/png/library-*.png` shows them. In Three.js, hide an
 object with `showK(obj, k)` (a tiny scale), never `visible = false`, and `await g.ready()` at
 the end of `setup`: on the GPU path an object first drawn mid-scene can miss its first frame.
@@ -159,21 +159,30 @@ one shadow-casting light, shadow map 1024.
 
 | Command | Does |
 |---|---|
-| `make build <dir>` | **one shot**: voice, manim, check, sheet, review pack, in order; stops at the first ERROR. Finished steps are cached |
+| `make build <dir>` | **one shot**: voice, manim, check, sheet, stable, review, in order; stops at the first ERROR. Finished steps are cached |
 | `make final <dir>` | **one shot**: render, verify |
-| `make doctor` | checks the tools, and prints this machine's budget, voice and GPU |
-| `make config` | prints or changes this machine's settings in `config.json`: `--budget high\|medium\|low`, `--voice auto\|chatterbox\|kokoro`, `--gpu auto\|off` |
+| `make doctor` | checks the tools, and prints this machine's voice and GPU |
+| `make config` | prints or changes this machine's settings in `config.json`: `--voice auto\|chatterbox\|kokoro`, `--gpu auto\|off`, `--guard auto\|off` |
+| `make bake [--only mascot\|models]` | computes the clay shapes once, to `styles/library/clay/cache/`. About a minute on few cores. Run it after a change to the kit |
+| `make clay [sheet]` | draws vetting sheets to `styles/library/clay/sheets/`: `m-tank` one model, `body`, `hair`, `expressions`, `group`, `group2`, `stands`, `room`, or all with no name |
 | `make init <dir> --title "..."` | new project |
-| `make voice <dir>` | voice + timings + narration track + subtitles + pacing table |
+| `make voice <dir>` | voice + timings + narration track + subtitles + pacing table. An unchanged script keeps its voice; `--again` makes it again |
 | `make manim <dir>` | renders each `Timed` class in `manim_scenes.py` whose code or timing changed, to frames in `build/manim/<id>/` (in parallel). `--all` every scene, `--scene id` one scene, `--draft` half size. Prints "started late" warnings |
-| `make check <dir>` | scene errors, cues that do not exist, text outside the safe area or too small, pacing, and (with `_render.sfx`) too many sound effects. Exit 1 on errors |
+| `make check <dir>` | scene errors, cues that do not exist, text outside the safe area or too small, pacing, a formula with no picture, symbols with no plain sentence, the 3D and mascot rules (with `"_look": "clay"`), and (with `_render.sfx`) too many sound effects. Exit 1 on errors |
 | `make sheet <dir>` | contact sheets, 3 frames a scene. `--scene id` one frame a second, `--every 2` whole video |
+| `make stable <dir>` | draws one frame a second twice, and gives an ERROR when two draws differ, because that means a GPU drop-out. `--every 0.2` samples more. Part of `make build` |
+| `make look <dir> [--scene a,b]` | **after each edit.** Measures each changed scene on every frame, and draws its near frames and moving parts to `build/look/`. Each image has a CHECK digit. `--ok <digits>`: the digits of all images, in order; `make build` needs this. `--moving-ok <digits>`: the same for the strips of a build; `make final` needs this. `"_gate": false` in `video.json` turns the gates off for an old project |
+| `make collide <dir> [--scene a,b]` | only the measures of `make look`: the mascot against every object, each object against each other, text against 3D ink, walks, reach, and the voice against motion. `make review` runs them too, and a fault stops the build |
+| `make selftest` | plants each fault in `reference/faults.md`, and confirms that the engine catches it. Run it after each change to a check |
+| `make attached` | measures every join in every model. `make bake` runs it too |
 | `make still <dir> 12.5 intro@end idea@#step idea@lambda` | full-size PNGs in `build/stills/` |
-| `make review <dir>` | `build/review/`: the pack the 6 reviewer agents read. Transcript with a still a sentence, a grid at each cue, the motion of every traced thing at every frame, film strips |
+| `make review <dir>` | `build/review/`: a grid at each cue with the spoken words (`cues.md`), a dense strip of every measured movement (`moving.md`, `moving/`), collisions (`collisions.md`), motion flags and movements (`motion.md`), measured overlaps (`overlaps.md`), all text on screen (`onscreen.md`) |
 | `make subtitles <dir>` | `build/subtitles.srt` again from `build/timeline.json`, with no new voice run. One line per cue, at most 42 characters. Then `make render <dir> --remix` puts it in the MP4 |
 | `make render <dir>` | `out/<slug>.mp4` (soft subtitles) + `.srt`. `--draft` half size, `--from s --to s` one part to `build/`, `--workers n`, `--remix` new audio on the last render's frames. Makes `build/music.wav` at the video's length first (cached), and `build/sfx.wav` from the `s.sfx` calls when `_render.sfx` is true |
 | `make verify <dir>` | duration, streams, loudness, black frames |
 | `make preview <dir>` | prints a URL: the video in a browser with the voice (space, arrow keys) |
+
+Heavy commands run under the temperature guard: they do not start with CPU turbo on, use few cores, pause at 85 C and stop at 92 C. `make config --guard off` turns it off.
 
 `voice` must run again after any change to `script.md`. The other commands stop with an
 error if `script.md` is newer than the timeline.

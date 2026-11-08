@@ -12,7 +12,7 @@ Use the parts that fit the topic, in this order. Each part is one or more scenes
 | hook | One question the viewer wants answered | 1 scene, under 15 s. A real problem, not a slogan. |
 | intuition | A picture of the idea before any symbol | Concrete first: a real example, real numbers. |
 | mechanism `{core=yes}` | How it works, step by step | The main part. Slowest pace. One step per sentence. |
-| formal `{core=yes}` | The formula or the precise rule | Map every symbol to something already on screen. |
+| formal `{core=yes}` | The formula or the precise rule | Follow "Formulas" below: every symbol sits on something already on screen. |
 | worked example `{core=yes}` | The rule with real numbers | Small numbers that the viewer can check in their head. |
 | your case | The user's own example from this project | **Only when it is real.** Skip it otherwise. |
 | pitfalls | One or two common mistakes | Good place for "your case" bugs. |
@@ -44,8 +44,24 @@ What the user rejected, so never do it again:
 - Give core scenes `{hold=2}` or more, so the last picture stays after the voice stops.
 - **In core scenes, show at most one new thing every 2 s.**
 - **Say each key definition twice**: once in the mechanism, once in the recap, with the same words.
-- Read a formula term by term, and highlight each term on its word.
+- Never only read a formula aloud. Follow "Formulas" below.
 - Length: 2 to 4 minutes for one concept. If the topic needs more, make two videos.
+
+## Formulas
+
+The nonlinear control video read formulas aloud and gave no reason, and the user learned little
+from it. So each formula or rule gets these five steps, in this order:
+
+1. **Need:** the problem we have, before any symbol. "The arm's weight pulls harder at some
+   angles, so one fixed gain cannot suit every angle."
+2. **Picture:** show the idea with objects and no symbols. The viewer sees it happen first.
+3. **Formula:** bring in the terms one at a time, each on the thing it names.
+4. **Meaning:** say what each term does in the real system, in plain words.
+5. **Test:** change or remove a term, and show what happens. "Remove this term, and the arm sags."
+
+Never write "Here is the rule" with no reason. A sentence that only reads symbols does not
+count as a step. `make check` WARNs on a formula with no picture, and on three sentences in a
+row that only read symbols. These steps take time: a longer video is fine when the topic needs it.
 
 ## Writing rules
 

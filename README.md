@@ -3,7 +3,7 @@
 # Kaleidoscope
 
 A Claude Code skill that makes a narrated teaching video about a topic.<br>
-Every part of the video has its own animation style, and six reviewer agents check the video before it renders.
+Every picture is 3D, in one clay look, with the same silent mascot in every video. One agent checks the script before the voice is made.
 
 <img src="gallery/png/all.png" alt="Sample frames of the adapted styles and the drawing library" width="100%">
 
@@ -49,29 +49,25 @@ In Claude Code, in the conversation where the topic came up:
 npx kaleidoscope-video
 ```
 
-The setup checks your machine, asks 5 questions (folder, token budget, voice, Manim, reviewer agents), shows the plan, and installs only what you choose. It works without a GPU: then the Kokoro voice speaks and the CPU draws the frames.
+The setup checks your machine, asks 4 questions (folder, voice, Manim, script agent), shows the plan, and installs only what you choose. It works without a GPU: then the Kokoro voice speaks and the CPU draws the frames.
 
-Later, in Claude Code, `/setup-kaleidoscope` changes the token budget or the voice:
-
-| Budget | Review |
-|---|---|
-| `high` | 2 rounds, 6 reviewers, Opus for the hard checks |
-| `medium` | 1 round, 6 reviewers on Sonnet, the fact check on Opus |
-| `low` | 1 round, 2 reviewers on Sonnet |
+Later, in Claude Code, `/setup-kaleidoscope` changes the voice, the GPU or the temperature guard.
 
 [`INSTALL.md`](INSTALL.md) has the manual setup.
 
-## Reviewer agents
+## How a video gets checked
 
-| Agent | What it checks |
+The engine measures, and a reader looks. A long build starts only after both.
+
+| Step | Stops on |
 |---|---|
-| `video-factcheck` | every fact, number and formula, worked out again |
-| `video-learner` | a first-time viewer answers a quiz and says where it got lost |
-| `video-alignment` | the picture shows what the voice says, at that moment |
-| `video-overlap` | no text or drawing covers another |
-| `video-physics` | motion: jumps, pops, easing, weight |
-| `video-overall` | layout, legibility, colour meaning, pacing |
-| `video-compiler` | joins the six reports into one short fix list |
+| `make look` after each edit | a collision on any frame of a changed scene, text covered by a 3D thing, a loose hand, a walk that goes wrong, a sentence that says something moves when nothing moves |
+| `make build` | a changed scene with no look, then any collision or scene error |
+| `make final` | a source that changed after the look or the build, an open overlap, or movement strips that nobody read |
+
+Each image from a look has a CHECK digit, and the gates open only with the digits of all images, so a look
+must read each one. [`reference/faults.md`](reference/faults.md) lists every fault that has happened and what
+stops it now, and `make selftest` plants each one and confirms that the engine catches it.
 
 ## Repo layout
 
@@ -79,12 +75,12 @@ Later, in Claude Code, `/setup-kaleidoscope` changes the token budget or the voi
 |---|---|
 | `SKILL.md` | the workflow the agent follows, step by step |
 | `bin/`, `package.json` | the setup that `npx kaleidoscope-video` runs |
-| `setup/` | the `/setup-kaleidoscope` skill: token budget, voice and GPU |
+| `setup/` | the `/setup-kaleidoscope` skill: voice, GPU and temperature guard |
 | `SOUND.md` | the background music and the sound effects: rules, approved tracks and sounds, levels |
-| `agents/` | the reviewer agents; the install links them into `~/.claude/agents` |
-| `engine/` | the command line `make.mjs`, the page runtime, fonts, the voice in `tts/`, the music in `music.mjs`, the sound effects in `sfx.mjs`, Manim in `manim/`, and the project template |
-| `reference/` | the engine API and the script rules |
-| `styles/` | one guide per style, the shared drawing code in `styles/library/`, and the credits |
+| `agents/` | the script agent; the install links it into `~/.claude/agents` |
+| `engine/` | the self-test in `test/`, the command line `make.mjs`, the page runtime, fonts, the voice in `tts/`, the music in `music.mjs`, the sound effects in `sfx.mjs`, Manim in `manim/`, and the project template |
+| `reference/` | the engine API, the script rules and the fault register |
+| `styles/` | one guide per style, the clay kit and the shared drawing code in `styles/library/`, and the credits |
 | `gallery/` | one sample project, with its pictures in `png/`, 30 s previews of the music tracks in `music/` and of the sound effects in `sfx/` |
 
 ## Credits

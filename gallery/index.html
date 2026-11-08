@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kaleidoscope</title>
-<meta name="description" content="A Claude Code skill that makes narrated teaching videos. Each part has its own animation style, code draws every frame, and six reviewer agents check the video before it renders.">
+<meta name="description" content="A Claude Code skill that makes narrated teaching videos. Every picture is 3D, in one clay look with one silent mascot. Code draws every frame and measures it, and each edit gets a look before any build.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
@@ -218,12 +218,12 @@ footer p + p { margin-top: 10px; }
 
 <div class="masthead wrap">
   <h1>Kaleidoscope</h1>
-  <div class="dateline"><p><span>A skill for Claude Code</span><span><span class="nw">29 animation styles</span> · <span class="nw">6 reviewer agents</span> · <span class="nw">3 token budgets</span></span></p></div>
+  <div class="dateline"><p><span>A skill for Claude Code</span><span><span class="nw">one clay look</span> · <span class="nw">28 own models</span> · <span class="nw">1 script agent</span></span></p></div>
 </div>
 
 <section class="opening wrap" aria-label="Introduction">
   <div class="text">
-    <p class="lede">Kaleidoscope makes a narrated video that teaches one topic. Each part of the video has its own animation style.</p>
+    <p class="lede">Kaleidoscope makes a narrated video that teaches one topic. Every picture is 3D, in one clay look, and the same silent mascot does the work in every video.</p>
     <p>Claude writes the script, the storyboard and the scenes from what your conversation and your project already show. The engine speaks the script on your own computer, times each word and draws every frame with code. It uses no video model. Six reviewer agents then check the video in two rounds before it renders.</p>
     <div class="ask">
       <p class="label">In Claude Code, in the conversation where the topic came up, ask:</p>
@@ -243,13 +243,13 @@ footer p + p { margin-top: 10px; }
 <section class="sec wrap" id="how">
   <div class="sec-head">
     <h2>How a video is made</h2>
-    <p>Claude plans and builds. The engine speaks, times and draws. The reviewers send fixes back to Claude.</p>
+    <p>Claude plans and builds. The engine speaks, times and draws. The checks send faults back to Claude before any long step.</p>
     <p class="src"><a href="https://github.com/jjietay/kaleidoscope/blob/main/SKILL.md">→ SKILL.md</a></p>
   </div>
   <div class="sec-body">
     <figure class="plate light">
       <a href="png/pipeline.png"><img src="png/pipeline.png" width="3000" height="1785" alt="Pipeline figure. Panel a, plan and build: the main session writes script.md, storyboard.md and scenes.js; Chatterbox speaks; Whisper times each word; headless Chrome draws the frames; make check tests them. Panel b, review and render: six reviewer agents read a review pack, a compiler merges their reports, and after round 2 make final renders the MP4." loading="lazy"></a>
-      <figcaption><span class="fig">Fig. 2</span>(a) Plan and build, from your topic to checked frames. (b) Review and render, two rounds of six agents with the high budget. Select the figure to see it at full size.</figcaption>
+      <figcaption><span class="fig">Fig. 2</span>(a) Plan and build, from your topic to checked frames. (b) Look, build and render, a look after each edit, then the gates. Select the figure to see it at full size.</figcaption>
     </figure>
     <ol class="ledger">
       <li><span class="k">script.md<br>storyboard.md<br>scenes.js<small>Claude writes</small></span><span class="v">One part for each idea, one style for each part, one scene for each part. Claude checks every fact before it writes the script.</span></li>
@@ -257,7 +257,7 @@ footer p + p { margin-top: 10px; }
       <li><span class="k">Whisper<small>word timing</small></span><span class="v">Gives each word and each <code>[#cue]</code> a time in seconds. If a sentence does not match the script, the engine speaks it again.</span></li>
       <li><span class="k">headless Chrome<small>frames</small></span><span class="v">Draws each frame from the timeline with <b>canvas</b>, <b>Three.js</b> or <b>Manim</b>.</span></li>
       <li><span class="k">make check<small>automatic checks</small></span><span class="v">Tests overlap, the safe area, text size and pacing. Claude also looks at every changed part, frame by frame.</span></li>
-      <li><span class="k">6 reviewer agents<small>one or two rounds</small></span><span class="v">Read the review pack and send one fix list back. Claude fixes the scenes and builds again.</span></li>
+      <li><span class="k">make look<small>after each edit</small></span><span class="v">Measures each changed scene on every frame and draws its near frames and moving parts. Claude reads each image before any build.</span></li>
       <li><span class="k">make final<small>render</small></span><span class="v">Chrome draws on the GPU and NVENC encodes, or the CPU does both when there is no GPU. The mix puts the music and the sound effects under the voice. <code>verify</code> checks the duration, the loudness and black frames. The result is an MP4 with soft subtitles and 48 kHz sound.</span></li>
     </ol>
   </div>
@@ -314,23 +314,17 @@ footer p + p { margin-top: 10px; }
 <section class="sec plain wrap" id="review">
   <div class="sec-head">
     <h2>Checked before render</h2>
-    <p>Each reviewer starts cold, reads only the review pack and writes its report to a file.</p>
+    <p>The engine measures every frame, one agent checks the script, and each image has a digit that opens the next step.</p>
     <p class="src"><a href="https://github.com/jjietay/kaleidoscope/tree/main/agents">→ agents/</a></p>
   </div>
   <div class="sec-body">
-    <p>Before the reviewers start, Claude reads contact sheets like this one. Then six agents check the video. A seventh agent joins their reports into one short fix list. Claude fixes the scenes and builds again. With the high budget, a second round checks the fixes.</p>
+    <p>Claude reads contact sheets like this one, the near frames of each edited part, and a dense strip of each thing that moves. <code>make build</code> and <code>make final</code> stop until that is done. <code>make selftest</code> plants each fault that a video has had, and confirms that the engine catches it.</p>
     <figure class="plate sheet">
       <a href="png/contact-sheet.png"><img src="png/contact-sheet.png" width="1960" height="620" alt="A contact sheet: eight frames from the gallery project in a grid, each labelled with its scene name and time" loading="lazy"></a>
       <figcaption><span class="fig">Fig. 3</span>The top of the gallery project's first contact sheet, made with <code>make sheet gallery</code>. Each frame shows its scene and its time.</figcaption>
     </figure>
     <ul class="ledger">
-      <li><span class="k">video-factcheck</span><span class="v">Every fact, number and formula, worked out again.</span></li>
-      <li><span class="k">video-learner</span><span class="v">A first-time viewer answers a quiz and says where it got lost.</span></li>
-      <li><span class="k">video-alignment</span><span class="v">The picture shows what the voice says, at that moment.</span></li>
-      <li><span class="k">video-overlap</span><span class="v">No text or drawing covers another.</span></li>
-      <li><span class="k">video-physics</span><span class="v">Motion: jumps, pops, easing and weight.</span></li>
-      <li><span class="k">video-overall</span><span class="v">Layout, legibility, colour meaning and pacing.</span></li>
-      <li><span class="k">video-compiler</span><span class="v">Joins the six reports into one short fix list.</span></li>
+      <li><span class="k">video-script</span><span class="v">Before the voice is made: every fact worked out again, and every formula explained.</span></li>
     </ul>
   </div>
 </section>
@@ -359,7 +353,7 @@ footer p + p { margin-top: 10px; }
 
 <section class="sec wrap" id="styles">
   <div class="sec-head">
-    <h2>The 29 styles</h2>
+    <h2>The older 2D styles</h2>
     <p>Claude picks a style for each part from the type of idea in it. Two parts in a row never use the same style.</p>
     <p class="src"><a href="https://github.com/jjietay/kaleidoscope/blob/main/styles/README.md">→ styles/README.md</a></p>
   </div>
@@ -431,11 +425,11 @@ footer p + p { margin-top: 10px; }
   </div>
   <div class="sec-body">
 <pre><code>npx kaleidoscope-video</code></pre>
-    <p style="margin-top:24px">Later, <code>/setup-kaleidoscope</code> in Claude Code changes the token budget of the review:</p>
+    <p style="margin-top:24px">Later, <code>/setup-kaleidoscope</code> in Claude Code changes the voice, the GPU and the temperature guard:</p>
     <ul class="ledger">
-      <li><span class="k">high</span><span class="v">2 rounds, 6 reviewers, Opus for the hard checks.</span></li>
-      <li><span class="k">medium</span><span class="v">1 round, 6 reviewers on Sonnet, the fact check on Opus.</span></li>
-      <li><span class="k">low</span><span class="v">1 round, 2 reviewers on Sonnet.</span></li>
+      <li><span class="k">voice</span><span class="v">Chatterbox on a GPU, or Kokoro on a CPU.</span></li>
+      <li><span class="k">gpu</span><span class="v">Auto, or off.</span></li>
+      <li><span class="k">guard</span><span class="v">Heavy jobs need CPU turbo off, pause at 85 °C and stop at 92 °C.</span></li>
     </ul>
     <p style="margin-top:24px"><code>INSTALL.md</code> has the manual setup. Then ask for a video in the conversation where the topic came up:</p>
     <ul class="prompts">

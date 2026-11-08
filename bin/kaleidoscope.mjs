@@ -3,7 +3,7 @@
 //   npx kaleidoscope-video            ask the questions, show the plan, then install
 //   npx kaleidoscope-video --yes      take every default
 //   npx kaleidoscope-video --dry-run  show the plan and the commands, change nothing
-// Other flags: --dir <path>, --budget high|medium|low, --voice chatterbox|kokoro, --no-manim, --no-agents.
+// Other flags: --dir <path>, --voice chatterbox|kokoro, --no-manim, --no-agents.
 // Run it again at any time: it updates the skill and installs only what is missing.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -64,17 +64,13 @@ if (checks.some(([, ok, , needed]) => needed && !ok)) {
 }
 
 const dir = untilde(opt('--dir') || await ask(`1. Install folder`, '~/.claude/skills/kaleidoscope'));
-console.log(`\n   high    2 review rounds, 6 reviewers, Opus for the hard checks (most tokens)
-   medium  1 round, 6 reviewers on Sonnet, the fact check on Opus
-   low     1 round, 2 reviewers on Sonnet (fewest tokens)`);
-const budget = opt('--budget') || await ask('2. Token budget for the review', 'medium', ['high', 'medium', 'low']);
 const defVoice = gpuName || appleSilicon ? 'chatterbox' : 'kokoro';
 console.log(`\n   chatterbox  natural voice; a 3 to 6 GB download; fast on a GPU, slow on a CPU
    kokoro      small voice model; fast on a CPU; comes with the word-timing tool`);
-const voice = opt('--voice') || await ask('3. Voice', defVoice, ['chatterbox', 'kokoro']);
-const manim = flag('--no-manim') ? false : await yesNo('\n4. Install Manim for maths scenes (about 1 GB, needs LaTeX)?', true);
+const voice = opt('--voice') || await ask('2. Voice', defVoice, ['chatterbox', 'kokoro']);
+const manim = flag('--no-manim') ? false : await yesNo('\n3. Install Manim for maths scenes (about 1 GB, needs LaTeX)?', true);
 const agentsDir = path.join(HOME, '.claude', 'agents');
-const agents = flag('--no-agents') ? false : await yesNo(`5. Link the 7 reviewer agents into ${tilde(agentsDir)}?`, true);
+const agents = flag('--no-agents') ? false : await yesNo(`4. Link the script agent into ${tilde(agentsDir)}?`, true);
 
 // ---------- the plan ----------
 const exr = process.env.EXPLAINROO_HOME || path.join(HOME, '.explainroo');
@@ -108,9 +104,10 @@ if (manim) {
   if (!fs.existsSync(path.join(m, '.venv', 'bin', 'python'))) run('Make the Manim environment', uv, ['venv', '--python', '3.12', path.join(m, '.venv')]);
   run('Install Manim', uv, ['pip', 'install', '--python', path.join(m, '.venv', 'bin', 'python'), 'manim']);
 }
-if (agents) steps.push({ title: `Link the reviewer agents into ${tilde(agentsDir)}`, link: 'agents' });
+if (agents) steps.push({ title: `Link the script agent into ${tilde(agentsDir)}`, link: 'agents' });
 steps.push({ title: 'Add the /setup-kaleidoscope command', link: 'setup' });
-run('Save the settings', 'node', [path.join(dir, 'engine', 'make.mjs'), 'config', '--budget', budget, '--voice', voice, '--gpu', 'auto']);
+run('Save the settings', 'node', [path.join(dir, 'engine', 'make.mjs'), 'config', '--voice', voice, '--gpu', 'auto']);
+run('Compute the clay shapes', 'node', [path.join(dir, 'engine', 'make.mjs'), 'bake'], { mayFail: true });
 run('Check everything', 'node', [path.join(dir, 'engine', 'make.mjs'), 'doctor'], { mayFail: true });
 
 console.log(`\n${bold('Plan')}`);
@@ -149,4 +146,4 @@ for (const [i, s] of steps.entries()) {
 }
 console.log(`\n${bold('Done.')} In Claude Code, ask for a video, for example:
   "Make a video explaining how a Kalman filter works."
-Change the budget or the voice later with /setup-kaleidoscope.`);
+Change the voice later with /setup-kaleidoscope.`);

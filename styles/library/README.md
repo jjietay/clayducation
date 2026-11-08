@@ -1,3 +1,5 @@
+> **New videos use `clay.js` and `clay/`: see `../clay.md`.** The modules below are kept only until the first clay test video passes.
+
 # Shared visual library
 
 Reusable, tested drawings for explainer videos. Use them before you draw something new, and add the new reusable things you draw after each video.
