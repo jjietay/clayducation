@@ -140,6 +140,12 @@ try {
   fs.writeFileSync(path.join(dir, 'build', 'review', 'moving-checks.json'), JSON.stringify([{ file: 'a.jpg', salt: 'x', hash: createHash('sha1').update('x7').digest('hex').slice(0, 16) }]));
   report('moving-ok refuses wrong digits', make('look', dir, '--moving-ok', '3').code !== 0);
   report('moving-ok accepts the digits', make('look', dir, '--moving-ok', '7').code === 0);
+  // ---------- the voice check hears a word that the voice added ----------
+  // Video 1: the voice said "We write them XTP of omega i given X" three times, and the letter
+  // distance (2) let it pass. A clean take, with Whisper's number pieces and spellings, must pass.
+  const { extraWords } = await import(pathToFileURL(path.join(HERE, '..', 'voicecheck.mjs')).href);
+  report('voice check hears an added word ("XTP")', extraWords('We write them p of omega i, given x.', 'We write them XTP of omega i given X.'.split(' ')).join() === 'XTP');
+  report('voice check passes numbers and spellings', !extraWords('It is one point seven five metres tall, thirty percent, p of e k, given x, rho, and a pear.', 'It is 1 .75 meters tall, 30 % P of EK given x, row, and a pair.'.split(' ')).length);
 } finally {
   fs.rmSync(dir, { recursive: true, force: true });
 }

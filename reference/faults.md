@@ -34,6 +34,8 @@ confirms that the engine catches it. Run it after each change to a check.
 | The mascot stood in one spot for a whole video | WARN for a scene where he does not travel | `make check` |
 | A formula was read aloud with no reason | WARN, the five steps, and the script agent | `make check`, `reference/script.md`, `agents/video-script.md` |
 | A GPU drop-out removed a leg in 2 frames of 8 | Antialiasing is off, and frames are drawn twice and compared | `make stable` |
+| The voice said "XTP of omega i" for "p of omega i" three times, and the letter distance (2) passed it | Each heard word is lined up with the script; a word with 2 or more letters, and 60 % or more, unmatched is a bad take and gets retaken | `extraWords` in `engine/voicecheck.mjs`, `make voice` |
+| A scene's first frame showed the end of the scene before, because a start was a float sum | The scene of a frame is found with a 1e-6 s tolerance | `seek` and `sceneAt` in `engine/runtime.js`, `make verify` |
 
 ## Caught by a gate
 
@@ -54,7 +56,7 @@ No code checks these yet. Look for them in the strips.
 - One 3D object that hides another with no contact.
 - Crowding: the user judges this, from the look of the frame.
 - A picture that shows the wrong thing with the right motion (the servo gap did not match the voice).
-- The sound of the voice: nobody has heard it until the user does.
+- The sound of the voice: nobody has heard it until the user does. Whisper writes "EEE" for a voice that says "e, ee", and "changed" for an odd "changed". Spaced capitals ("E E E") read badly: say a word ("triple E").
 - A patch that fails in a chained shell command: stop on the first failure, and confirm that the edit applied.
 - A label that fades out on the same spot where a new label fades in. Below 0.3 opacity the overlap measure ignores it, but the eye still sees two words on top of each other. Move one label aside as it fades.
 - A fence that came only to the mascot's knee. Large objects keep their real size against him (`styles/clay.md`, "Models"); read the "With the mascot" cell of each model sheet.
