@@ -4,7 +4,10 @@ import { smin, smax, ell, cone, rbox, rcyl, torus, mix, clamp } from '../sdf.js'
 import { def, stand, PAL } from '../models.js';
 
 // Colours of this video. The two sample classes are blue and plum in all the models.
-const BLUE = '#3d63b8', PLUM = '#8e3f8f', BAR_BLUE = '#4f86c6', BAR_PLUM = '#b26cb0';
+const BLUE = '#3d63b8', PLUM = '#8e3f8f';
+// The plates are kinds of information, not classes: DT (discriminative on the training data) is gold and
+// RP (redundant on the population) is slate. The bars are methods: PCA grey, ERE teal.
+const DT = '#d9a441', RP = '#6f7686', BAR_PCA = '#9a9ea8', BAR_ERE = '#2fae9c';
 
 // A fixed random number from 0 to 1 for each i, so that the two colours mix with no pattern.
 const hash = (i) => { const v = Math.sin(i * 12.9898 + 4.1) * 43758.5453; return v - Math.floor(v); };
@@ -115,20 +118,22 @@ export const MODELS = {
     label: 'Two overlapping plates',
     make() {
       const m = def(), c = 1.735, R = 2.6;
-      m.add('plateA', (x, y, z) => rcyl(x, y, z, -c, 0.09, 0, 'y', R, 0.09, 0.06), BLUE, { step: 0.05 });
-      m.add('plateB', (x, y, z) => rcyl(x, y, z, c, 0.11, 0, 'y', R, 0.11, 0.06), PLUM, { step: 0.05 });
+      m.add('plateA', (x, y, z) => rcyl(x, y, z, -c, 0.09, 0, 'y', R, 0.09, 0.06), DT, { step: 0.05 });
+      m.add('plateB', (x, y, z) => rcyl(x, y, z, c, 0.11, 0, 'y', R, 0.11, 0.06), RP, { step: 0.05 });
       m.add('overlap', (x, y, z) => {
         const rr = 0.06, d2 = Math.max(Math.hypot(x + c, z) - R, Math.hypot(x - c, z) - R) + rr, dy = Math.abs(y - 0.23) - 0.13 + rr;
         return Math.min(Math.max(d2, dy), 0) + Math.hypot(Math.max(d2, 0), Math.max(dy, 0)) - rr;
-      }, PAL.red, { step: 0.04 });
+      }, PAL.red, { step: 0.04, pivot: [0, 0.23, 0], free: true });
       return m;
     },
-    moving: 'No moving parts',
+    // The lens (MLI) lifts off the plates.
+    pose(g) { g.overlap.position.y += 1.2; },
+    moving: 'Lens lifts off',
   },
   scoreboard: {
     label: 'Scoreboard with four bars',
     make() {
-      const m = def(), C = 4.0, colors = [PAL.teal, PAL.cream, BAR_BLUE, BAR_PLUM];
+      const m = def(), C = 4.0, colors = [BAR_PCA, BAR_ERE, BAR_PCA, BAR_ERE];
       m.add('board', (x, y, z) => smax(rbox(x, y, z, 0, C, 0, 2.5, 1.5, 0.16, 0.12), -rbox(x, y, z, 0, C, 0, 2.3, 1.3, 0.5, 0.05), 0.04), PAL.cream, { step: 0.045 });
       m.add('face', (x, y, z) => {
         let s = 9;
