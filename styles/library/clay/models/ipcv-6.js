@@ -96,7 +96,7 @@ export const MODELS = {
   pipe: {
     label: 'Pipe with a valve',
     make() {
-      const m = def(), A = 0.3, W = A + 0.44;
+      const m = def(), A = 0.3, W = A + 0.55;   // the stem is long enough for a hand on the wheel to clear the valve body
       m.add('tube', (x, y, z) => cone(x, y, z, -1.38, A, 0, 1.38, A, 0, 0.15, 0.15), PAL.steel);
       for (const sx of [-1, 1]) m.add(`flange${sx}`, (x, y, z) => rcyl(x, y, z, sx * 1.42, A, 0, 'x', 0.2, 0.08, 0.04), PAL.ink);
       // The valve body has a round window on its front. The gate disc in the window shows how open it is.
