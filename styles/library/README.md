@@ -17,6 +17,7 @@ import { eqn, rays } from '/_lib/eqn.js';
 | `clay/models.js` | `MODELS` (28 models) and `JOINS`; `buildModel` returns `{ root, groups, setPose, label, moving, hasPose }` |
 | `clay/joins.js` | `measureJoins`: each listed join must touch, for `make attached` |
 | `clay/sheet.html` | the page that `make clay` uses for the vetting sheets |
+| `classic/` | the classic 2D drawing code, one module per style (see `classic/README.md`); an old project's `/_lib/flat.js` is served from here |
 | `eqn.js` | `eqn()`: terms that build, slide, hop, merge, cancel with a strike and a burst, and bounce; `rays()` |
 
 ## Rules

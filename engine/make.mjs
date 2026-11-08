@@ -714,7 +714,11 @@ function serve(dir) {
       if (u.pathname === '/_tex') return send(200, await tex(u.searchParams.get('q'), u.searchParams.get('display') !== '0'), 'image/svg+xml');
       let file = null;
       if (u.pathname.startsWith('/_engine/')) file = inside(ENGINE, u.pathname.slice(8));
-      else if (u.pathname.startsWith('/_lib/')) file = inside(path.join(ENGINE, '..', 'styles', 'library'), u.pathname.slice(5));   // the shared visual library
+      else if (u.pathname.startsWith('/_lib/')) {   // the shared visual library
+        // A project from before the classic styles moved imports '/_lib/flat.js': serve it from classic/.
+        const lib = path.join(ENGINE, '..', 'styles', 'library'), own = inside(lib, u.pathname.slice(5));
+        file = own && fs.existsSync(own) ? own : inside(path.join(lib, 'classic'), u.pathname.slice(5));
+      }
       else if (u.pathname.startsWith('/_fonts/')) { const own = inside(path.join(ENGINE, 'fonts'), u.pathname.slice(7)); file = own && fs.existsSync(own) ? own : inside(path.join(EXR, 'fonts'), u.pathname.slice(7)); }
       else file = inside(dir, decodeURIComponent(u.pathname));
       if (!file || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return send(404, `not found: ${u.pathname}`);
@@ -1403,7 +1407,8 @@ const MOTION = /\b(moves?|moving|pushe?s?|pulls?|drags?|slides?|lifts?|drops?|sw
 // A formula that only sits on the screen is no better than notes. A formula shown for 3 s or more must
 // move, build or bounce while it is shown. Scene labels pinned to a moving thing pass by themselves.
 function stillFormulas(dir, frames) {
-  if (readJson(path.join(dir, 'video.json'))?._look !== 'clay') return [];
+  // New videos in either look; an old project with no _look keeps its old rules.
+  if (!['clay', 'classic'].includes(readJson(path.join(dir, 'video.json'))?._look)) return [];
   // One formula is one row of eqn() pieces, so an "=" that stays while its terms move is correct.
   const seen = {};
   for (const f of frames) for (const it of f.items || []) {
