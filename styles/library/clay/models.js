@@ -3,6 +3,13 @@
 // on a named pivot. A model stands on y = 0, and +z is its front.
 import { smin, smax, ell, cone, rbox, rcyl, torus, mix, clamp } from './sdf.js';
 import { bake } from './mascot.js';
+// Model sets, one file each, so that several authors can add models at the same time.
+import * as IPCV1 from './models/ipcv-1.js';
+import * as IPCV2 from './models/ipcv-2.js';
+import * as IPCV3 from './models/ipcv-3.js';
+import * as IPCV4 from './models/ipcv-4.js';
+import * as IPCV5 from './models/ipcv-5.js';
+import * as IPCV6 from './models/ipcv-6.js';
 
 export const PAL = {
   robot: '#f2773a', ink: '#2a2a2e', cream: '#ede3cf', white: '#f1efe9', grey: '#b7b4ab', steel: '#a9adb2',
@@ -10,13 +17,13 @@ export const PAL = {
   teal: '#2f9e8f', navy: '#1c2433', screen: '#1d2a3a', wood: '#d6ae80', card: '#c99a6b', map: '#f2c14e', red: '#cf4f45',
 };
 
-function def() {
+export function def() {
   const parts = [];
   return { parts, add(name, f, color, o = {}) { parts.push({ name, f, color, ...o }); return this; } };
 }
 
 // Three legs and a column up to height h, so a model can stand at any height.
-function stand(m, h, spread, r) {
+export function stand(m, h, spread, r) {
   m.add('column', (x, y, z) => cone(x, y, z, 0, h * 0.55, 0, 0, h + 0.05, 0, r * 1.25, r * 1.25), PAL.ink);
   m.add('hub', (x, y, z) => ell(x, y, z, 0, h * 0.55, 0, r * 2, r * 1.6, r * 2), PAL.ink);
   for (let i = 0; i < 3; i++) {
@@ -435,6 +442,9 @@ export const JOINS = {
   node: [[/^port/, 'core'], ['band', 'core'], ['light', 'core']],
 };
 
+// Add the model sets to the kit.
+for (const set of [IPCV1, IPCV2, IPCV3, IPCV4, IPCV5, IPCV6]) { Object.assign(MODELS, set.MODELS); Object.assign(JOINS, set.JOINS); }
+
 // Finds the part's bounds from its distance field, and a mesh step from its size.
 function autoBox(f) {
   const G = 0.25, E = 8; let a = [9, 9, 9], b = [-9, -9, -9];
@@ -457,7 +467,7 @@ export function buildModel(THREE, name) {
   const root = new THREE.Group(), groups = {};
   for (const p of d.parts) {
     const base = new THREE.Color(p.color), deep = base.clone().multiplyScalar(0.42).lerp(new THREE.Color('#3a2a26'), 0.12);
-    const g = bake(THREE, `m-${name}-${p.name}`, p.f, () => autoBox(p.f), 0, worldFor(p), (x, y, z, n, A, o) => { o[0] = mix(deep.r, base.r, A); o[1] = mix(deep.g, base.g, A); o[2] = mix(deep.b, base.b, A); });
+    const g = bake(THREE, `m-${name}-${p.name}`, p.f, () => { const b = autoBox(p.f), st = p.step ?? spec.step; if (st) b.step = st; return b; }, 0, worldFor(p), (x, y, z, n, A, o) => { o[0] = mix(deep.r, base.r, A); o[1] = mix(deep.g, base.g, A); o[2] = mix(deep.b, base.b, A); });
     const parent = p.parent ? groups[p.parent] : null, pv = p.pivot || parent?.userData.pv || [0, 0, 0], ppv = parent?.userData.pv || [0, 0, 0];
     const grp = new THREE.Group(); grp.userData.pv = pv; grp.userData.f = p.f; grp.userData.part = p.name; grp.position.set(pv[0] - ppv[0], pv[1] - ppv[1], pv[2] - ppv[2]);
     g.translate(-pv[0], -pv[1], -pv[2]);

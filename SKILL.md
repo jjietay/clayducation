@@ -23,8 +23,14 @@ only when the topic itself is unclear. Every check below is yours to run and to 
 
 ## The look the user wants (read before step 6)
 
-**Every picture is 3D, in one look, and the mascot is in every video.** Read `styles/clay.md`.
-The user chose this over the old style mix for consistency across videos. The 2D styles are deleted.
+**Clay for things that act, Manim for plots, and the mascot is in every video.** Read `styles/clay.md`.
+The user chose the clay look over the old style mix for consistency across videos. The 2D styles are an opt-in classic look; see the section below.
+
+- **Do not force a plot into clay (the user asked).** When a 2D Manim picture helps the viewer understand
+  more than clay does (a curve, a distribution, a contour, a projection or other geometry in a plane),
+  make that part a Manim part, on Manim's dark background (`styles/math-manim.md`). Never build a clay
+  model that copies a mathematical curve: the user had those removed. Objects that act, and the mascot's physical work, stay in clay. A video
+  can go from a clay part to a Manim part and back, with the same colour for the same thing.
 
 - **One look, many parts.** The video is split into parts of about 15 to 40 s (hook, each idea,
   your case, close). Each part has its own plain background, camera and setting. Next to each
@@ -119,8 +125,8 @@ Each was asked for or chosen by ear. The engine does most of them by itself.
 | Subtitles | soft, never burned in; the user's mpv shows them small (`sub-scale=0.7`) | yes |
 | One subtitle line | one line per cue, at most 42 characters, no two cues at the same time. The user saw two lines in video 1 of the ROS 2 set | yes; `verify` reports a cue that breaks it |
 | No overlaps | no text or graphic covers another one | `check` WARN for texts, `overlaps.md` and your frame checklist for the rest |
-| Look | one 3D clay look with the silent mascot, and our own models. Rejected: downloaded models, a dark video, text columns, colour legends, build-up slides | `make check` ERROR for a scene that is not 3D or a video with no mascot; the rest is you, see "The look the user wants" |
-| Maths | the five formula steps (need, picture, formula, meaning, test). Manim for a formula that changes step by step, with a 3D picture: `manim({ threeD: true })`, not hand-drawn canvas | `make check` WARNs on a formula alone; the rest is you, see `reference/script.md` and `styles/math-manim.md` |
+| Look | one 3D clay look with the silent mascot, and our own models; Manim parts on the dark background for curves and plots (the user asked: do not force a plot into clay). Rejected: downloaded models, a whole dark video, text columns, colour legends, build-up slides | `make check` ERROR for a scene that is neither clay nor Manim, or a video with no mascot; the rest is you, see "The look the user wants" |
+| Maths | the five formula steps (need, picture, formula, meaning, test). Manim for a curve, a plot or a formula that changes step by step: `manim()` in 2D, or `manim({ threeD: true })` for a 3D picture, not hand-drawn canvas | `make check` WARNs on a formula alone; the rest is you, see `reference/script.md` and `styles/math-manim.md` |
 | Quiz | none in the storyboard | you |
 | Watching | `mpv <dir>/out/<slug>.mp4` | put it in the report |
 

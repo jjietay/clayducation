@@ -102,8 +102,46 @@ it in the right way. See them in `make clay m-<name>`.
 | `radio` | radio with an antenna | `knob` |
 | `servo` | servo motor | `horn` |
 | `node` | network node | `light` |
+| `door`, `sign` | classroom door with a frosted window; school sign board | `leaf` swings; `board` turns 180° |
+| `pawnA`, `pawnB`, `pawnQ` | student token: blue, plum, and grey for a class not known yet | none |
+| `stadiometer` | height-measuring post | `slider` moves on y |
+| `balance` | beam balance with level pans | `beam` tips, `panL`, `panR` stay level |
+| `apple`, `pear` | fruit for class clouds | none |
+| `tape` | tape measure | `strip` scales in x, and its marks stretch with it |
+| `fence` | waist-high fence panel and post, 4 long; set copies 4 apart | none |
+| `filmstrip` | film strip of 6 almost equal frames | none |
+| `beadA`, `beadB` | training-sample bead, blue and plum | none |
+| `pointer` | pointer stick, 2.6 long, for pushing small things (abacus beads) | none |
+| `abacus` | abacus with 2 rods of 10 beads | `b0-0` … `b1-9` slide in x |
+| `hoop` | striped hoop on the floor, radius 1 | scale the root in x and z |
+| `thermometer` | thermometer | `fill` scales in y |
+| `compass` | drawing compass | `hinge`, `legA`, `legB` |
+| `portrait` | made-up clay face in a frame on an easel | none |
+| `salmon`, `seabass` | fish for class clouds | none |
+| `lamp` | spotlight on a stand | `head` aims |
+| `screen` | projection screen | `panel` turns |
+| `rig` | a screen and a flat light panel on one turning frame, so the light's rays stay parallel to the screen's normal | `arms` turns about the column |
+| `gauge` | dial gauge | `needle` turns about z |
+| `humanoid` | orange biped robot, no brand | `pelvis`, `torso`, `head`, `armL/R`, `foreL/R`, `thighL/R`, `shinL/R`, `footL/R` |
+| `vat`, `jar` | vat full of sample balls; jar with a few | `lid` of the jar lifts off |
+| `seesaw` | playground seesaw, plank 14 long | `plank` tips |
+| `discs` | two overlapping plates (gold and slate) and the red lens where they meet | `overlap` lifts off |
+| `scoreboard` | board with a dark face and 4 bars (grey and teal) | `bar0` … `bar3` scale in y, from their rest heights |
+| `neuron` | neuron with 3 inputs and 1 output | `glow` scales |
+| `pipe` | pipe with a valve | `wheel` turns, `gate` scales |
+| `rampStep`, `rampSigmoid`, `rampRelu` | ramps whose tops follow the activations, for a rolling ball | none |
+| `tokenCone`, `tokenCube` | XOR tokens, blue and plum | none |
+| `bowl`, `terrain` | error bowl; bumpy slab with a local minimum, for a rolling ball | none |
+
+The rows from `door` down are in `styles/library/clay/models/ipcv-*.js`. The head comment and the
+notes of each file give their sizes, joint positions and surface formulas.
 
 Small objects are larger than real size, so they stay readable. Set `k` for each scene.
+
+**Large objects stay near real size against the mascot.** He is 8.6 units tall for about 1.7 m, so
+1 m is about 5 units. A door, a fence, a table, a seesaw or a robot keeps its real size against him;
+only small things (fruit, tokens, beads, boards) are made larger. The user found a fence that came only
+to his knee. Each model sheet shows the model next to the mascot: look at that cell.
 
 **Colour roles, the same in every video** (`PAL`): robot orange, map yellow, target green.
 
@@ -112,7 +150,13 @@ Small objects are larger than real size, so they stay readable. Set `k` for each
 Add it to `MODELS` in `styles/library/clay/models.js`. Each part is a distance function in model
 space, built from `rbox`, `rcyl`, `ell`, `cone`, `torus` and `smin`. Give a moving part a `pivot` and a
 `parent`, and give a part that travels away from its place `free: true`, so it leaves no saved shadow
-behind. Then run `make bake` and `make clay m-<name>`, and read the sheet. Keep the forms large and
+behind. **Mesh step.** The mesh step comes from the size of each part (at most 0.032), so a large flat face
+gets many triangles and a thin tube can get too few. Set `step` on the model (`step: 0.06`) or on one
+part (`m.add(name, f, color, { step: 0.015 })`) to choose it. Always build a model at its true size.
+Never bake a part small and scale its group up in `rest` to save triangles: the collision measures use
+the distance field times the root scale only, so a scaled group gives wrong depths and gaps.
+
+Then run `make bake` and `make clay m-<name>`, and read the sheet. Keep the forms large and
 round, with few small details. Never download a model: the user wants consistency.
 
 ## Formulas act out the voice

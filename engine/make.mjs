@@ -14,7 +14,7 @@
 //   node make.mjs stable [dir] [--every s]  draws each sampled frame twice: a frame that differs is a GPU drop-out
 //   node make.mjs still [dir] <t|scene|scene@t|scene@end|scene@#mark|scene@word> ...
 //   node make.mjs review [dir] [--fps n]    build/review/: motion flags, measured overlaps and a grid at each cue
-//   node make.mjs bake [--only mascot|models]   compute the clay shapes once, to styles/library/clay/cache
+//   node make.mjs bake [--only mascot|models|a,b]   compute the clay shapes once, to styles/library/clay/cache
 //   node make.mjs attached                  measures that every part of every model touches the rest
 //   node make.mjs clay [sheet]              vetting sheets of the mascot and models, to styles/library/clay/sheets
 //   node make.mjs look [dir] [--scene a,b]  after each edit: measure the changed scenes, draw their near frames and moving parts
@@ -38,6 +38,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { music } from './music.mjs';
 import { sfxTrack, lint as sfxLint, timelineWords, writeWav as writeSfxWav } from './sfx.mjs';
+import { sayable, editDistance, extraWords, missingLetters, twoBars } from './voicecheck.mjs';
 
 const ENGINE = path.dirname(fileURLToPath(import.meta.url));
 const EXR = process.env.EXPLAINROO_HOME || path.join(os.homedir(), '.explainroo');
@@ -245,26 +246,6 @@ function init() {
 // Whisper, as for a recording. A part = the words between two [pause] marks, read in
 // one call, so the tone carries across sentences; the pause is silence we add.
 const TTS_PY = path.join(ENGINE, 'tts', '.venv', 'bin', 'python');
-// Number words, so Whisper's digits ("-1", "3") compare with the script's words.
-const NUM = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
-const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
-const numWords = (n) => (n < 20 ? NUM[n] : n < 100 ? TENS[Math.floor(n / 10)] + (n % 10 ? NUM[n % 10] : '') : String(n));
-// Letters only, numbers spelt out, "minus" and "negative" counted as one word: two texts
-// that read the same compare equal however Whisper spaces or punctuates them.
-const sayable = (text) => text.toLowerCase()
-  .replace(/(^|[^\d.])-(?=\d)/g, '$1 negative ').replace(/\bminus\b/g, 'negative')
-  .replace(/\d+(\.\d+)?/g, (m) => m.includes('.') ? m.split('.').map((x) => [...x].map((d) => NUM[d]).join('')).join('point') : numWords(+m))
-  .replace(/[^a-z]/g, '');
-function editDistance(a, b) {
-  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
-  for (let i = 1; i <= a.length; i++) {
-    const cur = [i];
-    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-    prev = cur;
-  }
-  return prev[b.length];
-}
-
 // What Whisper hears in a spoken part (cached next to it).
 async function heardWords(raw) {
   const wordsFile = raw.replace(/\.wav$/, '.words.json');
@@ -299,7 +280,7 @@ async function takeReport(part) {
     }
     first = i + 1;
   }
-  return { d, heard: heard.map((w) => w.text).join(' '), clauses };
+  return { d, extra: [...extraWords(part.text, heard.map((w) => w.text)), ...missingLetters(part.text, heard.map((w) => w.text)).map((w) => `missing ${w}`)], heard: heard.map((w) => w.text).join(' '), clauses };
 }
 
 async function chatterbox(dir, shadow, cfg) {
@@ -307,7 +288,9 @@ async function chatterbox(dir, shadow, cfg) {
   const { parseScript } = await import(pathToFileURL(path.join(EXR, 'src', 'script.js')).href);
   // The user chose these by ear: see the header of engine/tts/chatterbox_voice.py.
   const t = { exaggeration: 0.5, cfg_weight: 0.5, temperature: 0.8, seed: 7, stopGap: 0.6, commaMax: 0.3, paragraphGap: 1.0, retakes: 3, ...cfg._tts };
-  const script = parseScript(fs.readFileSync(path.join(dir, 'script.md'), 'utf8'));
+  const scriptText = fs.readFileSync(path.join(dir, 'script.md'), 'utf8'), bars = twoBars(scriptText);
+  if (bars.length) die(`a {shown|spoken} has a second bar, so the voice reads the wrong text: ${bars.join(', ')}. Write "∣" (U+2223) for the bar in the shown part, for example {p(x∣ω_i)|p of x, given omega i}.`);
+  const script = parseScript(scriptText);
   // The user asked: a negative number is "negative", never "minus".
   const minus = [];
   for (const sc of script.scenes) for (const u of sc.units) {
@@ -337,6 +320,10 @@ async function chatterbox(dir, shadow, cfg) {
     close(0);
     for (const [i, x] of parts.entries()) {
       x.id = `${sc.id}#${i + 1}`;
+      // The same letter spelt out two or more times ("E E E") becomes "E, E, E" below, and the
+      // voice read it as "e, ee" in video 1, which Whisper still writes as "EEE".
+      const twin = x.text.match(/\b([a-z])(?: \1\b)+/i);
+      if (twin) console.log(`WARN voice ${x.id}: "${twin[0]}" repeats one letter, and the voice reads it badly. Say a word instead, for example {EEE|triple E}.`);
       // The same short word twice ("one one") trips the voice: a comma between them fixes it.
       x.text = x.text.replace(/\b(\w+) (\1)\b/gi, '$1, $2');
       // A seed set by hand in video.json wins, then one found good before, then the default.
@@ -354,7 +341,7 @@ async function chatterbox(dir, shadow, cfg) {
   const takes = new Map(); // part id -> [{ seed, raw, report }]
   const fixed = (p) => t.seeds?.[p.id] !== undefined || t.seeds?.[p.id.split('#')[0]] !== undefined;
   let median = 0;
-  const score = (r) => (r.d >= 3 ? 1e6 + r.d : 0) + Math.max(0, ...r.clauses.map((c) => c.rate / median));
+  const score = (r) => (r.d >= 3 || r.extra?.length ? 1e6 + r.d : 0) + Math.max(0, ...r.clauses.map((c) => c.rate / median));
   for (let round = 0; ; round++) {
     fs.writeFileSync(jobs, JSON.stringify({ params, cache: path.join(dir, 'build', 'tts-cache'), scenes }, null, 1));
     const r = spawnSync(TTS_PY, [path.join(ENGINE, 'tts', 'chatterbox_voice.py'), jobs], { stdio: 'inherit' });
@@ -373,7 +360,7 @@ async function chatterbox(dir, shadow, cfg) {
     if (!retake.length || round >= t.retakes) {
       for (const p of bad) {
         const best = takes.get(p.id).find((x) => x.seed === p.seed).report;
-        if (best.d >= 3) console.log(`WARN voice ${p.id}: after ${round} retake(s) it still says something else.\n  script: ${p.text}\n  heard:  ${best.heard}\n  If only the spelling differs, ignore this. Otherwise reword the part or set a seed in video.json ("_tts": {"seeds": {"${p.id}": 20}}).`);
+        if (best.d >= 3 || best.extra?.length) console.log(`WARN voice ${p.id}: after ${round} retake(s) it still says something else${best.extra?.length ? ` (words that do not match the script: ${best.extra.join(', ')})` : ''}.\n  script: ${p.text}\n  heard:  ${best.heard}\n  If only the spelling differs, ignore this. Otherwise reword the part or set a seed in video.json ("_tts": {"seeds": {"${p.id}": 20}}).`);
         const why = fixed(p) ? 'its seed is set by hand in video.json, so it was not retaken' : `after ${round} retake(s)`;
         for (const c of best.clauses) if (c.rate > median * 1.3) console.log(`WARN fast ${p.id}: "${c.text}" at ${(c.rate / median).toFixed(2)} times the usual pace (${why}). Give it its own short sentence and a [pause] after it.`);
       }
@@ -938,8 +925,9 @@ async function check() {
     for (const l of looks.filter((x) => x.texAlone)) layout.add(`${l.id}: a formula with no picture. Show what it does with an object, and name each term on that object (reference/script.md, "Formulas")`);
     // The clay look (styles/clay.md): every scene in 3D, and the mascot in the video.
     if (JSON.parse(fs.readFileSync(path.join(dir, 'video.json'), 'utf8'))._look === 'clay') {
-      const flat = looks.filter((x) => !x.has3d).map((x) => x.id);
-      if (flat.length) problems.add(`not in 3D: ${flat.join(', ')}. Use s.clay(), or manim({ threeD: true }) for a Manim scene whose picture is 3D`);
+      // A Manim scene passes: a curve or a plot is a Manim part on its dark background (the user asked).
+      const flat = looks.filter((x) => !x.has3d && !x.manim).map((x) => x.id);
+      if (flat.length) problems.add(`not in 3D: ${flat.join(', ')}. Use s.clay(), or manim() for a part whose picture is a curve or a plot`);
       if (!looks.some((x) => x.mascot)) problems.add('the mascot is in no scene. Add g.mascot() (styles/clay.md)');
       const none = looks.filter((x) => !x.mascot && !x.manim).map((x) => x.id);
       if (none.length) layout.add(`the mascot is not in: ${none.join(', ')}`);
@@ -1681,8 +1669,11 @@ async function bake() {
     fs.writeFileSync(path.join(dir, `${k}.bin`), Buffer.concat([d.pos, d.nor, d.col, d.tri].map((a) => Buffer.from(a.buffer, a.byteOffset, a.byteLength))));
     man[k] = { v: d.pos.length / 3, t: d.tri.length };
   };
-  if (only !== 'models') createMascot(THREE, { step: 0.018, bodyStep: 0.03, fine: 0.012 });
-  if (only !== 'mascot') for (const n of ALL_MODELS) buildModel(THREE, n);
+  // --only takes mascot, models, or a list of model names: "--only apple,pear" bakes only those.
+  const pick = ['all', 'mascot', 'models'].includes(only) ? null : only.split(',');
+  for (const n of pick || []) if (!ALL_MODELS.includes(n)) die(`no model named "${n}"`);
+  if (only === 'all' || only === 'mascot') createMascot(THREE, { step: 0.018, bodyStep: 0.03, fine: 0.012 });
+  if (only !== 'mascot') for (const n of ALL_MODELS) if (!pick || pick.includes(n)) buildModel(THREE, n);
   fs.writeFileSync(file, JSON.stringify(man));
   console.log(`baked ${Object.keys(man).length} shapes in ${((Date.now() - t0) / 1000).toFixed(0)} s: ${dir}`);
   if (only !== 'mascot') await attached();

@@ -35,6 +35,10 @@ confirms that the engine catches it. Run it after each change to a check.
 | The mascot stood in one spot for a whole video | WARN for a scene where he does not travel | `make check` |
 | A formula was read aloud with no reason | WARN, the five steps, and the script agent | `make check`, `reference/script.md`, `agents/video-script.md` |
 | A GPU drop-out removed a leg in 2 frames of 8 | Antialiasing is off, and frames are drawn twice and compared | `make stable` |
+| The voice said "PC removes" for "P C A removes" (a distance of one letter) | A spoken letter of a spelt-out name that has no match in the take is a bad take | `missingLetters` in `engine/voicecheck.mjs`, `make voice` |
+| `{p(ω_i|x)|p of omega i, given x}` was split at its first bar, so the voice read "x)|p of …" ("XTP") and the subtitle showed "p(ω_i" | `make voice` stops on a brace with two bars; write "∣" (U+2223) in the shown part | `twoBars` in `engine/voicecheck.mjs` |
+| The voice said "XTP of omega i" for "p of omega i" three times, and the letter distance (2) passed it | Each heard word is lined up with the script; a word with 2 or more letters, and 60 % or more, unmatched is a bad take and gets retaken | `extraWords` in `engine/voicecheck.mjs`, `make voice` |
+| A scene's first frame showed the end of the scene before, because a start was a float sum | The scene of a frame is found with a 1e-6 s tolerance | `seek` and `sceneAt` in `engine/runtime.js`, `make verify` |
 
 ## Caught by a gate
 
@@ -57,7 +61,10 @@ No code checks these yet. Look for them in the strips.
   look image. A model that others hide by half or more, text on a drawing and text contrast under 3 : 1
   are WARNs too. They become faults only after real videos show where the limits belong.
 - A picture that shows the wrong thing with the right motion (the servo gap did not match the voice).
-- The sound of the voice: nobody has heard it until the user does.
+- The sound of the voice: nobody has heard it until the user does. Whisper writes "EEE" for a voice that says "e, ee", and "changed" for an odd "changed". Spaced capitals ("E E E") read badly: say a word ("triple E").
 - A patch that fails in a chained shell command: stop on the first failure, and confirm that the edit applied.
 - A label that fades out on the same spot where a new label fades in. Below 0.3 opacity the overlap measure ignores it, but the eye still sees two words on top of each other. Move one label aside as it fades.
+- An extra "one" after "one over lambda one, which is only a quarter" (video 2). Whisper drops a repeated word, so the voice check cannot hear it. End the sentence after a symbol that ends in a number ("... over {λ₁|lambda one}. [pause 0.6] ...").
+- One sentence that starts slow and ends very fast ("... by the spread in the same unit, so the unit has no effect", video 2). The pace check measures whole clauses, so it passed. Split a long sentence that ends in short words, with a [pause] between.
+- A fence that came only to the mascot's knee. Large objects keep their real size against him (`styles/clay.md`, "Models"); read the "With the mascot" cell of each model sheet.
 - A scene where the voice names a limit or a result and the mascot stands and watches. Give him the work that shows it, for example holding the drifting cart, or pushing a robot that does not move.
