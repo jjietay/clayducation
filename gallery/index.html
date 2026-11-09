@@ -28,6 +28,8 @@ button { font: inherit; color: inherit; }
 #wipe { z-index: -1; width: 100vw; height: 100vh; display: none; }
 /* Without scripts each chapter keeps its own colour. */
 .js .ch { background: none !important; }
+/* The balloon string of chapter 7, over the page, so it can wrap round a word of the command. */
+#ink { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 4; pointer-events: none; }
 canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 1; pointer-events: none; }
 
 /* A chapter: a tall stretch of scroll, with a pinned screen. The scroll plays the chapter. */
@@ -123,6 +125,7 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 </head>
 <body>
 <div id="bg"></div><canvas id="wipe" aria-hidden="true"></canvas>
+<canvas id="ink" aria-hidden="true"></canvas>
 
 <header class="bar">
   <a class="mark" href="#c0">Clayducation</a>

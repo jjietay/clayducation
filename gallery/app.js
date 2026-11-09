@@ -20,6 +20,8 @@ const bump = (a, b, x) => sm(a, a + (b - a) * 0.3, x) * (1 - sm(b - (b - a) * 0.
 // Steady pace: speeds up over the first 15 %, then constant, then slows over the last 15 %.
 // Flow: speeds up over the first 15 %, then constant to the end, so he walks on into the next chapter.
 const flow = (u) => { const a = 0.15, v = 1 / (1 - a / 2); return u < a ? v * u * u / (2 * a) : v * (u - a / 2); };
+// Cont: at a steady pace from the start (he is already walking), slowing over the last 15 %.
+const cont = (u) => 1 - flow(1 - u);
 const pace = (u) => { const a = 0.15, v = 1 / (1 - a); return u < a ? v * u * u / (2 * a) : u > 1 - a ? 1 - v * (1 - u) ** 2 / (2 * a) : v * (u - a / 2); };
 const D = Math.PI / 180, PI2 = Math.PI / 2;
 const $ = (s, el = document) => el.querySelector(s);
@@ -28,7 +30,7 @@ let dt = 1 / 60, lastT = now();
 const damp = (a, b, rate) => a + (b - a) * (1 - Math.exp(-rate * dt));
 
 // ---------- the world layout: where each set stands ----------
-const S1 = [10, 0], S2 = [34, 2.4], WX0 = 50, WX1 = 72, WZ = 1.2, Z3 = WZ - 2.1, CX = 82, KK = 2.4, FX = 92, S7 = [116, 0];
+const S1 = [10, 0], S2 = [34, 2.4], WX0 = 50, WX1 = 72, WZ = 1.2, Z3 = WZ - 2.8, CX = 82, KK = 2.4, FX = 92, S7 = [116, 0];
 const FACE = CX + (0.3 + 0.82) * KK + 0.04;   // the +x face of the cart body at rest
 
 // ---------- the timeline ----------
@@ -42,7 +44,7 @@ function plan() {
   for (let j = 0; j < chs.length; j++) {
     segs.push({ j, kind: 'act', y, len: ACT[j] }); y += ACT[j];
     if (j === chs.length - 1) break;
-    const kind = C[j].next || 'walk', len = kind === 'pen' ? 2.6 : Math.max(1.3, route(j).total / WALK);
+    const kind = C[j].next || 'walk', len = kind === 'pen' ? 2.6 : C[j].cont ? route(j).total / (1 - 0.075) / C[j].speed : Math.max(1.3, route(j).total / WALK);   // cont: the walk starts at the chapter's own pace
     segs.push({ j, kind, y, len }); y += len;
   }
   total = y;
@@ -164,7 +166,7 @@ function filmRoll() {
     g.fillStyle = '#1c1d24'; g.fillRect(0, 0, 1024, 1024); g.fillStyle = '#e9e4da';
     const hh = 1024 * 0.22 / (FH + 1.3), n = 20;
     for (const v of [0.06, 0.94]) for (let k = 0; k < n; k++) { g.beginPath(); g.roundRect((k + 0.27) * 1024 / n, (1 - v) * 1024 - hh / 2, 1024 / n * 0.46, hh, 3); g.fill(); }
-    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; R.initTexture(t); return t;   // on the GPU now
   })();
   const side = new THREE.MeshPhysicalMaterial({ map: rollSide, roughness: 0.5 }), end = new THREE.MeshStandardMaterial({ color: '#e9e4da', roughness: 0.7 });
   return new THREE.Mesh(new THREE.CylinderGeometry(1, 1, FH + 1.3, 56), [side, end, end]);
@@ -175,9 +177,9 @@ function balloon() {
   const root = new THREE.Group(), mat = new THREE.MeshPhysicalMaterial({ color: '#e0343c', roughness: 0.32, clearcoat: 0.7, clearcoatRoughness: 0.3, sheen: 0.2 });
   const body = new THREE.Mesh(new THREE.SphereGeometry(0.85, 40, 28), mat); body.scale.set(1, 1.18, 1); body.position.y = 1.08;
   const knot = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.24, 16), mat); knot.rotation.x = Math.PI; knot.position.y = 0.1;
-  const string = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({ color: '#3b3640', roughness: 0.8 }));
+  const string = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({ color: '#efe6d8', roughness: 0.8 }));
   root.add(body, knot, string);
-  const b = { root, body, last: '' };
+  const b = { root, body, string, last: '' };
   b.hang = (end) => {
     const key = end.toArray().map((v) => v.toFixed(3)).join();
     if (key === b.last) return; b.last = key;
@@ -258,9 +260,24 @@ function settle() {
       if (h.glide) { h.p.lerp(w.p, 1 - Math.exp(-10 * dt)); if (h.p.distanceTo(w.p) < 0.02) h.glide = false; } else h.p.copy(w.p);
       h.last = w.p.clone();
     }
-    if (h.k > 0.002 && h.p) realReach(i, h.p.toArray(), h.k);
+    h.face = w ? w.face : h.face;
+    if (h.k > 0.002 && h.p) palmReach(i, h);
   });
   want.face = null; want.look = null; want.hands = [null, null];
+}
+// A hand on its point. With a palm direction (face), the palm (the hand's +z, where the thumb is) turns that
+// way and the fingers go on from the forearm, so the hand lies on the thing it holds; the wrist moves so that
+// the middle of the palm is still on the point.
+function palmReach(i, h) {
+  if (!h.face) { realReach(i, h.p.toArray(), h.k); return; }
+  const a = H.arms[i], sh = a.shoulder.getWorldPosition(new THREE.Vector3());
+  const z = h.face.clone().normalize(), fd = h.p.clone().sub(sh).normalize();
+  let y = fd.clone().addScaledVector(z, -fd.dot(z)).multiplyScalar(-1); if (y.lengthSq() < 1e-6) y.set(0, 1, 0); y.normalize();   // the fingers (-y) go on from the forearm
+  const x = y.clone().cross(z).normalize(), wristAt = h.p.clone().addScaledVector(y, 0.3);
+  realReach(i, wristAt.addScaledVector(fd, 0.3).toArray(), h.k);
+  a.wrist.parent.updateMatrixWorld(true);
+  const want = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+  a.wrist.quaternion.slerp(a.wrist.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(want), h.k);
 }
 // What each hand holds (from H.hold and H.reach in the chapters); settle() puts the hands there.
 const hands = [{ k: 0 }, { k: 0 }];
@@ -268,17 +285,17 @@ want.hands = [null, null];
 let realReach = null;
 function wrapHands(m) {
   realReach = m.reach;
-  const reachOf = (i, point, k) => { want.hands[i] = { p: new THREE.Vector3(...point), k: clamp(k) }; };
+  const reachOf = (i, point, k, face) => { want.hands[i] = { p: new THREE.Vector3(...point), k: clamp(k), face: face ? new THREE.Vector3(...face) : null }; };
   m.reach = (i, point, k = 1) => { if (k > 0) reachOf(i, point, k); };
   // As the kit's hold(): a hand that cannot get to what it holds is a fault for "make look" (H.grips).
-  m.hold = (i, point, k = 1) => {
+  m.hold = (i, point, k = 1, face = null) => {
     if (k > 0.5) {
       m.root.updateMatrixWorld(true);
       const a = m.arms[i], gap = a.shoulder.parent.worldToLocal(new THREE.Vector3(...point)).sub(a.shoulder.position).length() - 2.65;
       if (gap > 0) (m.grips ??= []).push({ i, gap });
       (m.holds ??= []).push({ i, point, k });
     }
-    if (k > 0) reachOf(i, point, k);
+    if (k > 0) reachOf(i, point, k, face);
   };
 }
 let happyAt = -1e9;
@@ -676,6 +693,7 @@ C[2] = {
 // The pointer finds the word under it: its chip lifts and its bars turn green.
 let VOICE;
 C[3] = {
+  cont: true, speed: (WX1 + 2 - WX0) / ACT[3],
   start: [WX0 - 1, Z3, PI2], end: [WX1 + 1, Z3, PI2], via: [[WX1 + 3.5, -0.5], [WX1 + 4.5, 3.6], [FACE + 3, 3.6]],
   build() {
     const { wave, words } = VOICE, n = wave.length, dur = 6.48;
@@ -697,11 +715,11 @@ C[3] = {
     });
   },
   act(t) {
-    // He walks on at the same pace as the walk in (about WALK units for each screen of scroll), and the
-    // playhead goes with him.
-    const hx = WX0 - 1 + (WX1 + 2 - WX0) * clamp(t / 0.9), { words } = VOICE, n = this.h.length;
+    // He walks on at one pace through the whole chapter and on into the walk out (C[3].speed, cont), and the
+    // playhead goes with him; at the end of the track it sinks into the floor.
+    const hx = WX0 - 1 + (WX1 + 2 - WX0) * t, { words } = VOICE, n = this.h.length;
     const x = clamp(hx + 0.8, WX0, WX1), T = (x - WX0) / (WX1 - WX0) * this.dur;
-    this.head.position.set(x, 0, WZ); this.head.visible = t < 0.97;
+    const sink = 1 - sm(0.9, 0.98, t); this.head.position.set(x, 0, WZ); this.head.scale.set(1, Math.max(sink, 0.001), 1); this.head.visible = sink > 0.002;
     let hov = -1;
     if (ptr.mouse && state.i === 3 && state.u === 0) { const h = rayAt().intersectObjects([this.bars, ...this.chips])[0]; if (h) { if (h.object === this.bars) { const tt = (h.instanceId + 0.5) / n * this.dur; hov = words.findIndex((w) => tt >= w.a - 0.05 && tt <= w.b + 0.05); } else hov = this.chips.indexOf(h.object); } }
     if (hov >= 0 && (still ? 1 : back((T - words[hov].a) / 0.35)) < 0.5) hov = -1;
@@ -716,20 +734,15 @@ C[3] = {
       m.rotation.set(0, Math.atan2(cam.position.x - m.position.x, cam.position.z - m.position.z), 0);
     });
     if (!H) return;
-    // He walks behind the bars and the words. Each word that drops in surprises him; he looks at it, and his
-    // hand on the side of the camera (hand 0) touches it from behind as he walks past it.
+    // He walks behind the bars and the words, smiling. His hand on the side of the camera (hand 0) goes along
+    // behind the words at the height of their middle row, its palm to them, as if it touches each one.
     H.pose.rest(); place(hx, Z3, PI2);
-    H.stride((route(2).total + hx - (WX0 - 1)) * H.STEP, 0.5 * (1 - sm(0.86, 0.94, t)));   // the steps go on from the walk in
-    let near = null, nw = 0, pop = 0, last = null;
-    this.chips.forEach((m, j) => {
-      if (!m.visible) return;
-      const age = T - words[j].a, w = (1 - sm(0.5, 1.7, Math.abs(m.x - hx - 0.7))) * clamp(m.scale.x);
-      if (w > nw) { nw = w; near = m; }
-      if (age >= 0) { pop = Math.max(pop, Math.exp(-((age / 0.7) ** 2))); if (!last || words[j].a > last.a) last = { a: words[j].a, m }; }
-    });
-    if (near) { const hw = near.geometry.parameters.width / 2 - 0.2; H.hold(0, [clamp(hx + 0.9, near.x - hw, near.x + hw), near.position.y - 0.12, near.position.z - 0.16], nw * (1 - sm(0.86, 0.92, t))); }
-    H.blendExpression('smile', 'surprised', clamp(pop * 1.4));
-    lookAt(last ? last.m.position : null, 0.9 * (1 - sm(0.88, 0.95, t)));
+    H.stride((route(2).total + hx - (WX0 - 1)) * H.STEP, 0.5);   // the steps go on from the walk in, and on into the walk out
+    // The hand rises from where it hangs and goes back down at the end (a hold at full strength all the time:
+    // a half-strength hold swings the elbow out in front of the words).
+    const up = sm(0.01, 0.12, t) * (1 - sm(0.82, 0.95, t)), hang = [hx + 0.3, 2.0, Z3 + 1.45], top = [hx + 1.0, 5.15, WZ + 0.2 - 0.6];
+    H.hold(0, hang.map((v, q) => lerp(v, top[q], up)), 1, up > 0.3 ? [0, 0, 1] : null);
+    H.blendExpression('neutral', 'smile', 0.9);
   },
   shot(t) { const x = lerp(WX0 + 5, WX1 - 5, sm(0.08, 0.9, t)); return { at: [x, 3.6, 0.6], dist: 27, az: -8 + 4 * pn.x, el: 8 - 2 * pn.y, sx: 0.1, sy: 0.15 }; },
 };
@@ -849,14 +862,15 @@ C[5] = {
 const CLIPS = ['bayes', 'ruler', 'knn', 'robot', 'lever', 'servo'];
 const FW = 7.2, FH = 4.05, GAP = 8.1;
 // He holds a film spool by its rim, and the strip comes out of it. He stands behind the end of the strip.
-const SPOOL = [FX + 9.4, 4.6, 0], STAND = [FX + 11.35, -1.2], SFACE = Math.atan2(SPOOL[0] - STAND[0], SPOOL[2] - STAND[1]);
+const SPOOL = [FX + 9.0, 4.6, 0], STAND = [FX + 11.0, -1.0], SFACE = Math.atan2(SPOOL[0] - STAND[0], SPOOL[2] - STAND[1]);
 C[6] = {
   start: [...STAND, SFACE], end: [...STAND, SFACE],
   build() {
     film = this;
     this.strip = new THREE.Group(); put(this.strip);
     const plateGeo = new THREE.BoxGeometry(GAP, FH + 1.1, 0.12), plateMat = new THREE.MeshPhysicalMaterial({ color: '#1c1d24', roughness: 0.5 });
-    const holeGeo = new THREE.BoxGeometry(0.32, 0.22, 0.05), holeMat = new THREE.MeshStandardMaterial({ color: '#e9e4da', roughness: 0.7 });
+    const holeGeo = new THREE.BoxGeometry(0.32, 0.22, 0.14),   // through the plate, so the holes show on both faces
+           holeMat = new THREE.MeshStandardMaterial({ color: '#e9e4da', roughness: 0.7 });
     this.title = card(FW, FH, (g, w, h) => {
       g.fillStyle = '#e4d3b7'; g.fillRect(0, 0, w, h);
       g.fillStyle = '#57534c'; g.font = `700 ${h * 0.065}px "Plus Jakarta Sans"`; g.fillText('CLAYDUCATION', w * 0.07, h * 0.18);
@@ -887,7 +901,7 @@ C[6] = {
     this.balloon = balloon(); put(this.balloon.root);
     this.cut = new THREE.Plane(new THREE.Vector3(-1, 0, 0), SPOOL[0]);
     for (const m of [plateMat, holeMat, ...pics.map((q) => q.material)]) m.clippingPlanes = [this.cut];
-    // His hands hold the roll on each side of it, towards him (H.hold in act, as the roll gets thinner).
+    // His hands hold the roll on its side towards him (H.hold in act, as the roll gets thinner).
     this.d = new THREE.Vector2(STAND[0] - SPOOL[0], STAND[1] - SPOOL[2]).normalize(); this.p = new THREE.Vector2(Math.cos(SFACE), -Math.sin(SFACE));
     // The clips load now, so a selected frame plays at once.
     for (const pic of pics) if (pic.clip) {
@@ -898,7 +912,8 @@ C[6] = {
   act(t) {
     // The strip rolls out (0.04 to 0.62); a balloon comes in at the top right (0.62), the wind takes it (0.79)
     // and then the roll out of his hands (0.84); he reaches after it, leans, lets his arms fall, and smiles.
-    const roll = (still ? 0.5 : sm(0.04, 0.62, t)) * GAP * (CLIPS.length + 0.4), out = FX + 8.8;
+    // The strip never leaves the roll: at the end, the right edge of its last frame is still inside it.
+    const out = FX + 8.8, RMAX = out + (CLIPS.length - 0.1) * GAP - SPOOL[0] - 0.4, roll = (still ? 0.5 : sm(0.04, 0.62, t)) * RMAX;
     this.cells.forEach((c) => {
       const x = out - GAP * 0.6 - roll + c.i * GAP;
       c.position.set(x, 0, 0); c.visible = x - GAP / 2 < SPOOL[0];
@@ -907,7 +922,7 @@ C[6] = {
       // A selected frame shows its clip as soon as the clip has a frame to show (its first frame is the poster).
       if (p.video && p.material.map !== (focus.obj === p && p.video.readyState >= 2 ? p.vtex : p.poster)) { p.material.map = focus.obj === p && p.video.readyState >= 2 ? p.vtex : p.poster; p.material.needsUpdate = true; }
       if (focus.obj === p) return;
-      p.lift = damp(p.lift, !focus.obj && hovered === p ? 1 : 0, 10); p.position.z = 0.07 + 0.5 * p.lift; p.scale.setScalar(1 + 0.06 * p.lift);
+      p.position.z = 0.07; p.scale.setScalar(1);   // a frame does not move on hover (the pointer shows that it can be selected)
     });
     // The roll gets thinner as the film comes out. The cut is in world units: the set grows and sinks (morph).
     const rc = still ? 0.4 : 0.55 - 0.27 * sm(0.04, 0.62, t); this.spool.scale.set(rc, 1, rc);
@@ -932,11 +947,14 @@ C[6] = {
     this.spool.rotation.set(0, 0, 0.08 * Math.sin(now() / 60) * tug + fly * fly * 5);
     const at = (f) => new THREE.Vector3(...SPOOL).lerp(exit, f * f);   // where the roll is, for his hands
     const reachTo = at(Math.min(fly, 0.3)).sub(new THREE.Vector3(...SPOOL));
-    this.grip = [-1, 1].map((s) => { const r = rc + 0.1; return [SPOOL[0] + reachTo.x + r * (0.5 * this.d.x + s * 0.87 * this.p.x), SPOOL[1] + Math.min(reachTo.y, 0.6), SPOOL[2] + r * (0.5 * this.d.y + s * 0.87 * this.p.y)]; });
+    // As a tall pole is held: both hands on the side of the roll towards him, one over the other (hand 1 high,
+    // hand 0 low), so his arms never cross.
+    this.grip = [[-1, 3.9], [1, 5.2]].map(([s, y]) => { const r = rc + 0.08; return [SPOOL[0] + reachTo.x + r * this.d.x + s * 0.2 * this.p.x, y + Math.min(reachTo.y, 0.6), SPOOL[2] + r * this.d.y + s * 0.2 * this.p.y]; });
     if (!H) return;
     const lean = 0.32 * sm(0.84, 0.88, t) * (1 - sm(0.91, 0.97, t)), hold = sm(0, 0.04, t) * (1 - sm(0.91, 0.96, t));
     H.pose.rest(); place(STAND[0], STAND[1], SFACE, { lean });
-    H.hold(0, this.grip[0], hold); H.hold(1, this.grip[1], hold);
+    const axis = this.spool.position, faceTo = (g) => [axis.x - g[0], 0, axis.z - g[2]];   // palms to the roll's axis
+    H.hold(0, this.grip[0], hold, faceTo(this.grip[0])); H.hold(1, this.grip[1], hold, faceTo(this.grip[1]));
     H.blendExpression('neutral', 'smile', 0.7); H.blendExpression('smile', 'surprised', bump(0.8, 0.93, t)); H.blendExpression('surprised', 'smile', sm(0.92, 0.97, t));
     if (t < 0.64) lookAt(cam.position, 0); else if (t < 0.84) lookAt(B.root.position, sm(0.64, 0.7, t)); else if (t < 0.93) lookAt(this.spool.position, 1); else lookAt(cam.position, 0.8);
   },
@@ -947,6 +965,36 @@ C[6] = {
 // string of the balloon catches on the command, and he catches the roll. Then he points at the command; a copy
 // makes him wave. The pointer can push the balloon; it swings back.
 const termEl = $('.term');
+// The string of the balloon in chapter 7: it is drawn on a canvas over the page (#ink), so it can wrap round
+// the word npx in the box of the command: two turns round it (the turn behind the box is faint), and a short
+// end. It winds on as the balloon comes in (fin from 0.72 to 1).
+const inkEl = $('#ink'), ink = inkEl.getContext('2d'), codeEl = $('.term code');
+function npxRect() { const r = document.createRange(), tn = codeEl.firstChild; r.setStart(tn, 0); r.setEnd(tn, 3); return r.getBoundingClientRect(); }
+function inkClear() { if (inkEl.dataset.on) { ink.setTransform(1, 0, 0, 1, 0, 0); ink.clearRect(0, 0, inkEl.width, inkEl.height); delete inkEl.dataset.on; } }
+function inkString(B, fin) {
+  const dpr = Math.min(devicePixelRatio, 2), W = Math.round(innerWidth * dpr), Hh = Math.round(innerHeight * dpr);
+  if (inkEl.width !== W || inkEl.height !== Hh) { inkEl.width = W; inkEl.height = Hh; }
+  ink.setTransform(dpr, 0, 0, dpr, 0, 0); ink.clearRect(0, 0, innerWidth, innerHeight); inkEl.dataset.on = 1;
+  const [kx, ky] = toScreen(B.root.getWorldPosition(new THREE.Vector3())), w = npxRect(), cx = w.left + w.width / 2, cy = w.top + w.height / 2;
+  const rx = w.width / 2 + 12, ry = w.height / 2 + 9, wind = sm(0.72, 1, fin);
+  const pts = [];
+  // Down from the knot to the top of the loop (or, before it catches, trailing behind the balloon).
+  const free = [kx + 70, ky + 190], top = [cx, cy - ry], e = [lerp(free[0], top[0], sm(0.55, 0.72, fin)), lerp(free[1], top[1], sm(0.55, 0.72, fin))];
+  for (let q = 0; q <= 20; q++) { const f = q / 20, mx = lerp(kx, e[0], 0.5) + 25, my = lerp(ky, e[1], 0.5); pts.push([lerp(lerp(kx, mx, f), lerp(mx, e[0], f), f), lerp(lerp(ky, my, f), lerp(my, e[1], f), f), 1]); }
+  // The turns round the word: a turn shrinks a little, and is behind the box while it goes up the far side.
+  const turns = 2 * wind;
+  for (let q = 1; q <= Math.ceil(turns * 60); q++) {
+    const a = Math.min(q / 60, turns) * Math.PI * 2, sh = 1 - 0.12 * a / (Math.PI * 4);
+    pts.push([cx + Math.sin(a) * rx * sh + (a / (Math.PI * 4)) * 6, cy - Math.cos(a) * ry * sh, Math.sin(a) > 0 ? 1 : 0.3]);
+  }
+  if (wind >= 1) { const [lx, ly] = pts.at(-1); for (let q = 1; q <= 10; q++) pts.push([lx - q * 2.2, ly + q * 2.8 + Math.sin(q / 2) * 2, 1]); }
+  ink.lineCap = 'round'; ink.lineJoin = 'round';
+  for (const [col, lw] of [['rgba(38,38,42,.55)', 3.6], ['#efe6d8', 2]]) {
+    ink.strokeStyle = col; ink.lineWidth = lw;
+    for (let q = 1; q < pts.length; q++) { ink.globalAlpha = Math.min(pts[q][2], pts[q - 1][2]); ink.beginPath(); ink.moveTo(pts[q - 1][0], pts[q - 1][1]); ink.lineTo(pts[q][0], pts[q][1]); ink.stroke(); }
+  }
+  ink.globalAlpha = 1;
+}
 // Hand 0 holds the roll at his left on the screen (-x), so the roll never covers him.
 const HAND7 = { side: [-1, 0], p: [S7[0] - 1.75, 3.4, S7[1] + 0.55] };
 C[7] = {
@@ -959,11 +1007,11 @@ C[7] = {
   },
   act(t) {
     const live = state.i === 7 && state.u === 0, B = this.balloon;
+    if (!live) inkClear();
     B.root.visible = live && t > 0.03; this.roll.visible = live && t > 0.1;
     if (live) {
       // The balloon: from the top right to above the box of the command; its string end goes under the box.
-      const r = termEl.getBoundingClientRect(), anchor = worldAt(r.left + r.width * 0.26, r.top + 10);
-      const rest = anchor.clone().add(new THREE.Vector3(0.7, 2.7, 0)), from = worldAt(innerWidth + 200, innerHeight * 0.12);
+      const wr = npxRect(), rest = worldAt(wr.left + wr.width / 2 + 40, wr.top - 190), from = worldAt(innerWidth + 200, innerHeight * 0.12);
       const fin = sm(0.04, 0.4, t), swing = clamp((t - 0.4) / 0.16);
       const k = B.root.position.copy(from).lerp(rest, 1 - (1 - fin) ** 3);
       k.y += Math.sin(fin * Math.PI * 3) * 0.45 * (1 - fin);
@@ -976,8 +1024,7 @@ C[7] = {
       if (this.off.length() > 2.2) this.off.setLength(2.2);
       k.add(this.off);
       B.root.rotation.z = -0.25 * this.off.x / 2.2 + 0.1 * (1 - fin);
-      const trail = k.clone().add(new THREE.Vector3(1.4, -2.6, 0));
-      B.tie(trail.lerp(anchor, sm(0.7, 1, fin)));
+      B.string.visible = false; inkString(B, fin);
       // The roll: in from the right, turning over, and it ends upright beside him, where his hand 0 takes it.
       const f = sm(0.12, 0.46, t), e = 1 - (1 - f) ** 3, A = worldAt(innerWidth + 260, innerHeight * 0.45), P = HAND7.p, rc = 0.28;
       const end = new THREE.Vector3(P[0] + HAND7.side[0] * (rc + 0.1), P[1], P[2] + HAND7.side[1] * (rc + 0.1));
@@ -989,7 +1036,7 @@ C[7] = {
     const h = happy(), grab = sm(0.44, 0.5, t);
     if (h > 0) { H.blendPose('rest', 'wave', h); H.arms[1].elbow.rotation.z += Math.sin(now() / 120) * 0.3 * h; }
     else H.blendPose('rest', 'point', sm(0.62, 0.8, t));
-    H.hold(0, HAND7.p, grab);
+    H.hold(0, HAND7.p, grab, [-1, 0, 0]);   // the palm on the roll
     H.blendExpression('neutral', 'surprised', sm(0.08, 0.16, t)); H.blendExpression('surprised', 'smile', Math.max(h, sm(0.47, 0.55, t)));
     if (t < 0.3) lookAt(B.root.position, sm(0.06, 0.14, t)); else if (t < 0.52) lookAt(this.roll.position, 1); else lookAt(null, h ? 0 : 0.5);
   },
@@ -1012,7 +1059,7 @@ let walkFace = null;
 function walkBetween(s) {
   if (!H) return;
   const { pts, seg, total } = route(s.i), a = pts[0], b = pts.at(-1);
-  const P = C[s.i].flows ? flow : pace;
+  const P = C[s.i].flows ? flow : C[s.i].cont ? cont : pace, from = C[s.i].cont ? route(s.i - 1).total + route(s.i).pts[0][0] - C[s.i].start[0] : 0;
   let d = P(s.u) * total, k = 0;
   while (k < seg.length - 1 && d > seg[k]) { d -= seg[k]; k++; }
   const f = seg[k] ? d / seg[k] : 0, p0 = pts[k], p1 = pts[k + 1], x = lerp(p0[0], p1[0], f), z = lerp(p0[1], p1[1], f);
@@ -1021,7 +1068,7 @@ function walkBetween(s) {
   if (walkFace === null || s.u < 0.02) walkFace = a[2];
   let dd = want - walkFace; dd = Math.atan2(Math.sin(dd), Math.cos(dd)); walkFace += dd * (1 - Math.exp(-8 * dt));
   H.pose.rest(); place(x, z, walkFace);
-  H.stride(P(s.u) * total * H.STEP, 0.5 * sm(0, 0.06, s.u) * (C[s.i].flows ? 1 : 1 - sm(0.94, 1, s.u)));
+  H.stride((from + P(s.u) * total) * H.STEP, 0.5 * (C[s.i].cont ? 1 : sm(0, 0.06, s.u)) * (C[s.i].flows ? 1 : 1 - sm(0.94, 1, s.u)));   // cont: the legs go on in step
   H.blendExpression('neutral', 'smile', 0.5);
 }
 function shotAt(s) {
@@ -1172,6 +1219,7 @@ function frame() {
   // The console and the ring of chapter 5 are outside the chapter (on the top layer): they fade with it.
   consoleEl.style.opacity = chs[5].style.opacity; consoleEl.style.visibility = chs[5].style.visibility;
   if (state.i !== 5 || state.u > 0) ringEl.style.opacity = 0;
+  if (state.i !== 7 || state.u > 0) inkClear();   // the balloon string of chapter 7
   [...dots.children].forEach((d, j) => d.classList.toggle('on', j === (state.u > 0.5 ? state.i + 1 : state.i)));
   if (state.i !== 1 || state.u > 0) document.querySelectorAll('.fly').forEach((f) => { f.style.display = 'none'; });
   if (!built) { colours(state); return; }
@@ -1230,7 +1278,10 @@ async function boot() {
     for (const name of ['table', 'book', 'cart']) await load(name);
     for (let j = 1; j < C.length; j++) { group(j); C[j].build(); C[j].ready = true; }
     plan();
-    R.compile(scene, cam);
+    // Compile every material now, also of things that are hidden until later (the balloons, the rolls), so no
+    // frame stalls the first time one of them shows.
+    const hidden = []; scene.traverse((o) => { if (!o.visible) { hidden.push(o); o.visible = true; } });
+    R.compile(scene, cam); hidden.forEach((o) => { o.visible = false; });
     document.documentElement.classList.add('ready');
   } catch (e) {
     console.error(e);
