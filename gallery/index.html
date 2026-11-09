@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kaleidoscope</title>
+<title>Clayducation</title>
 <meta name="description" content="A Claude Code skill that makes narrated teaching videos. Every picture is soft 3D clay, with one silent mascot who does the work. Code draws and measures every frame.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -159,7 +159,7 @@ footer a { color: var(--paper-ink); }
 <body>
 
 <header class="wrap top">
-  <a class="repo" href="https://github.com/jjietay/kaleidoscope">jjietay/kaleidoscope</a>
+  <a class="repo" href="https://github.com/jjietay/clayducation">jjietay/clayducation</a>
   <nav aria-label="Sections">
     <a href="#how">How it works</a>
     <a href="#frames">Clay</a>
@@ -172,7 +172,7 @@ footer a { color: var(--paper-ink); }
 
 <main>
 <section class="wrap hero" aria-label="Introduction">
-  <h1>Kaleidoscope</h1>
+  <h1>Clayducation</h1>
   <div>
     <p><span class="new">New: the clay look and its mascot</span></p>
     <p class="lede">Narrated teaching videos, made in clay by code, or in the classic 2D styles.</p>
@@ -183,7 +183,7 @@ footer a { color: var(--paper-ink); }
     </div>
     <div class="actions">
       <a class="button" href="#install">Install</a>
-      <a href="https://github.com/jjietay/kaleidoscope">Read the source on GitHub</a>
+      <a href="https://github.com/jjietay/clayducation">Read the source on GitHub</a>
     </div>
   </div>
   <figure class="sits" style="margin-bottom:0">
@@ -201,7 +201,7 @@ footer a { color: var(--paper-ink); }
 <section class="part p-sand" id="how">
   <div class="wrap">
     <h2>How a video is made</h2>
-    <p class="intro">Claude plans and builds. The engine speaks, times and draws. The checks send faults back to Claude before any long step. The full workflow is in <a href="https://github.com/jjietay/kaleidoscope/blob/main/SKILL.md">SKILL.md</a>.</p>
+    <p class="intro">Claude plans and builds. The engine speaks, times and draws. The checks send faults back to Claude before any long step. The full workflow is in <a href="https://github.com/jjietay/clayducation/blob/main/SKILL.md">SKILL.md</a>.</p>
     <figure class="sits small">
       <a href="png/pipeline.png"><img src="png/pipeline.png" width="3000" height="1785" loading="lazy" alt="Pipeline figure. Panel a, plan and build: the main session writes script.md, storyboard.md and scenes.js from the clay kit; Chatterbox speaks; Whisper times each word; headless Chrome draws the frames; make check tests them. Panel b, look, build and render: make look measures collisions, text on 3D, joins, walks, voice and motion, and stable frames; Claude reads each image and gives its check digit; make final renders, and verify checks the MP4."></a>
       <figcaption><b>(a) Plan and build, (b) look, build and render.</b> A look after each edit, then the gates. Select the figure to see it at full size.</figcaption>
@@ -251,7 +251,7 @@ footer a { color: var(--paper-ink); }
 <section class="part p-cream" id="classic">
   <div class="wrap">
     <h2>The classic 2D styles</h2>
-    <p class="intro">The first version of Kaleidoscope drew in 29 flat styles, and they are still here. Ask for them by name, for example "tell its history as a newsreel", and Claude picks a style for each part. They use the same workflow and the same checks as clay. The guides are in <a href="https://github.com/jjietay/kaleidoscope/tree/main/styles/classic">styles/classic</a>.</p>
+    <p class="intro">The first version of Clayducation drew in 29 flat styles, and they are still here. Ask for them by name, for example "tell its history as a newsreel", and Claude picks a style for each part. They use the same workflow and the same checks as clay. The guides are in <a href="https://github.com/jjietay/clayducation/tree/main/styles/classic">styles/classic</a>.</p>
     <div class="classic">
       <figure class="sits small"><a href="png/classic/newsreel.png"><img src="png/classic/newsreel.png" width="1280" height="720" loading="lazy" alt="A 1920s newspaper in a dark film gate, with a grease-pencil ring around the headline."></a>
         <figcaption><b>Newsreel.</b> A 1920s film gate, for the history of an idea.</figcaption></figure>
@@ -280,7 +280,7 @@ footer a { color: var(--paper-ink); }
       </div>
       <div class="agent">
         <h3>One script agent</h3>
-        <p>Before the voice is made, it works out every fact again and checks that every formula is explained. It is in <a href="https://github.com/jjietay/kaleidoscope/tree/main/agents">agents/</a>.</p>
+        <p>Before the voice is made, it works out every fact again and checks that every formula is explained. It is in <a href="https://github.com/jjietay/clayducation/tree/main/agents">agents/</a>.</p>
       </div>
     </div>
     <figure class="sits small">
@@ -293,7 +293,7 @@ footer a { color: var(--paper-ink); }
 <section class="part p-blush" id="sound">
   <div class="wrap">
     <h2>Music and sound made from code</h2>
-    <p class="intro">The engine makes its music in <code>engine/music.mjs</code> and its sound effects in <code>engine/sfx.mjs</code>, with no samples and no recordings, so there is no licence to clear. The music plays about 13 dB under the voice. These are 30 s previews. The rules are in <a href="https://github.com/jjietay/kaleidoscope/blob/main/SOUND.md">SOUND.md</a>.</p>
+    <p class="intro">The engine makes its music in <code>engine/music.mjs</code> and its sound effects in <code>engine/sfx.mjs</code>, with no samples and no recordings, so there is no licence to clear. The music plays about 13 dB under the voice. These are 30 s previews. The rules are in <a href="https://github.com/jjietay/clayducation/blob/main/SOUND.md">SOUND.md</a>.</p>
     <ul class="tracks">
       <li><h3>current<small>72 BPM, C Am F G</small></h3>
         <p>A calm pad and a slow arpeggio, with no beat. The default track, for any video.</p>
@@ -312,11 +312,11 @@ footer a { color: var(--paper-ink); }
   <div class="wrap split">
     <div>
       <h2>Install</h2>
-      <p class="intro">One command checks your computer, asks 4 questions, shows the plan and installs only what you choose. A GPU is not necessary. Disk space: about 12 GB for everything on an NVIDIA GPU, 7 GB on a Mac, and 1.5 GB for the smallest install (Kokoro voice, no Manim). The manual setup is in <a href="https://github.com/jjietay/kaleidoscope/blob/main/INSTALL.md">INSTALL.md</a>.</p>
+      <p class="intro">One command checks your computer, asks 4 questions, shows the plan and installs only what you choose. A GPU is not necessary. Disk space: about 12 GB for everything on an NVIDIA GPU, 7 GB on a Mac, and 1.5 GB for the smallest install (Kokoro voice, no Manim). The manual setup is in <a href="https://github.com/jjietay/clayducation/blob/main/INSTALL.md">INSTALL.md</a>.</p>
     </div>
     <div>
-<pre><code>npx kaleidoscope-video</code></pre>
-      <p>Later, <code>/setup-kaleidoscope</code> in Claude Code changes these:</p>
+<pre><code>npx clayducation</code></pre>
+      <p>Later, <code>/setup-clayducation</code> in Claude Code changes these:</p>
       <ul class="settings">
         <li><b>voice</b><span>Chatterbox on a GPU, or Kokoro on a CPU.</span></li>
         <li><b>gpu</b><span>Auto, or off. NVIDIA on Linux; Metal and VideoToolbox on a Mac (new, not yet tested on a Mac).</span></li>
@@ -334,10 +334,10 @@ footer a { color: var(--paper-ink); }
 
 <footer>
   <div class="wrap">
-    <p>Kaleidoscope is under the <a href="https://github.com/jjietay/kaleidoscope/blob/main/LICENSE">MIT licence</a>.
+    <p>Clayducation is under the <a href="https://github.com/jjietay/clayducation/blob/main/LICENSE">MIT licence</a>.
     <a href="https://github.com/vincentsch/explainroo">explainroo</a> times the words, <a href="https://github.com/resemble-ai/chatterbox">Chatterbox</a> speaks the narration,
     and <a href="https://www.manim.community/">Manim Community</a> draws the maths scenes.</p>
-    <p><a href="https://github.com/jjietay/kaleidoscope">github.com/jjietay/kaleidoscope</a></p>
+    <p><a href="https://github.com/jjietay/clayducation">github.com/jjietay/clayducation</a></p>
   </div>
 </footer>
 

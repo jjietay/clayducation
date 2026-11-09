@@ -4,12 +4,12 @@ The easy way is the setup command. It asks questions, shows the plan, and instal
 what you choose:
 
 ```bash
-npx kaleidoscope-video            # or add --yes to take every default
+npx clayducation            # or add --yes to take every default
 ```
 
 Without an NVIDIA GPU or Apple silicon, choose the Kokoro voice: it is fast on a CPU. Chrome
 then draws the frames with SwiftShader and ffmpeg encodes with libx264, so a render takes
-longer. Change the settings later with `/setup-kaleidoscope` in Claude Code, or with
+longer. Change the settings later with `/setup-clayducation` in Claude Code, or with
 `node engine/make.mjs config`.
 
 ## Manual setup
@@ -18,14 +18,14 @@ You need Node 22+, Google Chrome or Chromium, ffmpeg, Python 3.12 with
 [uv](https://docs.astral.sh/uv/), and for the Chatterbox voice a GPU.
 
 ```bash
-git clone https://github.com/jjietay/kaleidoscope.git ~/.claude/skills/kaleidoscope
-cd ~/.claude/skills/kaleidoscope
+git clone https://github.com/jjietay/clayducation.git ~/.claude/skills/clayducation
+cd ~/.claude/skills/clayducation
 
 # The script agent: Claude Code reads it from ~/.claude/agents
 mkdir -p ~/.claude/agents
 for f in agents/video-*.md; do ln -sf "$PWD/$f" ~/.claude/agents/; done
-# The /setup-kaleidoscope command (voice, GPU)
-ln -sfn "$PWD/setup" ~/.claude/skills/setup-kaleidoscope
+# The /setup-clayducation command (voice, GPU)
+ln -sfn "$PWD/setup" ~/.claude/skills/setup-clayducation
 
 # Word timing: explainroo (its Whisper model). doctor --fetch also gets the Kokoro voice model,
 # which the engine uses on a computer without a GPU.

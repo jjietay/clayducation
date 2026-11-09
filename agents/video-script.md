@@ -1,6 +1,6 @@
 ---
 name: video-script
-description: Checks an explainer video's script and storyboard before any voice or picture is made - every fact worked out again, and every formula explained, not only read. Used by the Kaleidoscope skill, once for each video.
+description: Checks an explainer video's script and storyboard before any voice or picture is made - every fact worked out again, and every formula explained, not only read. Used by the Clayducation skill, once for each video.
 tools: Read, Glob, Grep, Bash, Write
 model: opus
 ---

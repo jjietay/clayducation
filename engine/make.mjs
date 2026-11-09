@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The Kaleidoscope command line. It takes a project folder (script.md,
+// The Clayducation command line. It takes a project folder (script.md,
 // scenes.js, video.json) and gives you a narrated MP4 with soft subtitles.
 //
 //   node make.mjs doctor                    check Chrome, ffmpeg, explainroo, MathJax
@@ -44,7 +44,7 @@ import { sayable, editDistance, extraWords, missingLetters, twoBars } from './vo
 const ENGINE = path.dirname(fileURLToPath(import.meta.url));
 const EXR = process.env.EXPLAINROO_HOME || path.join(os.homedir(), '.explainroo');
 const CHROME = process.env.CHROME || ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'].find((c) => spawnSync('which', [c]).status === 0);
-// The settings of this machine, written by "make config", the installer or /setup-kaleidoscope.
+// The settings of this machine, written by "make config", the installer or /setup-clayducation.
 // config.json is not in git. voice: chatterbox (natural, best on a GPU), kokoro (small, fast on a CPU)
 // or auto. gpu: auto or off. whisper: base (small, fast, explainroo's own) or large (large-v3-turbo,
 // more exact word times and voice checks; needs faster-whisper in engine/tts/.venv, about 1.6 GB).

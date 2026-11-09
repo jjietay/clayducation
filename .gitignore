@@ -7,7 +7,7 @@ gallery/build/
 gallery/out/
 gallery/assets/
 
-# This machine's settings (make config, the installer, /setup-kaleidoscope)
+# This machine's settings (make config, the installer, /setup-clayducation)
 config.json
 
 # The clay kit: made by "make bake" and "make clay"

@@ -1,5 +1,5 @@
 ---
-name: kaleidoscope
+name: clayducation
 description: Make a narrated learning-explainer video (MP4) that teaches a concept, in one soft 3D clay look with a silent mascot, with its script checked by one agent before the voice is made. Use when the user asks for a video, an explainer, an animation or a visual walkthrough of an idea, such as "make a video explaining eigenvectors", "generate an explainer on I2C", "animate how attention works". Uses what the current conversation and project already show, so run it in the conversation where the topic came up.
 ---
 
@@ -8,15 +8,15 @@ description: Make a narrated learning-explainer video (MP4) that teaches a conce
 You make a video that helps the user **learn** a concept. You have one big advantage
 over a fresh tool: you know this conversation and this project. Use that knowledge.
 
-The engine is in `~/.claude/skills/kaleidoscope/engine/`. In this file, `make` means:
+The engine is in `~/.claude/skills/clayducation/engine/`. In this file, `make` means:
 
 ```bash
-node ~/.claude/skills/kaleidoscope/engine/make.mjs <command> <project-dir>
+node ~/.claude/skills/clayducation/engine/make.mjs <command> <project-dir>
 ```
 
 ## Step 0: ask first (every time the skill starts)
 
-Whether the user typed `/kaleidoscope` or asked for a video in words, the first thing you do is
+Whether the user typed `/clayducation` or asked for a video in words, the first thing you do is
 ask the questions below with AskUserQuestion, with clickable options. Leave out each question that
 the user's message or this conversation already answers (for example "as a newsreel" answers the
 look, and "with lo-fi music" answers the music). Put the recommended option first and mark it
@@ -172,7 +172,7 @@ Each was asked for or chosen by ear. The engine does most of them by itself.
 ## Machine settings
 
 Run `make config` before step 1. It prints this machine's settings, which the installer or
-`/setup-kaleidoscope` wrote.
+`/setup-clayducation` wrote.
 
 The `voice` line names the voice: Chatterbox (natural, best on an NVIDIA GPU or Apple
 silicon) or Kokoro (small and fast on a CPU, at about 150 words a minute). A project can
@@ -346,7 +346,7 @@ every other check does, and formulas must act out the voice in both looks.
 | `reference/engine.md` | before step 8: the scene API and every command |
 | `SOUND.md` | when you choose the music or add sound effects, or the user asks for a new track or sound: the rules, the tracks and their recipes, the sound kit and its levels |
 | `agents/video-script.md` | the script agent (step 7), linked from `~/.claude/agents/`. You do not need to read it |
-| `setup/SKILL.md` | the `/setup-kaleidoscope` skill, which writes `config.json` (voice, GPU) with `make config` |
+| `setup/SKILL.md` | the `/setup-clayducation` skill, which writes `config.json` (voice, GPU) with `make config` |
 
 ## If something fails
 

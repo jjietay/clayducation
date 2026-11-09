@@ -1,12 +1,11 @@
 {
-  "name": "kaleidoscope-video",
-  "version": "0.2.0",
-  "description": "Set up Kaleidoscope, a Claude Code skill that makes narrated teaching videos.",
+  "name": "clayducation",
+  "version": "0.3.0",
+  "description": "Set up Clayducation, a Claude Code skill that makes narrated teaching videos.",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "kaleidoscope-video": "bin/kaleidoscope.mjs",
-    "kaleidoscope": "bin/kaleidoscope.mjs"
+    "clayducation": "bin/clayducation.mjs"
   },
   "files": [
     "bin/"
@@ -16,9 +15,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jjietay/kaleidoscope.git"
+    "url": "git+https://github.com/jjietay/clayducation.git"
   },
-  "homepage": "https://jjietay.github.io/kaleidoscope/",
+  "homepage": "https://jjietay.github.io/clayducation/",
   "keywords": [
     "claude-code",
     "claude-code-skill",
@@ -29,6 +28,6 @@
     "education"
   ],
   "bugs": {
-    "url": "https://github.com/jjietay/kaleidoscope/issues"
+    "url": "https://github.com/jjietay/clayducation/issues"
   }
 }

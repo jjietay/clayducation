@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)), MAKE = path.join(HERE, '..', 'make.mjs'), CFG = path.join(HERE, '..', '..', 'config.json');
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kaleidoscope-selftest-'));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clayducation-selftest-'));
 const make = (...a) => { const r = spawnSync(process.execPath, [MAKE, ...a], { encoding: 'utf8' }); return { code: r.status, out: (r.stdout || '') + (r.stderr || '') }; };
 let failed = 0;
 // The test finds the digits from the salted hashes. A real look reads them from the images.
@@ -231,7 +231,7 @@ try {
   report('moving-ok accepts the digits', make('look', dir, '--moving-ok', '7').code === 0);
   // ---------- pace from the text, before any voice ----------
   {
-    const pd = fs.mkdtempSync(path.join(os.tmpdir(), 'kaleidoscope-pace-'));
+    const pd = fs.mkdtempSync(path.join(os.tmpdir(), 'clayducation-pace-'));
     fs.writeFileSync(path.join(pd, 'video.json'), '{}');
     const fast = Array.from({ length: 30 }, () => 'k p and k v and q d').join(' ');
     fs.writeFileSync(path.join(pd, 'script.md'), `# t\n\n## a {core=yes}\n${fast}.\n\n## b {core=yes}\nThe arm lifts the weight. [pause 1] It pulls hardest when it is level. [pause 1]\n`);

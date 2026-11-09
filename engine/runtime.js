@@ -1,4 +1,4 @@
-// Page side of the Kaleidoscope engine. It loads the project's scenes.js and
+// Page side of the Clayducation engine. It loads the project's scenes.js and
 // gives you window.seek(T): the frame at time T, drawn only from T.
 //
 // Every picture must be a pure function of time. No CSS transitions, no

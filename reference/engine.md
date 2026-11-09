@@ -152,7 +152,7 @@ one shadow-casting light, shadow map 1024.
 
 ## Commands
 
-`make` = `node ~/.claude/skills/kaleidoscope/engine/make.mjs`
+`make` = `node ~/.claude/skills/clayducation/engine/make.mjs`
 
 | Command | Does |
 |---|---|
