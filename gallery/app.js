@@ -28,12 +28,12 @@ let dt = 1 / 60, lastT = now();
 const damp = (a, b, rate) => a + (b - a) * (1 - Math.exp(-rate * dt));
 
 // ---------- the world layout: where each set stands ----------
-const S1 = [10, 0], S2 = [34, 2.4], WX0 = 50, WX1 = 72, WZ = 1.2, CX = 82, KK = 2.4, FX = 92, S7 = [116, 0];
+const S1 = [10, 0], S2 = [34, 2.4], WX0 = 50, WX1 = 72, WZ = 1.2, Z3 = WZ - 2.1, CX = 82, KK = 2.4, FX = 92, S7 = [116, 0];
 const FACE = CX + (0.3 + 0.82) * KK + 0.04;   // the +x face of the cart body at rest
 
 // ---------- the timeline ----------
 const chs = [...document.querySelectorAll('.ch')];
-const ACT = [3.2, 3.6, 3.6, 3.0, 3.4, 2.6, 3.4, 1.4];   // scroll of each chapter, in screen heights
+const ACT = [3.2, 3.6, 3.6, 3.0, 3.4, 2.6, 4.6, 2.8];   // scroll of each chapter, in screen heights
 const WALK = 9;                                          // world units walked for each screen height of scroll
 let segs = [], total = 0;
 const C = [];                                            // the chapters' sets, below
@@ -104,7 +104,7 @@ function words(s) {
     if (j === 0) q = Math.min(q, (now() - born) / 1500 - 0.2);
     // Shown while it plays; fades out in the first 12 % of the transition out, in during the last 15 % of the one in.
     const vis = q >= 0 && q <= 1 ? 1 : q > 1 ? 1 - sm(1, 1.12, q) : sm(-0.15, 0, q);
-    const shown = vis * (focus.obj ? 1 - clamp(focus.k * 1.6) : 1);
+    const shown = vis;   // with a page or a frame open, the statement stays, behind it
     c.style.opacity = shown; c.style.visibility = shown > 0.002 ? 'visible' : 'hidden';
     c.querySelectorAll('.say .w').forEach((w, k) => w.style.setProperty('--in', still ? 1 : sm(-0.15 + k * 0.03, 0.08 + k * 0.03, q)));
     const b = $('.say b', c); if (b) b.style.setProperty('--k', still ? 1 : sm(0.06, 0.18, q));
@@ -153,6 +153,40 @@ function card(w, h, draw, { px = 1024 } = {}) {
   m.redraw(); return m;
 }
 const round = (g, x, y, w, h, r) => { g.beginPath(); g.roundRect(x, y, w, h, r); };
+
+// The point on the plane z = zz under the screen point (x, y): for things placed by where they are on the screen.
+function worldAt(x, y, zz = 0) { const r = rayAt(x, y).ray; return r.origin.clone().addScaledVector(r.direction, (zz - r.origin.z) / r.direction.z); }
+// A roll of film: dark film round a tall core, with a row of sprocket holes at the top and the bottom.
+let rollSide = null;
+function filmRoll() {
+  rollSide ??= (() => {
+    const c = document.createElement('canvas'); c.width = 1024; c.height = 1024; const g = c.getContext('2d');
+    g.fillStyle = '#1c1d24'; g.fillRect(0, 0, 1024, 1024); g.fillStyle = '#e9e4da';
+    const hh = 1024 * 0.22 / (FH + 1.3), n = 20;
+    for (const v of [0.06, 0.94]) for (let k = 0; k < n; k++) { g.beginPath(); g.roundRect((k + 0.27) * 1024 / n, (1 - v) * 1024 - hh / 2, 1024 / n * 0.46, hh, 3); g.fill(); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
+  })();
+  const side = new THREE.MeshPhysicalMaterial({ map: rollSide, roughness: 0.5 }), end = new THREE.MeshStandardMaterial({ color: '#e9e4da', roughness: 0.7 });
+  return new THREE.Mesh(new THREE.CylinderGeometry(1, 1, FH + 1.3, 56), [side, end, end]);
+}
+// A red balloon: its knot is at the root. Its string hangs to a point (hang, in its own units) or is tied to a
+// point in the world (tie).
+function balloon() {
+  const root = new THREE.Group(), mat = new THREE.MeshPhysicalMaterial({ color: '#e0343c', roughness: 0.32, clearcoat: 0.7, clearcoatRoughness: 0.3, sheen: 0.2 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.85, 40, 28), mat); body.scale.set(1, 1.18, 1); body.position.y = 1.08;
+  const knot = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.24, 16), mat); knot.rotation.x = Math.PI; knot.position.y = 0.1;
+  const string = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({ color: '#3b3640', roughness: 0.8 }));
+  root.add(body, knot, string);
+  const b = { root, body, last: '' };
+  b.hang = (end) => {
+    const key = end.toArray().map((v) => v.toFixed(3)).join();
+    if (key === b.last) return; b.last = key;
+    const mid = end.clone().multiplyScalar(0.5); mid.x -= 0.25 * end.y * 0.2; mid.y -= 0.15;
+    string.geometry.dispose(); string.geometry = new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(new THREE.Vector3(), mid, end), 24, 0.03, 6);
+  };
+  b.tie = (p) => { root.updateMatrixWorld(true); b.hang(root.worldToLocal(p.clone())); };
+  return b;
+}
 
 // ---------- shapes, packed by engine/gallery-export.mjs ----------
 const ROOT = new URL('world/', import.meta.url);
@@ -259,6 +293,7 @@ function openFocus(obj, onOpen) {
   focus.from = { pos: obj.getWorldPosition(new THREE.Vector3()), quat: obj.getWorldQuaternion(new THREE.Quaternion()), scale: obj.getWorldScale(new THREE.Vector3()) };
   scene.attach(obj); focus.want = 1; focus.k = 0; focus.onClose = onOpen?.() || null; focus.ch = state.i;
   // Drawn last and on top: transparent things draw after opaque ones, so it must be one too.
+  canvas.style.zIndex = 3;   // the world (with the page) in front of the words while it is open
   focus.wasClear = obj.material.transparent; obj.material.transparent = true; obj.material.depthTest = false; obj.material.needsUpdate = true; obj.renderOrder = 20;
 }
 function closeFocus() { if (focus.obj) focus.want = 0; }
@@ -276,7 +311,7 @@ function stepFocus() {
   if (focus.want === 0 && focus.k < 0.01) {
     const { parent, pos, quat, scale } = focus.home;
     parent.add(o); o.position.copy(pos); o.quaternion.copy(quat); o.scale.copy(scale);
-    o.material.depthTest = true; o.material.transparent = focus.wasClear; o.material.needsUpdate = true; o.renderOrder = 0; focus.onClose?.(); focus.obj = null; focus.k = 0;
+    o.material.depthTest = true; o.material.transparent = focus.wasClear; o.material.needsUpdate = true; o.renderOrder = 0; focus.onClose?.(); focus.obj = null; focus.k = 0; canvas.style.zIndex = '';
   }
 }
 
@@ -542,7 +577,7 @@ const PEN_AXIS = new THREE.Vector3(Math.cos(0.28), 0, -Math.sin(0.28)), PEN_TIP 
 const WRITE = [[0.1, 0.32], [0.34, 0.56], [0.58, 0.76]], CHECK = [0.8, 0.94];
 const lineY = (j) => 0.19 + j * 0.072;
 C[2] = {
-  start: [S2[0], S2[1], -0.95], end: [S2[0], S2[1], -0.95], flows: true, via: [[WX0 - 7, -2.6]],
+  start: [S2[0], S2[1], -0.95], end: [S2[0], S2[1], -0.95], flows: true, via: [[WX0 - 7, Z3]],
   build() {
     this.pages = FILES.map(([name, lines, kind], i) => {
       const m = card(PW, PH, (g, w, h, upto = 99, fix = 0) => {
@@ -576,12 +611,12 @@ C[2] = {
   },
   onLine(i, j, f) { const m = this.pages[i]; m.updateMatrixWorld(true); return m.localToWorld(new THREE.Vector3((0.08 + 0.8 * f - 0.5) * PW, (0.5 - lineY(j)) * PH + 0.1, 0.18)); },
   // The pen's pose with its nib tip on page i at (x, y) in the page's own units, lifted by `lift` off the page:
-  // the nib points into the page and down, as in a hand that writes.
+  // the nib points into the page and down, as in a right hand that writes.
   nib(i, x, y, lift = 0) {
     const m = this.pages[i]; m.updateMatrixWorld(true);
     const q0 = m.getWorldQuaternion(new THREE.Quaternion()), n = new THREE.Vector3(0, 0, 1).applyQuaternion(q0);
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(q0), right = new THREE.Vector3(1, 0, 0).applyQuaternion(q0);
-    const dir = n.clone().multiplyScalar(-0.62).addScaledVector(up, -0.62).addScaledVector(right, 0.3).normalize();
+    const dir = n.clone().multiplyScalar(-0.62).addScaledVector(up, -0.62).addScaledVector(right, -0.3).normalize();   // a right hand's pen: its back leans to the right
     const q = new THREE.Quaternion().setFromUnitVectors(PEN_AXIS, dir), sc = 1.25;
     const tip = m.localToWorld(new THREE.Vector3(x, y, 0.015)).addScaledVector(n, lift);
     return { p: tip.addScaledVector(dir, -PEN_TIP * sc), q, s: new THREE.Vector3(sc, sc, sc) };
@@ -641,7 +676,7 @@ C[2] = {
 // The pointer finds the word under it: its chip lifts and its bars turn green.
 let VOICE;
 C[3] = {
-  start: [WX0 - 1, -2.6, PI2], end: [WX1 + 1, -2.6, PI2], via: [[WX1 + 3.5, -0.5], [WX1 + 4.5, 3.6], [FACE + 3, 3.6]],
+  start: [WX0 - 1, Z3, PI2], end: [WX1 + 1, Z3, PI2], via: [[WX1 + 3.5, -0.5], [WX1 + 4.5, 3.6], [FACE + 3, 3.6]],
   build() {
     const { wave, words } = VOICE, n = wave.length, dur = 6.48;
     this.dur = dur;
@@ -681,9 +716,20 @@ C[3] = {
       m.rotation.set(0, Math.atan2(cam.position.x - m.position.x, cam.position.z - m.position.z), 0);
     });
     if (!H) return;
-    H.pose.rest(); place(hx, -2.6, PI2);
+    // He walks behind the bars and the words. Each word that drops in surprises him; he looks at it, and his
+    // hand on the side of the camera (hand 0) touches it from behind as he walks past it.
+    H.pose.rest(); place(hx, Z3, PI2);
     H.stride((route(2).total + hx - (WX0 - 1)) * H.STEP, 0.5 * (1 - sm(0.86, 0.94, t)));   // the steps go on from the walk in
-    H.blendExpression('neutral', 'smile', 0.6);
+    let near = null, nw = 0, pop = 0, last = null;
+    this.chips.forEach((m, j) => {
+      if (!m.visible) return;
+      const age = T - words[j].a, w = (1 - sm(0.5, 1.7, Math.abs(m.x - hx - 0.7))) * clamp(m.scale.x);
+      if (w > nw) { nw = w; near = m; }
+      if (age >= 0) { pop = Math.max(pop, Math.exp(-((age / 0.7) ** 2))); if (!last || words[j].a > last.a) last = { a: words[j].a, m }; }
+    });
+    if (near) { const hw = near.geometry.parameters.width / 2 - 0.2; H.hold(0, [clamp(hx + 0.9, near.x - hw, near.x + hw), near.position.y - 0.12, near.position.z - 0.16], nw * (1 - sm(0.86, 0.92, t))); }
+    H.blendExpression('smile', 'surprised', clamp(pop * 1.4));
+    lookAt(last ? last.m.position : null, 0.9 * (1 - sm(0.88, 0.95, t)));
   },
   shot(t) { const x = lerp(WX0 + 5, WX1 - 5, sm(0.08, 0.9, t)); return { at: [x, 3.6, 0.6], dist: 27, az: -8 + 4 * pn.x, el: 8 - 2 * pn.y, sx: 0.1, sy: 0.15 }; },
 };
@@ -708,7 +754,7 @@ C[4] = {
     this.ghost = G.body.clone(true); this.ghost.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0.35; o.material.depthWrite = false; } });
     G.body.parent.add(this.ghost); this.ghost.visible = false;
     this.hoverS = null;
-    graphEl.addEventListener('pointermove', (e) => { const r = graphEl.getBoundingClientRect(), f = (e.clientX - r.left - r.width * 0.1) / (r.width * 0.85); this.hoverS = f >= 0 && f <= 1 ? f * SIM * (1 - T0) : null; });
+    graphEl.addEventListener('pointermove', (e) => { const r = graphEl.getBoundingClientRect(), f = (e.clientX - r.left - r.width * 0.1) / (r.width * 0.74); this.hoverS = f >= 0 && f <= 1 ? f * SIM * (1 - T0) : null; });
     graphEl.addEventListener('pointerleave', () => { this.hoverS = null; });
   },
   setCart(dx) {
@@ -720,13 +766,13 @@ C[4] = {
     const r = graphEl.getBoundingClientRect(), dpr = Math.min(devicePixelRatio, 2), W = Math.round(r.width * dpr), Hh = Math.round(r.height * dpr);
     if (!W || !Hh) return;
     if (graphEl.width !== W || graphEl.height !== Hh) { graphEl.width = W; graphEl.height = Hh; }
-    const g = graphEl.getContext('2d'), x0 = W * 0.1, x1 = W * 0.95, y0 = Hh * 0.55, A = Hh * 0.38, S = SIM * (1 - T0);
+    const g = graphEl.getContext('2d'), x0 = W * 0.1, x1 = W * 0.84, xa = W * 0.92, y0 = Hh * 0.44, A = Hh * 0.28, S = SIM * (1 - T0);   // the curve ends at x1; the t axis goes on to xa
     g.clearRect(0, 0, W, Hh);
     g.fillStyle = 'rgba(240, 231, 214, .6)'; round(g, 0, 0, W, Hh, 16 * dpr); g.fill();
-    g.strokeStyle = 'rgba(38, 38, 42, .35)'; g.lineWidth = 1.5 * dpr; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y0); g.moveTo(x0, Hh * 0.12); g.lineTo(x0, Hh * 0.92); g.stroke();
+    g.strokeStyle = 'rgba(38, 38, 42, .35)'; g.lineWidth = 1.5 * dpr; g.beginPath(); g.moveTo(x0, y0); g.lineTo(xa, y0); g.moveTo(x0, Hh * 0.12); g.lineTo(x0, Hh * 0.92); g.stroke();
     g.fillStyle = '#26262a'; g.font = `600 ${13 * dpr}px "JetBrains Mono"`;
-    g.fillText('x(t)', x0 + 8 * dpr, Hh * 0.16); g.fillText('t', x1 - 10 * dpr, y0 - 8 * dpr);
-    g.fillText(`frame ${String(Math.round(s * 30)).padStart(4, '0')}   t = ${s.toFixed(2)} s`, x0 + 8 * dpr, Hh * 0.97);
+    g.fillText('x(t)', x0 + 8 * dpr, Hh * 0.16); g.fillText('t', xa + 6 * dpr, y0 + 5 * dpr);
+    g.fillText(`frame ${String(Math.round(s * 30)).padStart(4, '0')}   t = ${s.toFixed(2)} s`, x0 + 8 * dpr, Hh * 0.94);
     g.strokeStyle = '#d6336c'; g.lineWidth = 3 * dpr; g.lineJoin = 'round'; g.beginPath();
     const N = Math.max(2, Math.round(s / S * 400));
     for (let i = 0; i <= N; i++) { const ss = s * i / N, X = x0 + ss / S * (x1 - x0), Y = y0 - cartX(ss) / AMP * A; if (i) g.lineTo(X, Y); else g.moveTo(X, Y); }
@@ -803,7 +849,7 @@ C[5] = {
 const CLIPS = ['bayes', 'ruler', 'knn', 'robot', 'lever', 'servo'];
 const FW = 7.2, FH = 4.05, GAP = 8.1;
 // He holds a film spool by its rim, and the strip comes out of it. He stands behind the end of the strip.
-const SPOOL = [FX + 9.7, 4.6, 0], STAND = [FX + 11.35, -1.2], SFACE = Math.atan2(SPOOL[0] - STAND[0], SPOOL[2] - STAND[1]);
+const SPOOL = [FX + 9.4, 4.6, 0], STAND = [FX + 11.35, -1.2], SFACE = Math.atan2(SPOOL[0] - STAND[0], SPOOL[2] - STAND[1]);
 C[6] = {
   start: [...STAND, SFACE], end: [...STAND, SFACE],
   build() {
@@ -837,9 +883,8 @@ C[6] = {
     shadow(16, 3, FX, 0, 0.3);
     // The roll: the film is rolled up round a tall core, and the strip comes out of it. The part of the strip
     // that is still in the roll is cut off by a clipping plane through the roll's middle.
-    const rollEnd = holeMat.clone();   // its own materials: the clipping plane is only for the strip
-    this.spool = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, FH + 1.3, 56), [plateMat.clone(), rollEnd, rollEnd]);
-    this.spool.position.set(...SPOOL); put(this.spool);
+    this.spool = filmRoll(); this.spool.position.set(...SPOOL); put(this.spool);
+    this.balloon = balloon(); put(this.balloon.root);
     this.cut = new THREE.Plane(new THREE.Vector3(-1, 0, 0), SPOOL[0]);
     for (const m of [plateMat, holeMat, ...pics.map((q) => q.material)]) m.clippingPlanes = [this.cut];
     // His hands hold the roll on each side of it, towards him (H.hold in act, as the roll gets thinner).
@@ -851,7 +896,9 @@ C[6] = {
     }
   },
   act(t) {
-    const roll = (still ? 0.5 : sm(0.04, 0.92, t)) * GAP * (CLIPS.length + 0.4), out = FX + 8.8;
+    // The strip rolls out (0.04 to 0.62); a balloon comes in at the top right (0.62), the wind takes it (0.79)
+    // and then the roll out of his hands (0.84); he reaches after it, leans, lets his arms fall, and smiles.
+    const roll = (still ? 0.5 : sm(0.04, 0.62, t)) * GAP * (CLIPS.length + 0.4), out = FX + 8.8;
     this.cells.forEach((c) => {
       const x = out - GAP * 0.6 - roll + c.i * GAP;
       c.position.set(x, 0, 0); c.visible = x - GAP / 2 < SPOOL[0];
@@ -863,30 +910,88 @@ C[6] = {
       p.lift = damp(p.lift, !focus.obj && hovered === p ? 1 : 0, 10); p.position.z = 0.07 + 0.5 * p.lift; p.scale.setScalar(1 + 0.06 * p.lift);
     });
     // The roll gets thinner as the film comes out. The cut is in world units: the set grows and sinks (morph).
-    const rc = still ? 0.4 : 0.55 - 0.27 * sm(0.04, 0.92, t); this.spool.scale.set(rc, 1, rc);
+    const rc = still ? 0.4 : 0.55 - 0.27 * sm(0.04, 0.62, t); this.spool.scale.set(rc, 1, rc);
     const g = this.strip.parent; this.cut.constant = g.position.x + g.scale.x * SPOOL[0];
-    this.grip = [-1, 1].map((s) => { const r = rc + 0.1; return [SPOOL[0] + r * (0.5 * this.d.x + s * 0.87 * this.p.x), SPOOL[1], SPOOL[2] + r * (0.5 * this.d.y + s * 0.87 * this.p.y)]; });
+    const live = state.i === 6 && state.u === 0;
+    // The balloon: in from the right, it bobs at the top right; the gust takes it off to the left.
+    const B = this.balloon, gust = clamp((t - 0.79) / 0.11), bIn = sm(0.62, 0.76, t);
+    B.root.visible = live && t > 0.62 && gust < 1;
+    if (B.root.visible) {
+      const rest = worldAt(innerWidth * 0.8, innerHeight * 0.2), from = worldAt(innerWidth + 160, innerHeight * 0.1), to = worldAt(-220, innerHeight * 0.08);
+      const k = B.root.position.copy(from).lerp(rest, 1 - (1 - bIn) ** 3);
+      k.y += 0.35 * Math.abs(Math.sin(now() / 380)) * (1 - gust);
+      if (gust > 0) { k.lerp(to, gust * gust); k.y += Math.sin(gust * Math.PI) * 0.8; }
+      B.root.rotation.z = 0.45 * sm(0, 0.4, gust) + 0.12 * Math.sin(now() / 700) * (1 - gust);
+      B.hang(new THREE.Vector3(0.4 + 2.2 * sm(0, 0.3, gust) + 0.3 * Math.sin(now() / 520), -2.9 + 0.8 * sm(0, 0.3, gust), 0));
+    }
+    // The roll: the wind tugs at it, then it flies off to the left, turning over.
+    const fly = clamp((t - 0.84) / 0.1), tug = bump(0.79, 0.86, t) * (still ? 0 : 1);
+    this.spool.visible = fly < 1;
+    const exit = live ? worldAt(-320, innerHeight * 0.3) : new THREE.Vector3(FX - 16, 8, 0);
+    this.spool.position.set(...SPOOL).lerp(exit, fly * fly); this.spool.position.y += Math.sin(fly * Math.PI) * 1.5;
+    this.spool.rotation.set(0, 0, 0.08 * Math.sin(now() / 60) * tug + fly * fly * 5);
+    const at = (f) => new THREE.Vector3(...SPOOL).lerp(exit, f * f);   // where the roll is, for his hands
+    const reachTo = at(Math.min(fly, 0.3)).sub(new THREE.Vector3(...SPOOL));
+    this.grip = [-1, 1].map((s) => { const r = rc + 0.1; return [SPOOL[0] + reachTo.x + r * (0.5 * this.d.x + s * 0.87 * this.p.x), SPOOL[1] + Math.min(reachTo.y, 0.6), SPOOL[2] + r * (0.5 * this.d.y + s * 0.87 * this.p.y)]; });
     if (!H) return;
-    H.pose.rest(); place(STAND[0], STAND[1], SFACE);
-    H.hold(0, this.grip[0], sm(0, 0.04, t)); H.hold(1, this.grip[1], sm(0, 0.04, t));
-    H.blendExpression('neutral', 'smile', 0.7);
-    lookAt(cam.position, sm(0.9, 1, t) * 0.8);
+    const lean = 0.32 * sm(0.84, 0.88, t) * (1 - sm(0.91, 0.97, t)), hold = sm(0, 0.04, t) * (1 - sm(0.91, 0.96, t));
+    H.pose.rest(); place(STAND[0], STAND[1], SFACE, { lean });
+    H.hold(0, this.grip[0], hold); H.hold(1, this.grip[1], hold);
+    H.blendExpression('neutral', 'smile', 0.7); H.blendExpression('smile', 'surprised', bump(0.8, 0.93, t)); H.blendExpression('surprised', 'smile', sm(0.92, 0.97, t));
+    if (t < 0.64) lookAt(cam.position, 0); else if (t < 0.84) lookAt(B.root.position, sm(0.64, 0.7, t)); else if (t < 0.93) lookAt(this.spool.position, 1); else lookAt(cam.position, 0.8);
   },
   shot(t) { return { at: [FX + 3.5, 4.6, 0.5], dist: 30, az: -4 + 4 * pn.x, el: 4 - 2 * pn.y, sx: 0.0, sy: 0.14 }; },
 };
 
-// 7. Install it with one command: he points at the command; a copy makes him wave.
+// 7. Install it with one command. The balloon and the roll that the wind took come back from the right: the
+// string of the balloon catches on the command, and he catches the roll. Then he points at the command; a copy
+// makes him wave. The pointer can push the balloon; it swings back.
+const termEl = $('.term');
+// Hand 0 holds the roll at his left on the screen (-x), so the roll never covers him.
+const HAND7 = { side: [-1, 0], p: [S7[0] - 1.75, 3.4, S7[1] + 0.55] };
 C[7] = {
   start: [S7[0], S7[1], 0.9], end: [S7[0], S7[1], 0.9],
-  build() {},
+  build() {
+    // Not in the set's group: they come in from off the screen, not out of the floor.
+    this.balloon = balloon(); scene.add(this.balloon.root); this.balloon.root.visible = false;
+    this.roll = filmRoll(); this.roll.scale.set(0.28, 1, 0.28); scene.add(this.roll); this.roll.visible = false;
+    this.off = new THREE.Vector3(); this.vel = new THREE.Vector3();
+  },
   act(t) {
+    const live = state.i === 7 && state.u === 0, B = this.balloon;
+    B.root.visible = live && t > 0.03; this.roll.visible = live && t > 0.1;
+    if (live) {
+      // The balloon: from the top right to above the box of the command; its string end goes under the box.
+      const r = termEl.getBoundingClientRect(), anchor = worldAt(r.left + r.width * 0.26, r.top + 10);
+      const rest = anchor.clone().add(new THREE.Vector3(0.7, 2.7, 0)), from = worldAt(innerWidth + 200, innerHeight * 0.12);
+      const fin = sm(0.04, 0.4, t), swing = clamp((t - 0.4) / 0.16);
+      const k = B.root.position.copy(from).lerp(rest, 1 - (1 - fin) ** 3);
+      k.y += Math.sin(fin * Math.PI * 3) * 0.45 * (1 - fin);
+      k.x += 0.7 * Math.exp(-4 * swing) * Math.sin(swing * 14) * (fin >= 1 ? 1 : 0);
+      // The pointer pushes it; a spring brings it back.
+      const [bx, by] = toScreen(B.body.getWorldPosition(new THREE.Vector3())), [ex] = toScreen(B.body.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0.9, 0, 0)));
+      const rad = Math.abs(ex - bx) * 1.3, dx = bx - ptr.x, dy = by - ptr.y, dd = Math.hypot(dx, dy);
+      const push = ptr.mouse && dd < rad && fin >= 1 ? new THREE.Vector3(dx / (dd || 1), -dy / (dd || 1), 0).multiplyScalar(40 * (1 - dd / rad)) : new THREE.Vector3();
+      this.vel.addScaledVector(this.off, -16 * dt).addScaledVector(this.vel, -3.5 * dt).addScaledVector(push, dt); this.off.addScaledVector(this.vel, dt);
+      if (this.off.length() > 2.2) this.off.setLength(2.2);
+      k.add(this.off);
+      B.root.rotation.z = -0.25 * this.off.x / 2.2 + 0.1 * (1 - fin);
+      const trail = k.clone().add(new THREE.Vector3(1.4, -2.6, 0));
+      B.tie(trail.lerp(anchor, sm(0.7, 1, fin)));
+      // The roll: in from the right, turning over, and it ends upright beside him, where his hand 0 takes it.
+      const f = sm(0.12, 0.46, t), e = 1 - (1 - f) ** 3, A = worldAt(innerWidth + 260, innerHeight * 0.45), P = HAND7.p, rc = 0.28;
+      const end = new THREE.Vector3(P[0] + HAND7.side[0] * (rc + 0.1), P[1], P[2] + HAND7.side[1] * (rc + 0.1));
+      this.roll.position.copy(A).lerp(end, e); this.roll.position.y += Math.sin(f * Math.PI) * 1.2;
+      this.roll.rotation.set(0.3 * (1 - e), 0, (1 - e) * 9);
+    }
     if (!H) return;
     H.pose.rest(); place(S7[0], S7[1], 0.9);
-    const h = happy();
+    const h = happy(), grab = sm(0.44, 0.5, t);
     if (h > 0) { H.blendPose('rest', 'wave', h); H.arms[1].elbow.rotation.z += Math.sin(now() / 120) * 0.3 * h; }
-    else H.blendPose('rest', 'point', sm(0.1, 0.35, t));
-    H.blendExpression('neutral', 'smile', Math.max(h, sm(0.1, 0.35, t) * 0.7));
-    lookAt(null, h ? 0 : 0.5);
+    else H.blendPose('rest', 'point', sm(0.62, 0.8, t));
+    H.hold(0, HAND7.p, grab);
+    H.blendExpression('neutral', 'surprised', sm(0.08, 0.16, t)); H.blendExpression('surprised', 'smile', Math.max(h, sm(0.47, 0.55, t)));
+    if (t < 0.3) lookAt(B.root.position, sm(0.06, 0.14, t)); else if (t < 0.52) lookAt(this.roll.position, 1); else lookAt(null, h ? 0 : 0.5);
   },
   shot(t) { return { at: [S7[0] + 0.6, 4.4, 0], dist: 28, az: -6 + 3 * pn.x, el: 6 - 2 * pn.y, sx: -0.18, sy: 0.17 }; },
 };
