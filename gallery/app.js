@@ -112,6 +112,8 @@ function words(s) {
     const b = $('.say b', c); if (b) b.style.setProperty('--k', still ? 1 : sm(0.06, 0.18, q));
   });
 }
+// The name at the top goes back to the first chapter (the chapters are fixed layers, so the #c0 link alone does not).
+$('.mark').addEventListener('click', (e) => { e.preventDefault(); jump(0); });
 const dots = $('.dots');
 chs.forEach((c, j) => {
   const b = document.createElement('button'); b.type = 'button'; b.innerHTML = `<span>${c.dataset.name}</span>`; b.title = c.dataset.name;
@@ -680,7 +682,6 @@ C[2] = {
     if (state.u === 0 || state.i !== 1) { const a = this.penAt(t); pen.position.copy(a.p); pen.quaternion.copy(a.q); pen.scale.copy(a.s); }
     if (!H) return;
     H.pose.rest(); place(S2[0], S2[1], -0.95);
-    H.blendPose('rest', 'think', sm(0.2, 0.3, t) * (1 - sm(0.76, 0.8, t)));
     // He starts with the surprised face that he had at the end of chapter 1, so his face goes on across the cut.
     H.blendExpression('surprised', 'thinking', sm(0.08, 0.2, t)); H.blendExpression('thinking', 'surprised', sm(0.8, 0.84, t)); H.blendExpression('surprised', 'understanding', sm(0.92, 0.97, t));
     lookAt(pen.position, 1);
@@ -832,18 +833,17 @@ C[5] = {
     const HZ = 1.3, sh = new THREE.Vector3(F + 1.75, 4.5, HZ);
     const limit = (p) => {
       const d = p.clone().sub(sh); d.z = 0;
-      let a = Math.atan2(-d.x, -d.y), L = Math.min(d.length(), 2.6);   // a: 0 down, +90 forward (to the cart), -90 back
+      // Near the shoulder the way to the pointer is not clear: keep the last way, and keep the hand out a little.
+      let a = d.length() > 0.9 ? Math.atan2(-d.x, -d.y) : (this.lastA ?? 0), L = clamp(d.length(), 0.9, 2.6);   // a: 0 down, +90 forward (to the cart), -90 back
+      this.lastA = a;
       a = clamp(a, -40 * D, 165 * D);
       // Along the arm's way from the shoulder, the hand stops where it would go into the cart (its skin, plus
       // the hand's half-thickness), so a hand that comes down onto the cart comes in closer to him.
-      const ux = -Math.sin(a), uy = -Math.cos(a), b = this.box, r = 0.27;
-      let t0 = 0, t1 = Infinity;
-      for (const [o, u, lo, hi] of [[sh.x, ux, b.min.x - r, b.max.x + r], [sh.y, uy, -1e9, b.max.y + r]]) {
-        if (Math.abs(u) < 1e-9) { if (o < lo || o > hi) t0 = Infinity; continue; }
-        const p1 = (lo - o) / u, p2 = (hi - o) / u; t0 = Math.max(t0, Math.min(p1, p2)); t1 = Math.min(t1, Math.max(p1, p2));
-      }
-      if (t0 <= t1 && t0 < L) L = Math.max(0.4, t0);
-      return new THREE.Vector3(sh.x + ux * L, Math.max(0.6, sh.y + uy * L), HZ);
+      // The cart's own surface (its distance field), so the hand stops with its palm on it: the check passes.
+      const ux = -Math.sin(a), uy = -Math.cos(a), at = (l) => new THREE.Vector3(sh.x + ux * l, sh.y + uy * l, HZ);
+      const skin = (l) => { const q = C[4].c.root.worldToLocal(at(l)); return this.body(q.x, q.y, q.z) * KK - 0.27; };   // < 0: the palm is in the cart
+      for (let l = 0.6; l <= L; l += 0.05) if (skin(l) < 0) { let lo = l - 0.05, hi = l; for (let k = 0; k < 12; k++) { const m = (lo + hi) / 2; if (skin(m) < 0) hi = m; else lo = m; } L = lo; break; }
+      const q = at(L); q.y = Math.max(0.6, q.y); return q;
     };
     if (this.mine) {
       const hit = rayAt().ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), -HZ), new THREE.Vector3());
@@ -870,7 +870,9 @@ C[5] = {
     else if (gap > 0.8) text = 'hand 1 holds nothing';
     else if (gap > 0.04) text = `hand 1 does not touch the cart body that it holds (gap ${gap.toFixed(2)})`;
     else { text = 'no faults: both hands touch the cart'; ok = true; }
-    if (msgEl.textContent !== text) { msgEl.textContent = text; msgEl.animate([{ opacity: 0.15 }, { opacity: 1 }], { duration: 240, easing: 'ease-out' }); }   // a new message fades in
+    // A new kind of message fades in; a new number in the same message does not (it changes on every frame).
+    const kind = text.replace(/[0-9.]+/g, '#');
+    if (msgEl.textContent !== text) { msgEl.textContent = text; if (kind !== this.kind) { this.kind = kind; msgEl.getAnimations().forEach((a) => a.cancel()); msgEl.animate([{ opacity: 0.15 }, { opacity: 1 }], { duration: 240, easing: 'ease-out' }); } }
     if (ok !== this.ok) { this.ok = ok; consoleEl.classList.toggle('ok', ok); ringEl.classList.toggle('ok', ok); }
     H.blendExpression('neutral', ok ? 'smile' : 'worried', 0.8);
   },
@@ -935,10 +937,10 @@ C[6] = {
     // The strip never leaves the roll: at the end, the right edge of its last frame is still inside it.
     // When the wind takes the roll (0.79 to 0.9), the film rolls back into it fast, as it shakes and flies off.
     const out = FX + 8.8, RMAX = out + (CLIPS.length - 0.1) * GAP - SPOOL[0] - 0.4, R0 = out - 1.1 * GAP - SPOOL[0] - 0.3;
-    const roll = lerp((still ? 0.5 : sm(0.04, 0.62, t)) * RMAX, R0, sm(0.79, 0.9, t));
+    const rollOut = (still ? 0.5 : sm(0.04, 0.62, t)) * RMAX, roll = lerp(rollOut, R0, sm(0.79, 0.9, t));
     this.cells.forEach((c) => {
       const x = out - GAP * 0.6 - roll + c.i * GAP;
-      c.position.set(x, 0, 0); c.visible = x - GAP / 2 < Math.min(SPOOL[0], this.spool.position.x);
+      c.position.set(x, 0, 0); c.visible = x - GAP / 2 < SPOOL[0];   // in the strip's own frame, the roll is always at SPOOL
     });
     this.pics.forEach((p) => {
       // A selected frame shows its clip as soon as the clip has a frame to show (its first frame is the poster).
@@ -965,9 +967,17 @@ C[6] = {
     this.spool.visible = fly < 1;
     const exit = live ? worldAt(-320, innerHeight * 0.3) : new THREE.Vector3(FX - 16, 8, 0);
     this.spool.position.set(...SPOOL).lerp(exit, fly * fly); this.spool.position.y += Math.sin(fly * Math.PI) * 1.5 * sm(0.3, 0.6, fly);
-    // The strip is cut at the roll, wherever the roll is (the set grows and sinks: world units).
-    const g = this.strip.parent; this.cut.constant = g.position.x + g.scale.x * Math.min(SPOOL[0], this.spool.position.x);
-    this.spool.rotation.set(0, 0, 0.08 * Math.sin(now() / 60) * tug + fly * fly * 5);
+    // The strip is cut by the plane through the roll's axis, across the strip, wherever the roll is and however
+    // it turns (in world units: the set grows and sinks).
+    this.strip.updateMatrixWorld(true);
+    const axisW = this.strip.parent.localToWorld(this.spool.position.clone()), nW = new THREE.Vector3(-1, 0, 0).transformDirection(this.strip.matrixWorld);
+    this.cut.setFromNormalAndCoplanarPoint(nW, axisW);
+    // The roll turns on its own axis as the film goes back in (the turn is the length wound, over the radius),
+    // and it tumbles as it flies; the strip is fixed to it, so the strip turns and flies with it.
+    const tumble = 0.08 * Math.sin(now() / 60) * tug + fly * fly * 5;
+    this.spool.rotation.order = 'ZYX'; this.spool.rotation.set(0, -(rollOut - roll) / 0.4, tumble);
+    const rq = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), tumble);
+    this.strip.quaternion.copy(rq); this.strip.position.set(0, 4.6, 0).sub(new THREE.Vector3(...SPOOL)).applyQuaternion(rq).add(this.spool.position);
     const at = (f) => new THREE.Vector3(...SPOOL).lerp(exit, f * f);   // where the roll is, for his hands
     const reachTo = at(Math.min(fly, 0.3)).sub(new THREE.Vector3(...SPOOL));
     // As a tall pole is held: both hands on the side of the roll towards him, one over the other (hand 1 high,
@@ -978,7 +988,7 @@ C[6] = {
     H.pose.rest(); place(STAND[0], STAND[1], SFACE, { lean });
     const axis = this.spool.position, faceTo = (g) => [axis.x - g[0], 0, axis.z - g[2]];   // palms to the roll's axis
     H.hold(0, this.grip[0], hold, faceTo(this.grip[0])); H.hold(1, this.grip[1], hold, faceTo(this.grip[1]));
-    H.blendExpression('neutral', 'smile', 0.7); H.blendExpression('smile', 'neutral', bump(0.8, 0.93, t)); H.blendExpression('neutral', 'smile', sm(0.92, 0.97, t));   // a still face as they fly off, then a smile
+    H.blendExpression('neutral', 'smile', 0.7); H.blendExpression('smile', 'surprised', sm(0.78, 0.82, t)); H.blendExpression('surprised', 'neutral', sm(0.93, 0.98, t));   // shocked in the wind; unbothered after
     if (t < 0.64) lookAt(cam.position, 0); else if (t < 0.84) lookAt(B.root.position, sm(0.64, 0.7, t)); else if (t < 0.93) lookAt(this.spool.position, 1); else lookAt(cam.position, 0.8);
   },
   shot(t) { return { at: [FX + 3.5, 4.6, 0.5], dist: 30, az: -4 + 4 * pn.x, el: 4 - 2 * pn.y, sx: 0.0, sy: 0.14 }; },
@@ -993,7 +1003,7 @@ const termEl = $('.term');
 // and trails behind as the balloon flies. Its end catches the bar between "clayducation" and Copy and winds
 // round it; what is wound comes off the free part, so the winding pulls the balloon down a little.
 const inkEl = $('#ink'), ink = inkEl.getContext('2d'), codeEl = $('.term code'), copyEl = $('.copy');
-const STRING = 220, KNOTS = 22;
+const STRING = 340, KNOTS = 30;
 function inkClear() { if (inkEl.dataset.on) { ink.setTransform(1, 0, 0, 1, 0, 0); ink.clearRect(0, 0, inkEl.width, inkEl.height); delete inkEl.dataset.on; } }
 function hookOf() {
   const r = termEl.getBoundingClientRect(), a = codeEl.getBoundingClientRect(), b = copyEl.getBoundingClientRect();
@@ -1001,25 +1011,34 @@ function hookOf() {
 }
 // The turn round the bar from its top edge: down the front, under, up the back (faint), over the top; a point at
 // length l along it, and whether that point is in front.
+// The way the end goes round the bar: straight down over its front, under it, up its back (faint), over the
+// top again, and down the front at an angle, across the first strand, to a short loose end.
+function wrapPath(h) {
+  const x = h.x, T = h.top, B = h.bottom;
+  return [[x, T, 1], [x, B, 1], [x + 5, B + 3, 1], [x + 7, B, 0], [x + 7, T, 0], [x + 5, T - 3, 1], [x - 14, B, 1], [x - 18, B + 12, 1]];
+}
 function turnAt(h, l) {
-  const H2 = h.bottom - h.top, seg = [[0, 0, H2, 1], [0, H2, 8, 1], [6, H2, -H2, 0], [6, 0, -8, 0]], per = 2 * H2 + 16;
-  const n = Math.floor(l / per), x0 = h.x + n * 9; l -= n * per;
-  let x = x0, y = h.top;
-  for (const [dx, y0, dl, front] of seg) {
-    const len = Math.abs(dl); if (l <= len) { const f = l / len; return dl === H2 || dl === -H2 ? [x0 + dx + f * 3, h.top + y0 + Math.sign(dl) * f * len, front] : [x0 + dx + f * 6 * Math.sign(dl), h.top + y0, front]; }
+  const P = wrapPath(h);
+  for (let q = 1; q < P.length; q++) {
+    const a = P[q - 1], b = P[q], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (l <= len) { const f = l / len; return [lerp(a[0], b[0], f), lerp(a[1], b[1], f), Math.min(a[2], b[2])]; }
     l -= len;
   }
-  return [x, y, 1];
+  return P.at(-1);
 }
-const turnLen = (h) => 2 * (h.bottom - h.top) + 16;
+const turnLen = (h) => { const P = wrapPath(h); let s = 0; for (let q = 1; q < P.length; q++) s += Math.hypot(P[q][0] - P[q - 1][0], P[q][1] - P[q - 1][1]); return s; };
 // Hand 0 (his right hand) catches the roll in the air, the arm fully out, then brings it down to his side and
 // turns it so that it is level with the ground. The roll touches his hand at one point: the middle of the palm.
 const F7 = 1.2, FWD7 = [Math.sin(F7), Math.cos(F7)], RIGHT7 = [-Math.cos(F7), Math.sin(F7)];
 // The catch is ahead of him (to the right on the screen), so the roll is never in front of his face.
 const CATCH7 = (() => { const sh = [S7[0] + RIGHT7[0] * 1.3, 4.5, S7[1] + RIGHT7[1] * 1.3], d = new THREE.Vector3(FWD7[0] * 0.95 + RIGHT7[0] * 0.05, 0.3, FWD7[1] * 0.95 + RIGHT7[1] * 0.05).normalize();
   return new THREE.Vector3(...sh).addScaledVector(d, 2.6); })();
-const CARRY7 = new THREE.Vector3(S7[0] + RIGHT7[0] * 1.45 + FWD7[0] * 0.5, 3.2, S7[1] + RIGHT7[1] * 1.45 + FWD7[1] * 0.5);
-const PALM7 = new THREE.Vector3(RIGHT7[0], 0, RIGHT7[1]);   // from the palm to the roll's axis
+// At his side the roll is between his body and his arm (against his hip), and his hand is over it.
+const ROLL7 = new THREE.Vector3(S7[0] + RIGHT7[0] * 1.5, 3.0, S7[1] + RIGHT7[1] * 1.5);
+const PALM7 = new THREE.Vector3(RIGHT7[0], 0, RIGHT7[1]);                                  // at the catch: from the palm to the roll's axis
+const OVER7 = new THREE.Vector3(-RIGHT7[0] * 0.55, -0.83, -RIGHT7[1] * 0.55).normalize();   // at his side: down and in, over the roll
+const GRIP7 = 0.61;                                                                         // from the middle of the palm to the axis
+const CARRY7 = ROLL7.clone().addScaledVector(OVER7, -GRIP7);
 C[7] = {
   start: [S7[0], S7[1], F7], end: [S7[0], S7[1], F7],
   build() {
@@ -1033,11 +1052,11 @@ C[7] = {
     if (!live) { inkClear(); this.rope = null; }
     B.root.visible = live && t > 0.03; this.roll.visible = live && t > 0.1;
     if (live) {
-      const hk = hookOf(), fin = sm(0.04, 0.4, t), e = 1 - (1 - fin) ** 3, wound = sm(0.42, 0.56, t) * turnLen(hk) * 0.6, free = STRING - wound;
+      const hk = hookOf(), fin = sm(0.04, 0.4, t), e = 1 - (1 - fin) ** 3, wound = sm(0.42, 0.58, t) * turnLen(hk), free = STRING - wound;
       // The knot: in from the right, to straight over the hook with the string at full length; the winding
       // pulls it down; a small swing after the catch; the pointer pushes it, a spring brings it back.
       const sw = clamp((t - 0.42) / 0.25);
-      let kx = lerp(innerWidth + 200, hk.x, e) + 26 * Math.exp(-4 * sw) * Math.sin(sw * 14) * (t > 0.42 ? 1 : 0), ky = hk.top - STRING + wound;
+      let kx = lerp(innerWidth + 200, hk.x, e) + 26 * Math.exp(-4 * sw) * Math.sin(sw * 14) * (t > 0.42 ? 1 : 0), ky = hk.top - Math.min(210, (STRING - wound) * 0.97);   // the string hangs slack until the winding takes it up
       const [ex] = toScreen(B.body.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0.9, 0, 0))), [bx, by] = toScreen(B.body.getWorldPosition(new THREE.Vector3()));
       const rad = Math.abs(ex - bx) * 1.3, dx = bx - ptr.x, dy = by - ptr.y, dd = Math.hypot(dx, dy), push = ptr.mouse && dd < rad && fin >= 1 ? 2400 * (1 - dd / rad) : 0;
       for (const q of [0, 1]) { const f = push * (q ? dy : dx) / (dd || 1); this.vel[q] += (-60 * this.off[q] - 7 * this.vel[q] + f) * dt; this.off[q] += this.vel[q] * dt; }
@@ -1071,7 +1090,7 @@ C[7] = {
       // The roll: in from the right, turning over, to his open hand (0.1 to 0.42); then with his hand down to his
       // side, turned level with the ground (0.46 to 0.62).
       const rc = 0.28, f = sm(0.1, 0.42, t), fe = 1 - (1 - f) ** 3, down = sm(0.46, 0.62, t);
-      const hand = CATCH7.clone().lerp(CARRY7, down), atHand = hand.clone().addScaledVector(PALM7, rc + 0.33);   // the palm (0.23 thick) touches the roll at one point
+      const hand = CATCH7.clone().lerp(CARRY7, down), palm = PALM7.clone().lerp(OVER7, down).normalize(), atHand = hand.clone().addScaledVector(palm, GRIP7);   // the palm touches the roll at one point
       if (f < 1) {
         const A = worldAt(innerWidth + 260, innerHeight * 0.2, CATCH7.z);
         this.roll.position.copy(A).lerp(atHand, fe); this.roll.position.y += Math.sin(f * Math.PI) * 1.0;
@@ -1087,7 +1106,7 @@ C[7] = {
     if (h > 0) { H.blendPose('rest', 'wave', h); H.arms[1].elbow.rotation.z += Math.sin(now() / 120) * 0.3 * h; }
     else H.blendPose('rest', 'point', sm(0.66, 0.82, t));
     const reach = sm(0.26, 0.36, t), hand = CATCH7.clone().lerp(CARRY7, sm(0.46, 0.62, t));
-    H.hold(0, hand.toArray(), reach, PALM7.toArray());
+    H.hold(0, hand.toArray(), reach, PALM7.clone().lerp(OVER7, sm(0.46, 0.62, t)).normalize().toArray());
     H.blendExpression('neutral', 'surprised', sm(0.08, 0.16, t)); H.blendExpression('surprised', 'smile', Math.max(h, sm(0.42, 0.5, t)));
     if (t < 0.24) lookAt(B.root.position, sm(0.06, 0.14, t)); else if (t < 0.5) lookAt(this.roll.position, 1); else lookAt(null, h ? 0 : 0.5);
   },
