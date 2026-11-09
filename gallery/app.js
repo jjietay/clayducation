@@ -310,7 +310,6 @@ function openFocus(obj, onOpen) {
   focus.from = { pos: obj.getWorldPosition(new THREE.Vector3()), quat: obj.getWorldQuaternion(new THREE.Quaternion()), scale: obj.getWorldScale(new THREE.Vector3()) };
   scene.attach(obj); focus.want = 1; focus.k = 0; focus.onClose = onOpen?.() || null; focus.ch = state.i;
   // Drawn last and on top: transparent things draw after opaque ones, so it must be one too.
-  canvas.style.zIndex = 3;   // the world (with the page) in front of the words while it is open
   focus.wasClear = obj.material.transparent; obj.material.transparent = true; obj.material.depthTest = false; obj.material.needsUpdate = true; obj.renderOrder = 20;
 }
 function closeFocus() { if (focus.obj) focus.want = 0; }
@@ -328,7 +327,7 @@ function stepFocus() {
   if (focus.want === 0 && focus.k < 0.01) {
     const { parent, pos, quat, scale } = focus.home;
     parent.add(o); o.position.copy(pos); o.quaternion.copy(quat); o.scale.copy(scale);
-    o.material.depthTest = true; o.material.transparent = focus.wasClear; o.material.needsUpdate = true; o.renderOrder = 0; focus.onClose?.(); focus.obj = null; focus.k = 0; canvas.style.zIndex = '';
+    o.material.depthTest = true; o.material.transparent = focus.wasClear; o.material.needsUpdate = true; o.renderOrder = 0; focus.onClose?.(); focus.obj = null; focus.k = 0;
   }
 }
 
@@ -743,6 +742,8 @@ C[3] = {
     const up = sm(0.01, 0.12, t) * (1 - sm(0.82, 0.95, t)), hang = [hx + 0.3, 2.0, Z3 + 1.45], top = [hx + 1.0, 5.15, WZ + 0.2 - 0.6];
     H.hold(0, hang.map((v, q) => lerp(v, top[q], up)), 1, up > 0.3 ? [0, 0, 1] : null);
     H.blendExpression('neutral', 'smile', 0.9);
+    // He turns his head to the words ahead of him; the point is at the height of his head, so it does not tip.
+    lookAt(new THREE.Vector3(hx + 2.2, H.headPivot.getWorldPosition(new THREE.Vector3()).y, WZ + 0.2), 0.9 * (1 - sm(0.9, 0.98, t)));
   },
   shot(t) { const x = lerp(WX0 + 5, WX1 - 5, sm(0.08, 0.9, t)); return { at: [x, 3.6, 0.6], dist: 27, az: -8 + 4 * pn.x, el: 8 - 2 * pn.y, sx: 0.1, sy: 0.15 }; },
 };
@@ -819,19 +820,38 @@ C[4] = {
 const consoleEl = $('.console'), msgEl = $('.console .msg'), ringEl = $('.ring');
 C[5] = {
   start: [FACE + 1.75, 0, -PI2], end: [FACE + 1.75, 0, -PI2], via: [[FACE + 2.2, 4.2], [FX + 6, 4.2], [FX + 13, 2.5]],   // round the spool
-  build() { this.body = C[4].c.groups.body.userData.f; this.target = new THREE.Vector3(FACE + 1.1, 3.9, 0.62); this.ok = null; this.mine = false; this.ring = null; msgEl.textContent = 'hand 1 holds nothing'; },
+  build() { this.body = C[4].c.groups.body.userData.f; this.box = new THREE.Box3().setFromObject(C[4].c.groups.body); this.target = new THREE.Vector3(FACE + 1.1, 3.9, 1.3); this.ok = null; this.mine = false; this.ring = null; msgEl.textContent = 'hand 1 holds nothing'; },
   act(t) {
     const F = FACE, live = state.i === 5 && state.u === 0;
     C[4].setCart(0);
     if (!live) this.mine = false; else if (ptr.mouse && now() - ptr.at < 200) this.mine = true;
     let want;
+    // The hand moves in the plane of its shoulder (z = HZ). It goes back behind him only to a set angle, forward
+    // and up as far as the arm reaches (fully out), never through the floor, and never into the cart: a hand
+    // that comes down onto the cart stops on its side or its top, which brings it in closer to him.
+    const HZ = 1.3, sh = new THREE.Vector3(F + 1.75, 4.5, HZ);
+    const limit = (p) => {
+      const d = p.clone().sub(sh); d.z = 0;
+      let a = Math.atan2(-d.x, -d.y), L = Math.min(d.length(), 2.6);   // a: 0 down, +90 forward (to the cart), -90 back
+      a = clamp(a, -40 * D, 165 * D);
+      // Along the arm's way from the shoulder, the hand stops where it would go into the cart (its skin, plus
+      // the hand's half-thickness), so a hand that comes down onto the cart comes in closer to him.
+      const ux = -Math.sin(a), uy = -Math.cos(a), b = this.box, r = 0.27;
+      let t0 = 0, t1 = Infinity;
+      for (const [o, u, lo, hi] of [[sh.x, ux, b.min.x - r, b.max.x + r], [sh.y, uy, -1e9, b.max.y + r]]) {
+        if (Math.abs(u) < 1e-9) { if (o < lo || o > hi) t0 = Infinity; continue; }
+        const p1 = (lo - o) / u, p2 = (hi - o) / u; t0 = Math.max(t0, Math.min(p1, p2)); t1 = Math.min(t1, Math.max(p1, p2));
+      }
+      if (t0 <= t1 && t0 < L) L = Math.max(0.4, t0);
+      return new THREE.Vector3(sh.x + ux * L, Math.max(0.6, sh.y + uy * L), HZ);
+    };
     if (this.mine) {
-      const hit = rayAt().ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), -0.62), new THREE.Vector3());
-      if (hit) { const sh = new THREE.Vector3(F + 1.75, 4.5, 0.62), d = hit.clone().sub(sh); if (d.length() > 3.3) d.setLength(3.3); want = sh.add(d); want.x = Math.max(F - 0.05, want.x); want.y = Math.max(0.6, want.y); }
+      const hit = rayAt().ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), -HZ), new THREE.Vector3());
+      if (hit) want = limit(hit);
     }
     const on = sm(0.25, 0.55, t);
-    want ??= new THREE.Vector3(lerp(F + 1.1, F + 0.02, on), lerp(3.9, 2.6, on), 0.62);
-    this.target.x = damp(this.target.x, want.x, 12); this.target.y = damp(this.target.y, want.y, 12); this.target.z = 0.62;
+    want ??= limit(new THREE.Vector3(lerp(F + 1.1, F + 0.02, on), lerp(3.9, 2.6, on), HZ));
+    this.target.x = damp(this.target.x, want.x, 12); this.target.y = damp(this.target.y, want.y, 12); this.target.z = HZ;
     const [sx, sy] = toScreen(this.target);
     this.ring ??= [sx, sy]; this.ring[0] = damp(this.ring[0], sx, 14); this.ring[1] = damp(this.ring[1], sy, 14);
     ringEl.style.transform = `translate(${this.ring[0]}px, ${this.ring[1]}px)`; ringEl.style.opacity = live ? sm(0.02, 0.12, t) : 0;
@@ -913,10 +933,12 @@ C[6] = {
     // The strip rolls out (0.04 to 0.62); a balloon comes in at the top right (0.62), the wind takes it (0.79)
     // and then the roll out of his hands (0.84); he reaches after it, leans, lets his arms fall, and smiles.
     // The strip never leaves the roll: at the end, the right edge of its last frame is still inside it.
-    const out = FX + 8.8, RMAX = out + (CLIPS.length - 0.1) * GAP - SPOOL[0] - 0.4, roll = (still ? 0.5 : sm(0.04, 0.62, t)) * RMAX;
+    // When the wind takes the roll (0.79 to 0.9), the film rolls back into it fast, as it shakes and flies off.
+    const out = FX + 8.8, RMAX = out + (CLIPS.length - 0.1) * GAP - SPOOL[0] - 0.4, R0 = out - 1.1 * GAP - SPOOL[0] - 0.3;
+    const roll = lerp((still ? 0.5 : sm(0.04, 0.62, t)) * RMAX, R0, sm(0.79, 0.9, t));
     this.cells.forEach((c) => {
       const x = out - GAP * 0.6 - roll + c.i * GAP;
-      c.position.set(x, 0, 0); c.visible = x - GAP / 2 < SPOOL[0];
+      c.position.set(x, 0, 0); c.visible = x - GAP / 2 < Math.min(SPOOL[0], this.spool.position.x);
     });
     this.pics.forEach((p) => {
       // A selected frame shows its clip as soon as the clip has a frame to show (its first frame is the poster).
@@ -925,8 +947,7 @@ C[6] = {
       p.position.z = 0.07; p.scale.setScalar(1);   // a frame does not move on hover (the pointer shows that it can be selected)
     });
     // The roll gets thinner as the film comes out. The cut is in world units: the set grows and sinks (morph).
-    const rc = still ? 0.4 : 0.55 - 0.27 * sm(0.04, 0.62, t); this.spool.scale.set(rc, 1, rc);
-    const g = this.strip.parent; this.cut.constant = g.position.x + g.scale.x * SPOOL[0];
+    const rc = still ? 0.4 : 0.55 - 0.27 * clamp(roll / RMAX); this.spool.scale.set(rc, 1, rc);   // fat again as the film goes back in
     const live = state.i === 6 && state.u === 0;
     // The balloon: in from the right, it bobs at the top right; the gust takes it off to the left.
     const B = this.balloon, gust = clamp((t - 0.79) / 0.11), bIn = sm(0.62, 0.76, t);
@@ -943,7 +964,9 @@ C[6] = {
     const fly = clamp((t - 0.84) / 0.1), tug = bump(0.79, 0.86, t) * (still ? 0 : 1);
     this.spool.visible = fly < 1;
     const exit = live ? worldAt(-320, innerHeight * 0.3) : new THREE.Vector3(FX - 16, 8, 0);
-    this.spool.position.set(...SPOOL).lerp(exit, fly * fly); this.spool.position.y += Math.sin(fly * Math.PI) * 1.5;
+    this.spool.position.set(...SPOOL).lerp(exit, fly * fly); this.spool.position.y += Math.sin(fly * Math.PI) * 1.5 * sm(0.3, 0.6, fly);
+    // The strip is cut at the roll, wherever the roll is (the set grows and sinks: world units).
+    const g = this.strip.parent; this.cut.constant = g.position.x + g.scale.x * Math.min(SPOOL[0], this.spool.position.x);
     this.spool.rotation.set(0, 0, 0.08 * Math.sin(now() / 60) * tug + fly * fly * 5);
     const at = (f) => new THREE.Vector3(...SPOOL).lerp(exit, f * f);   // where the roll is, for his hands
     const reachTo = at(Math.min(fly, 0.3)).sub(new THREE.Vector3(...SPOOL));
@@ -955,7 +978,7 @@ C[6] = {
     H.pose.rest(); place(STAND[0], STAND[1], SFACE, { lean });
     const axis = this.spool.position, faceTo = (g) => [axis.x - g[0], 0, axis.z - g[2]];   // palms to the roll's axis
     H.hold(0, this.grip[0], hold, faceTo(this.grip[0])); H.hold(1, this.grip[1], hold, faceTo(this.grip[1]));
-    H.blendExpression('neutral', 'smile', 0.7); H.blendExpression('smile', 'surprised', bump(0.8, 0.93, t)); H.blendExpression('surprised', 'smile', sm(0.92, 0.97, t));
+    H.blendExpression('neutral', 'smile', 0.7); H.blendExpression('smile', 'neutral', bump(0.8, 0.93, t)); H.blendExpression('neutral', 'smile', sm(0.92, 0.97, t));   // a still face as they fly off, then a smile
     if (t < 0.64) lookAt(cam.position, 0); else if (t < 0.84) lookAt(B.root.position, sm(0.64, 0.7, t)); else if (t < 0.93) lookAt(this.spool.position, 1); else lookAt(cam.position, 0.8);
   },
   shot(t) { return { at: [FX + 3.5, 4.6, 0.5], dist: 30, az: -4 + 4 * pn.x, el: 4 - 2 * pn.y, sx: 0.0, sy: 0.14 }; },
@@ -965,80 +988,108 @@ C[6] = {
 // string of the balloon catches on the command, and he catches the roll. Then he points at the command; a copy
 // makes him wave. The pointer can push the balloon; it swings back.
 const termEl = $('.term');
-// The string of the balloon in chapter 7: it is drawn on a canvas over the page (#ink), so it can wrap round
-// the word npx in the box of the command: two turns round it (the turn behind the box is faint), and a short
-// end. It winds on as the balloon comes in (fin from 0.72 to 1).
-const inkEl = $('#ink'), ink = inkEl.getContext('2d'), codeEl = $('.term code');
-function npxRect() { const r = document.createRange(), tn = codeEl.firstChild; r.setStart(tn, 0); r.setEnd(tn, 3); return r.getBoundingClientRect(); }
+// The string of the balloon in chapter 7 is drawn on a canvas over the page (#ink), so it can go round the black
+// bar of the command. It has one length (STRING px on the screen): a rope of points that hangs from the knot
+// and trails behind as the balloon flies. Its end catches the bar between "clayducation" and Copy and winds
+// round it; what is wound comes off the free part, so the winding pulls the balloon down a little.
+const inkEl = $('#ink'), ink = inkEl.getContext('2d'), codeEl = $('.term code'), copyEl = $('.copy');
+const STRING = 220, KNOTS = 22;
 function inkClear() { if (inkEl.dataset.on) { ink.setTransform(1, 0, 0, 1, 0, 0); ink.clearRect(0, 0, inkEl.width, inkEl.height); delete inkEl.dataset.on; } }
-function inkString(B, fin) {
-  const dpr = Math.min(devicePixelRatio, 2), W = Math.round(innerWidth * dpr), Hh = Math.round(innerHeight * dpr);
-  if (inkEl.width !== W || inkEl.height !== Hh) { inkEl.width = W; inkEl.height = Hh; }
-  ink.setTransform(dpr, 0, 0, dpr, 0, 0); ink.clearRect(0, 0, innerWidth, innerHeight); inkEl.dataset.on = 1;
-  const [kx, ky] = toScreen(B.root.getWorldPosition(new THREE.Vector3())), w = npxRect(), cx = w.left + w.width / 2, cy = w.top + w.height / 2;
-  const rx = w.width / 2 + 12, ry = w.height / 2 + 9, wind = sm(0.72, 1, fin);
-  const pts = [];
-  // Down from the knot to the top of the loop (or, before it catches, trailing behind the balloon).
-  const free = [kx + 70, ky + 190], top = [cx, cy - ry], e = [lerp(free[0], top[0], sm(0.55, 0.72, fin)), lerp(free[1], top[1], sm(0.55, 0.72, fin))];
-  for (let q = 0; q <= 20; q++) { const f = q / 20, mx = lerp(kx, e[0], 0.5) + 25, my = lerp(ky, e[1], 0.5); pts.push([lerp(lerp(kx, mx, f), lerp(mx, e[0], f), f), lerp(lerp(ky, my, f), lerp(my, e[1], f), f), 1]); }
-  // The turns round the word: a turn shrinks a little, and is behind the box while it goes up the far side.
-  const turns = 2 * wind;
-  for (let q = 1; q <= Math.ceil(turns * 60); q++) {
-    const a = Math.min(q / 60, turns) * Math.PI * 2, sh = 1 - 0.12 * a / (Math.PI * 4);
-    pts.push([cx + Math.sin(a) * rx * sh + (a / (Math.PI * 4)) * 6, cy - Math.cos(a) * ry * sh, Math.sin(a) > 0 ? 1 : 0.3]);
-  }
-  if (wind >= 1) { const [lx, ly] = pts.at(-1); for (let q = 1; q <= 10; q++) pts.push([lx - q * 2.2, ly + q * 2.8 + Math.sin(q / 2) * 2, 1]); }
-  ink.lineCap = 'round'; ink.lineJoin = 'round';
-  for (const [col, lw] of [['rgba(38,38,42,.55)', 3.6], ['#efe6d8', 2]]) {
-    ink.strokeStyle = col; ink.lineWidth = lw;
-    for (let q = 1; q < pts.length; q++) { ink.globalAlpha = Math.min(pts[q][2], pts[q - 1][2]); ink.beginPath(); ink.moveTo(pts[q - 1][0], pts[q - 1][1]); ink.lineTo(pts[q][0], pts[q][1]); ink.stroke(); }
-  }
-  ink.globalAlpha = 1;
+function hookOf() {
+  const r = termEl.getBoundingClientRect(), a = codeEl.getBoundingClientRect(), b = copyEl.getBoundingClientRect();
+  return { x: (a.right + b.left) / 2, top: r.top, bottom: r.bottom };
 }
-// Hand 0 holds the roll at his left on the screen (-x), so the roll never covers him.
-const HAND7 = { side: [-1, 0], p: [S7[0] - 1.75, 3.4, S7[1] + 0.55] };
+// The turn round the bar from its top edge: down the front, under, up the back (faint), over the top; a point at
+// length l along it, and whether that point is in front.
+function turnAt(h, l) {
+  const H2 = h.bottom - h.top, seg = [[0, 0, H2, 1], [0, H2, 8, 1], [6, H2, -H2, 0], [6, 0, -8, 0]], per = 2 * H2 + 16;
+  const n = Math.floor(l / per), x0 = h.x + n * 9; l -= n * per;
+  let x = x0, y = h.top;
+  for (const [dx, y0, dl, front] of seg) {
+    const len = Math.abs(dl); if (l <= len) { const f = l / len; return dl === H2 || dl === -H2 ? [x0 + dx + f * 3, h.top + y0 + Math.sign(dl) * f * len, front] : [x0 + dx + f * 6 * Math.sign(dl), h.top + y0, front]; }
+    l -= len;
+  }
+  return [x, y, 1];
+}
+const turnLen = (h) => 2 * (h.bottom - h.top) + 16;
+// Hand 0 (his right hand) catches the roll in the air, the arm fully out, then brings it down to his side and
+// turns it so that it is level with the ground. The roll touches his hand at one point: the middle of the palm.
+const F7 = 1.2, FWD7 = [Math.sin(F7), Math.cos(F7)], RIGHT7 = [-Math.cos(F7), Math.sin(F7)];
+// The catch is ahead of him (to the right on the screen), so the roll is never in front of his face.
+const CATCH7 = (() => { const sh = [S7[0] + RIGHT7[0] * 1.3, 4.5, S7[1] + RIGHT7[1] * 1.3], d = new THREE.Vector3(FWD7[0] * 0.95 + RIGHT7[0] * 0.05, 0.3, FWD7[1] * 0.95 + RIGHT7[1] * 0.05).normalize();
+  return new THREE.Vector3(...sh).addScaledVector(d, 2.6); })();
+const CARRY7 = new THREE.Vector3(S7[0] + RIGHT7[0] * 1.45 + FWD7[0] * 0.5, 3.2, S7[1] + RIGHT7[1] * 1.45 + FWD7[1] * 0.5);
+const PALM7 = new THREE.Vector3(RIGHT7[0], 0, RIGHT7[1]);   // from the palm to the roll's axis
 C[7] = {
-  start: [S7[0], S7[1], 0.9], end: [S7[0], S7[1], 0.9],
+  start: [S7[0], S7[1], F7], end: [S7[0], S7[1], F7],
   build() {
     // Not in the set's group: they come in from off the screen, not out of the floor.
-    this.balloon = balloon(); scene.add(this.balloon.root); this.balloon.root.visible = false;
+    this.balloon = balloon(); this.balloon.string.visible = false; scene.add(this.balloon.root); this.balloon.root.visible = false;
     this.roll = filmRoll(); this.roll.scale.set(0.28, 1, 0.28); scene.add(this.roll); this.roll.visible = false;
-    this.off = new THREE.Vector3(); this.vel = new THREE.Vector3();
+    this.off = [0, 0]; this.vel = [0, 0]; this.rope = null;
   },
   act(t) {
     const live = state.i === 7 && state.u === 0, B = this.balloon;
-    if (!live) inkClear();
+    if (!live) { inkClear(); this.rope = null; }
     B.root.visible = live && t > 0.03; this.roll.visible = live && t > 0.1;
     if (live) {
-      // The balloon: from the top right to above the box of the command; its string end goes under the box.
-      const wr = npxRect(), rest = worldAt(wr.left + wr.width / 2 + 40, wr.top - 190), from = worldAt(innerWidth + 200, innerHeight * 0.12);
-      const fin = sm(0.04, 0.4, t), swing = clamp((t - 0.4) / 0.16);
-      const k = B.root.position.copy(from).lerp(rest, 1 - (1 - fin) ** 3);
-      k.y += Math.sin(fin * Math.PI * 3) * 0.45 * (1 - fin);
-      k.x += 0.7 * Math.exp(-4 * swing) * Math.sin(swing * 14) * (fin >= 1 ? 1 : 0);
-      // The pointer pushes it; a spring brings it back.
-      const [bx, by] = toScreen(B.body.getWorldPosition(new THREE.Vector3())), [ex] = toScreen(B.body.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0.9, 0, 0)));
-      const rad = Math.abs(ex - bx) * 1.3, dx = bx - ptr.x, dy = by - ptr.y, dd = Math.hypot(dx, dy);
-      const push = ptr.mouse && dd < rad && fin >= 1 ? new THREE.Vector3(dx / (dd || 1), -dy / (dd || 1), 0).multiplyScalar(40 * (1 - dd / rad)) : new THREE.Vector3();
-      this.vel.addScaledVector(this.off, -16 * dt).addScaledVector(this.vel, -3.5 * dt).addScaledVector(push, dt); this.off.addScaledVector(this.vel, dt);
-      if (this.off.length() > 2.2) this.off.setLength(2.2);
-      k.add(this.off);
-      B.root.rotation.z = -0.25 * this.off.x / 2.2 + 0.1 * (1 - fin);
-      B.string.visible = false; inkString(B, fin);
-      // The roll: in from the right, turning over, and it ends upright beside him, where his hand 0 takes it.
-      const f = sm(0.12, 0.46, t), e = 1 - (1 - f) ** 3, A = worldAt(innerWidth + 260, innerHeight * 0.45), P = HAND7.p, rc = 0.28;
-      const end = new THREE.Vector3(P[0] + HAND7.side[0] * (rc + 0.1), P[1], P[2] + HAND7.side[1] * (rc + 0.1));
-      this.roll.position.copy(A).lerp(end, e); this.roll.position.y += Math.sin(f * Math.PI) * 1.2;
-      this.roll.rotation.set(0.3 * (1 - e), 0, (1 - e) * 9);
+      const hk = hookOf(), fin = sm(0.04, 0.4, t), e = 1 - (1 - fin) ** 3, wound = sm(0.42, 0.56, t) * turnLen(hk) * 0.6, free = STRING - wound;
+      // The knot: in from the right, to straight over the hook with the string at full length; the winding
+      // pulls it down; a small swing after the catch; the pointer pushes it, a spring brings it back.
+      const sw = clamp((t - 0.42) / 0.25);
+      let kx = lerp(innerWidth + 200, hk.x, e) + 26 * Math.exp(-4 * sw) * Math.sin(sw * 14) * (t > 0.42 ? 1 : 0), ky = hk.top - STRING + wound;
+      const [ex] = toScreen(B.body.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0.9, 0, 0))), [bx, by] = toScreen(B.body.getWorldPosition(new THREE.Vector3()));
+      const rad = Math.abs(ex - bx) * 1.3, dx = bx - ptr.x, dy = by - ptr.y, dd = Math.hypot(dx, dy), push = ptr.mouse && dd < rad && fin >= 1 ? 2400 * (1 - dd / rad) : 0;
+      for (const q of [0, 1]) { const f = push * (q ? dy : dx) / (dd || 1); this.vel[q] += (-60 * this.off[q] - 7 * this.vel[q] + f) * dt; this.off[q] += this.vel[q] * dt; }
+      kx += this.off[0]; ky += this.off[1];
+      if (t > 0.4) { const L = Math.hypot(kx - hk.x, ky - hk.top); if (L > free) { kx = hk.x + (kx - hk.x) * free / L; ky = hk.top + (ky - hk.top) * free / L; } }   // the string does not stretch
+      B.root.position.copy(worldAt(kx, ky)); B.root.rotation.z = clamp((hk.x - kx) / STRING, -0.4, 0.4) * 0.6;
+      // The rope: knot pinned; after the catch, its end pinned on the top of the bar.
+      if (!this.rope) this.rope = Array.from({ length: KNOTS + 1 }, (_, q) => ({ x: kx, y: ky + q * STRING / KNOTS, px: kx, py: ky + q * STRING / KNOTS }));
+      const seg = free / KNOTS, pin = sm(0.36, 0.42, t), Rp = this.rope;
+      for (const p of Rp) { const vx = (p.x - p.px) * 0.94, vy = (p.y - p.py) * 0.94; p.px = p.x; p.py = p.y; p.x += vx; p.y += vy + 500 * dt * dt; }
+      for (let it = 0; it < 14; it++) {
+        Rp[0].x = kx; Rp[0].y = ky;
+        if (pin > 0) { const end = Rp[KNOTS]; end.x = lerp(end.x, hk.x, pin); end.y = lerp(end.y, hk.top, pin); }
+        for (let q = 0; q < KNOTS; q++) {
+          const a = Rp[q], b = Rp[q + 1], ddx = b.x - a.x, ddy = b.y - a.y, l = Math.hypot(ddx, ddy) || 1e-6, c = (l - seg) / l / 2;
+          if (q === 0) { b.x -= ddx * c * 2; b.y -= ddy * c * 2; } else { a.x += ddx * c; a.y += ddy * c; b.x -= ddx * c; b.y -= ddy * c; }
+        }
+      }
+      // Draw: the free rope, then the wound turns round the bar (the turn behind it is faint).
+      const dpr = Math.min(devicePixelRatio, 2), W = Math.round(innerWidth * dpr), Hh = Math.round(innerHeight * dpr);
+      if (inkEl.width !== W || inkEl.height !== Hh) { inkEl.width = W; inkEl.height = Hh; }
+      ink.setTransform(dpr, 0, 0, dpr, 0, 0); ink.clearRect(0, 0, innerWidth, innerHeight); inkEl.dataset.on = 1;
+      const pts = Rp.map((p) => [p.x, p.y, 1]);
+      for (let l = 2; l <= wound; l += 2) pts.push(turnAt(hk, l));
+      ink.lineCap = 'round'; ink.lineJoin = 'round';
+      for (const [col, lw] of [['rgba(38,38,42,.55)', 3.6], ['#efe6d8', 2]]) {
+        ink.strokeStyle = col; ink.lineWidth = lw;
+        for (let q = 1; q < pts.length; q++) { ink.globalAlpha = pts[q][2] && pts[q - 1][2] ? 1 : 0.28; ink.beginPath(); ink.moveTo(pts[q - 1][0], pts[q - 1][1]); ink.lineTo(pts[q][0], pts[q][1]); ink.stroke(); }
+      }
+      ink.globalAlpha = 1;
+      // The roll: in from the right, turning over, to his open hand (0.1 to 0.42); then with his hand down to his
+      // side, turned level with the ground (0.46 to 0.62).
+      const rc = 0.28, f = sm(0.1, 0.42, t), fe = 1 - (1 - f) ** 3, down = sm(0.46, 0.62, t);
+      const hand = CATCH7.clone().lerp(CARRY7, down), atHand = hand.clone().addScaledVector(PALM7, rc + 0.33);   // the palm (0.23 thick) touches the roll at one point
+      if (f < 1) {
+        const A = worldAt(innerWidth + 260, innerHeight * 0.2, CATCH7.z);
+        this.roll.position.copy(A).lerp(atHand, fe); this.roll.position.y += Math.sin(f * Math.PI) * 1.0;
+        this.roll.rotation.set(0.3 * (1 - fe), 0, (1 - fe) * 9);
+      } else {
+        this.roll.position.copy(atHand);
+        this.roll.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(FWD7[0] * down, 1 - down, FWD7[1] * down).normalize());
+      }
     }
     if (!H) return;
-    H.pose.rest(); place(S7[0], S7[1], 0.9);
-    const h = happy(), grab = sm(0.44, 0.5, t);
+    H.pose.rest(); place(S7[0], S7[1], F7);
+    const h = happy();
     if (h > 0) { H.blendPose('rest', 'wave', h); H.arms[1].elbow.rotation.z += Math.sin(now() / 120) * 0.3 * h; }
-    else H.blendPose('rest', 'point', sm(0.62, 0.8, t));
-    H.hold(0, HAND7.p, grab, [-1, 0, 0]);   // the palm on the roll
-    H.blendExpression('neutral', 'surprised', sm(0.08, 0.16, t)); H.blendExpression('surprised', 'smile', Math.max(h, sm(0.47, 0.55, t)));
-    if (t < 0.3) lookAt(B.root.position, sm(0.06, 0.14, t)); else if (t < 0.52) lookAt(this.roll.position, 1); else lookAt(null, h ? 0 : 0.5);
+    else H.blendPose('rest', 'point', sm(0.66, 0.82, t));
+    const reach = sm(0.26, 0.36, t), hand = CATCH7.clone().lerp(CARRY7, sm(0.46, 0.62, t));
+    H.hold(0, hand.toArray(), reach, PALM7.toArray());
+    H.blendExpression('neutral', 'surprised', sm(0.08, 0.16, t)); H.blendExpression('surprised', 'smile', Math.max(h, sm(0.42, 0.5, t)));
+    if (t < 0.24) lookAt(B.root.position, sm(0.06, 0.14, t)); else if (t < 0.5) lookAt(this.roll.position, 1); else lookAt(null, h ? 0 : 0.5);
   },
   shot(t) { return { at: [S7[0] + 0.6, 4.4, 0], dist: 28, az: -6 + 3 * pn.x, el: 6 - 2 * pn.y, sx: -0.18, sy: 0.17 }; },
 };
@@ -1245,6 +1296,10 @@ function frame() {
   aim(shotAt(state));
   if (state.kind === 'pen' && state.u > 0 && C[2].ready) penFlight(state); else if (cam.near !== NEAR) { cam.near = NEAR; cam.updateProjectionMatrix(); }
   stepFocus();
+  // The world goes in front of the words while a page or a frame is open, and while the roll and the balloon
+  // fly off at the end of chapter 6 (they cross the statement there).
+  const front = focus.obj || (state.i === 6 && (state.u > 0 ? state.u < 0.3 : state.t > 0.7));
+  if (canvas.style.zIndex !== (front ? '3' : '')) canvas.style.zIndex = front ? '3' : '';
   colours(state);
   R.render(scene, cam);
 }
