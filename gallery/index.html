@@ -24,9 +24,8 @@ button { font: inherit; color: inherit; }
 
 /* Layers, from the back: the chapter colour and its wipe, the words, the clay world, the controls. */
 #bg, #wipe { position: fixed; inset: 0; z-index: -2; }
-#wipe { z-index: -1; display: none; }
-/* The pen's blue: over everything, so the cut from the book to the files happens behind it. */
-#cover { position: fixed; inset: 0; z-index: 4; background: #4f86c6; opacity: 0; pointer-events: none; }
+/* The next chapter's colour: a blob with a moving, round edge, drawn on this canvas (app.js, colours()). */
+#wipe { z-index: -1; width: 100vw; height: 100vh; display: none; }
 /* Without scripts each chapter keeps its own colour. */
 .js .ch { background: none !important; }
 canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 1; pointer-events: none; }
@@ -85,15 +84,15 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 /* 4: the graph of the cart, drawn frame by frame. */
 .graph { position: absolute; right: 6vw; top: 16vh; width: min(40vw, 560px); height: min(24vw, 330px); cursor: crosshair; }
 
-/* 5: the console of "make look", and the ring round hand 1. */
-.console { position: absolute; left: 5vw; top: 52vh; width: min(470px, 40vw); padding: 14px 16px 16px; border-radius: 14px; background: #1f1e24; color: #e9e4da;
+/* 5: the console of "make look", and the ring round hand 1: over everything, beside his hand. */
+.console { position: fixed; z-index: 7; left: 0; top: 0; width: min(470px, 40vw); pointer-events: none; opacity: 0; visibility: hidden; will-change: transform; padding: 14px 16px 16px; border-radius: 14px; background: #1f1e24; color: #e9e4da;
   font: 500 14px/1.45 'JetBrains Mono', monospace; box-shadow: 0 24px 50px -28px rgba(20, 20, 30, .6); }
 .console .cmdname { display: block; color: #9a96a6; margin-bottom: 8px; }
 .console .cmdname::before { content: "$ "; color: var(--pink); }
 .console .line { display: flex; gap: 10px; align-items: baseline; min-height: 2.9em; }   /* two lines: the box keeps its size when a message changes */
 .console .line i { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--pink); transition: background .2s; }
 .console.ok .line i { background: #5fc27a; }
-.ring { position: fixed; z-index: 3; left: -30px; top: -30px; width: 60px; height: 60px; border: 3px solid var(--pink); border-radius: 50%; pointer-events: none; opacity: 0; transition: border-color .25s; }
+.ring { position: fixed; z-index: 7; left: -30px; top: -30px; width: 60px; height: 60px; border: 3px solid var(--pink); border-radius: 50%; pointer-events: none; opacity: 0; transition: border-color .25s; }
 .ring.ok { border-color: var(--pass); }
 
 /* 7: the command. */
@@ -123,7 +122,7 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 <script>document.documentElement.classList.add('js');</script>
 </head>
 <body>
-<div id="bg"></div><div id="wipe"></div><div id="cover"></div>
+<div id="bg"></div><canvas id="wipe" aria-hidden="true"></canvas>
 
 <header class="bar">
   <a class="mark" href="#c0">Clayducation</a>
@@ -177,8 +176,6 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 <section class="ch" id="c5" data-bg="#e6bfae" style="background:#e6bfae" data-name="Checks">
   <div class="pin">
     <h2 class="say tl">Nothing renders until the <b>checks pass</b>.</h2>
-    <div class="console" aria-live="polite"><span class="cmdname">make look</span><span class="line"><i></i><span class="msg"></span></span></div>
-    <div class="ring" aria-hidden="true"></div>
     <p class="hint bl"><span class="mouse">Move the pointer: his hand follows it, and the hold check of the clay kit runs on every frame.</span><span class="touch">Scroll, and his hand moves onto the cart.</span></p>
     <img class="still" src="png/check-strip.png" alt="A movement strip from a build, with its check digit.">
   </div>
@@ -203,6 +200,10 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
   </div>
 </section>
 </main>
+
+<!-- 5: the console of "make look" and the ring round hand 1. They follow his hand, on the top layer. -->
+<div class="console" aria-live="polite"><span class="cmdname">make look</span><span class="line"><i></i><span class="msg"></span></span></div>
+<div class="ring" aria-hidden="true"></div>
 
 <script type="module" src="app.js"></script>
 </body>

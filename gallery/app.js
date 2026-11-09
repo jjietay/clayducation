@@ -60,6 +60,7 @@ function where(y) {
 window.__claySets = C;   // for the page's own checks
 window.__clayHero = () => H; window.__clayState = () => state; window.__clayR = () => R;
 window.__clayCam = () => cam && { p: cam.position.toArray().map((v) => +v.toFixed(3)), o: [cam.view?.offsetX, cam.view?.offsetY] };
+window.__clayProbe = (fn) => fn({ THREE, cam, H, C, toScreen, state });
 window.__clayAt = (j, f, tr) => { const s = segs.find((x) => x.j === j && (tr ? x.kind !== 'act' : x.kind === 'act')); return (s.y + f * s.len) * innerHeight; };
 const yOf = (j, t = 0) => { const s = segs.find((x) => x.kind === 'act' && x.j === j); return (s.y + t * s.len) * innerHeight; };
 
@@ -202,7 +203,8 @@ function settle() {
   gaze.k = damp(gaze.k, L.k, 3);
   head.rotation.y += gaze.yaw * gaze.k; head.rotation.x -= gaze.pitch * gaze.k;
   const b = (now() / 1000) % 4.1; if (b < 0.16) H.blink(Math.sin(b / 0.16 * Math.PI));
-  // Arms, legs and the body's turn: each eases from its last angle to the new one.
+  // Arms, legs and the body's turn: each eases from its last angle to the new one. These are the poses only:
+  // a hand that holds something is put on it below, after the body has eased.
   const parts = [...H.arms.flatMap((a) => [a.shoulder, a.elbow, a.wrist]), ...H.legs.flatMap((l) => [l.hip, l.ankle]), H.root];
   const k = 1 - Math.exp(-14 * dt);
   for (const o of parts) { const q = o.quaternion.clone(), was = ease.q.get(o); if (was) o.quaternion.copy(was).slerp(q, o === H.root ? 1 - Math.exp(-9 * dt) : k); ease.q.set(o, o.quaternion.clone()); }
@@ -210,7 +212,40 @@ function settle() {
   const p = H.root.position.clone();
   if (ease.p && ease.p.distanceTo(p) < 2) H.root.position.copy(ease.p.lerp(p, 1 - Math.exp(-16 * dt)));
   ease.p = H.root.position.clone();
-  want.face = null; want.look = null;
+  // The hands: each one reaches from the eased body to what it holds, so it stays on the book or the cart
+  // while the body moves. How firmly it holds eases; a hold point that jumps (another thing to hold) glides.
+  H.root.updateMatrixWorld(true);
+  hands.forEach((h, i) => {
+    const w = want.hands[i];
+    h.k = damp(h.k, w ? w.k : 0, 14);
+    if (w) {
+      if (!h.p || h.k < 0.01) { h.p = w.p.clone(); h.glide = false; }
+      else if (h.last && h.last.distanceTo(w.p) > 0.5) h.glide = true;
+      if (h.glide) { h.p.lerp(w.p, 1 - Math.exp(-10 * dt)); if (h.p.distanceTo(w.p) < 0.02) h.glide = false; } else h.p.copy(w.p);
+      h.last = w.p.clone();
+    }
+    if (h.k > 0.002 && h.p) realReach(i, h.p.toArray(), h.k);
+  });
+  want.face = null; want.look = null; want.hands = [null, null];
+}
+// What each hand holds (from H.hold and H.reach in the chapters); settle() puts the hands there.
+const hands = [{ k: 0 }, { k: 0 }];
+want.hands = [null, null];
+let realReach = null;
+function wrapHands(m) {
+  realReach = m.reach;
+  const reachOf = (i, point, k) => { want.hands[i] = { p: new THREE.Vector3(...point), k: clamp(k) }; };
+  m.reach = (i, point, k = 1) => { if (k > 0) reachOf(i, point, k); };
+  // As the kit's hold(): a hand that cannot get to what it holds is a fault for "make look" (H.grips).
+  m.hold = (i, point, k = 1) => {
+    if (k > 0.5) {
+      m.root.updateMatrixWorld(true);
+      const a = m.arms[i], gap = a.shoulder.parent.worldToLocal(new THREE.Vector3(...point)).sub(a.shoulder.position).length() - 2.65;
+      if (gap > 0) (m.grips ??= []).push({ i, gap });
+      (m.holds ??= []).push({ i, point, k });
+    }
+    if (k > 0) reachOf(i, point, k);
+  };
 }
 let happyAt = -1e9;
 const happy = () => clamp(1 - Math.abs((now() - happyAt) / 1000 - 0.9) / 0.9);
@@ -279,14 +314,15 @@ function clayNormals() {
 const FLOOR = -1.75, LIFT = 1.77;   // the lump's flat bottom in its own units, and how high its middle is
 const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
 // The clay figure: his shape (a round head on a body, on legs), a little larger than him, so he stands
-// inside it. A distance field of three soft ellipsoids.
+// inside it and no part of him shows until its pieces fall. A distance field of four soft ellipsoids.
+// (tmp/fig-probe.js measures how far inside the clay every point of him is; keep its numbers the same.)
 const FIG = new THREE.Vector3(0, 4.4, 0);
 function figure(x, y, z) {
   const e = (cx, cy, cz, rx, ry, rz) => { const a = (x - cx) / rx, b = (y - cy) / ry, c = (z - cz) / rz, k0 = Math.hypot(a, b, c), k1 = Math.hypot(a / rx, b / ry, c / rz); return k1 ? k0 * (k0 - 1) / k1 : -Math.min(rx, ry, rz); };
   let d = e(0, 7.05, 0.05, 2.05, 1.95, 1.95);          // the head, with hair and ears
   d = smin(d, e(0, 4.45, 0, 2.4, 1.8, 1.4), 1.1);      // the body, with the arms
-  d = smin(d, e(0, 2.85, 0.05, 2.45, 1.15, 1.4), 0.9);     // the hips, round his hands
-  return smin(d, e(0, 1.75, 0.15, 1.6, 2.05, 1.45), 1.0);   // the legs and shoes
+  d = smin(d, e(0, 2.35, 0.05, 2.8, 1.55, 1.45), 0.9);     // the hips, round his hands
+  return smin(d, e(0, 1.35, 0.25, 2.05, 1.9, 1.8), 1.0);   // the legs and shoes
 }
 C[0] = {
   start: [0, 0.6, 0], end: [0, 0.6, 0.35], via: [[3.5, -4.4], [S1[0] - 1, -4.4]],
@@ -327,7 +363,7 @@ C[0] = {
       col[i * 3] = base.r * k; col[i * 3 + 1] = base.g * k; col[i * 3 + 2] = base.b * k;
       let lo = 0, hi = 7;
       for (let s = 0; s < 28; s++) { const m = (lo + hi) / 2; if (figure(FIG.x + v.x * m, FIG.y + v.y * m, FIG.z + v.z * m) < 0) lo = m; else hi = m; }
-      const fy = Math.max(0.03, FIG.y + v.y * lo) + 0.035 * fbm(v.x * 4, v.y * 4, v.z * 4 + 5);
+      const fy = Math.max(0.005, FIG.y + v.y * lo + 0.035 * fbm(v.x * 4, v.y * 4, v.z * 4 + 5));   // its flat bottom is on the floor, under his soles
       this.fig[i * 3] = v.x * lo * (1 + 0.03 * fbm(v.x * 3 + 2, v.y * 3, v.z * 3)); this.fig[i * 3 + 1] = fy; this.fig[i * 3 + 2] = v.z * lo;
     }
     this.col0 = col.slice(); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -357,7 +393,6 @@ C[0] = {
     // The scroll: a lump (0 to 0.3, the pointer can dent it); a squash (0.3 to 0.42); the lump becomes the
     // figure (0.4 to 0.62); the figure cracks, and its pieces fall away from the top down (0.66 to 0.92).
     const sq = still ? 0 : bump(0.3, 0.42, t), m = heroReady ? (still ? sm(0.4, 0.62, t) : back(sm(0.4, 0.62, t))) : 0;
-    const shake = still ? 0 : bump(0.6, 0.68, t) * 0.04 * Math.sin(now() / 22);
     // The pointer, while it is a lump: the ray hits the lump's fixed shape (a dent moves away from the pointer).
     let dir = null;
     if (ptr.mouse && t < 0.3 && state.u === 0 && !focus.obj) {
@@ -383,7 +418,7 @@ C[0] = {
       if (ly < FLOOR + 0.5) ly = FLOOR + Math.log1p(Math.exp((ly - FLOOR) * 6)) / 6;
       ly += LIFT * (1 - 0.3 * sq) - 0.01;
       // Towards the figure.
-      let x = lerp(lx, this.fig[i * 3], m) + shake, y = lerp(ly, this.fig[i * 3 + 1], m), z = lerp(lz, this.fig[i * 3 + 2], m);
+      let x = lerp(lx, this.fig[i * 3], m), y = lerp(ly, this.fig[i * 3 + 1], m), z = lerp(lz, this.fig[i * 3 + 2], m);
       const k = this.piece[i], f = fall[k];
       if (f > 0) {
         // A falling piece: it turns about its middle, flies a little out, drops to the floor, and gets small.
@@ -413,7 +448,8 @@ C[0] = {
     const wave = still ? 0 : bump(0.88, 0.995, t);
     if (wave) { H.blendPose('rest', 'wave', wave); H.arms[1].elbow.rotation.z += Math.sin(now() / 120) * 0.3 * wave; }
     H.blendExpression('sleepy', 'surprised', sm(0.7, 0.78, t)); H.blendExpression('surprised', 'smile', sm(0.84, 0.9, t));
-    lookAt(null, sm(0.88, 0.95, t) * (1 - wave));
+    // His head stays still while the clay cracks; after it, he looks at the viewer (the camera), not to the side.
+    lookAt(cam.position, sm(0.88, 0.95, t) * (1 - wave));
   },
   shot(t) {
     const o = still ? 1 : sm(0.34, 0.6, t);
@@ -490,7 +526,8 @@ C[1] = {
     H.blendExpression('neutral', 'thinking', sm(0.2, 0.3, t)); H.blendExpression('thinking', 'surprised', sm(0.78, 0.88, t));
     lookAt(t < 0.5 ? null : pen.position, t < 0.5 ? 0.7 * (1 - sm(0.3, 0.5, t)) : 1);
   },
-  shot(t) { return { at: [S1[0] + 0.3, 4.2, S1[1]], dist: lerp(28, 22, sm(0.5, 1, t)), az: 8 + 3 * pn.x, el: lerp(10, 16, sm(0.5, 1, t)) - 2 * pn.y, sx: -0.1, sy: -0.03 }; },
+  // The set stands on the right, under the prompt, so no word of the statement (bottom left) touches it.
+  shot(t) { return { at: [S1[0] + 0.3, 4.2, S1[1]], dist: lerp(34, 29, sm(0.5, 1, t)), az: 8 + 3 * pn.x, el: lerp(10, 16, sm(0.5, 1, t)) - 2 * pn.y, sx: 0.2, sy: 0.13 }; },
 };
 
 // 2. Claude writes three files: the pen comes out of the camera and writes the pages, line by line, while he
@@ -526,7 +563,7 @@ C[2] = {
       m.lines = lines; m.chars = lines.reduce((a, l) => a + l.length + 1, 0); m.kind = kind;
       m.position.set(S2[0] - 15.4 + i * 4.7, 5.0 + (i === 1 ? 0.35 : 0), -0.6 - (i === 1 ? 0.5 : 0)); m.rotation.y = (1 - i) * 0.22 - 0.1;
       m.home = m.position.clone(); m.lift = 0; m.drawn = '';
-      put(m); m.redraw(0); return m;
+      put(m); m.redraw(0); R.initTexture(m.material.map); return m;   // on the GPU now, not on the first frame that shows it
     });
   },
   // Where the pen tip is on page i when the writing there is at f (0 to 1).
@@ -593,7 +630,8 @@ C[2] = {
     if (!H) return;
     H.pose.rest(); place(S2[0], S2[1], -0.95);
     H.blendPose('rest', 'think', sm(0.2, 0.3, t) * (1 - sm(0.76, 0.8, t)));
-    H.blendExpression('neutral', 'thinking', sm(0.1, 0.2, t)); H.blendExpression('thinking', 'surprised', sm(0.8, 0.84, t)); H.blendExpression('surprised', 'understanding', sm(0.92, 0.97, t));
+    // He starts with the surprised face that he had at the end of chapter 1, so his face goes on across the cut.
+    H.blendExpression('surprised', 'thinking', sm(0.08, 0.2, t)); H.blendExpression('thinking', 'surprised', sm(0.8, 0.84, t)); H.blendExpression('surprised', 'understanding', sm(0.92, 0.97, t));
     lookAt(pen.position, 1);
   },
   shot(t) { return { at: [S2[0] - 5.6, 4.6, 0], dist: 28, az: -4 + 3 * pn.x, el: 7 - 2 * pn.y, sx: 0.05, sy: 0.1 }; },
@@ -721,8 +759,8 @@ C[4] = {
 // until the pointer moves), and the hold checks of the clay kit run on every frame, with their messages.
 const consoleEl = $('.console'), msgEl = $('.console .msg'), ringEl = $('.ring');
 C[5] = {
-  start: [FACE + 1.75, 0, -PI2], end: [FACE + 1.75, 0, -PI2], via: [[FACE + 2.2, 4.2], [FX + 6, 4.2]],
-  build() { this.body = C[4].c.groups.body.userData.f; this.target = new THREE.Vector3(FACE + 1.1, 3.9, 0.62); this.ok = null; this.mine = false; this.ring = null; },
+  start: [FACE + 1.75, 0, -PI2], end: [FACE + 1.75, 0, -PI2], via: [[FACE + 2.2, 4.2], [FX + 6, 4.2], [FX + 13, 2.5]],   // round the spool
+  build() { this.body = C[4].c.groups.body.userData.f; this.target = new THREE.Vector3(FACE + 1.1, 3.9, 0.62); this.ok = null; this.mine = false; this.ring = null; msgEl.textContent = 'hand 1 holds nothing'; },
   act(t) {
     const F = FACE, live = state.i === 5 && state.u === 0;
     C[4].setCart(0);
@@ -735,6 +773,13 @@ C[5] = {
     const on = sm(0.25, 0.55, t);
     want ??= new THREE.Vector3(lerp(F + 1.1, F + 0.02, on), lerp(3.9, 2.6, on), 0.62);
     this.target.x = damp(this.target.x, want.x, 12); this.target.y = damp(this.target.y, want.y, 12); this.target.z = 0.62;
+    const [sx, sy] = toScreen(this.target);
+    this.ring ??= [sx, sy]; this.ring[0] = damp(this.ring[0], sx, 14); this.ring[1] = damp(this.ring[1], sy, 14);
+    ringEl.style.transform = `translate(${this.ring[0]}px, ${this.ring[1]}px)`; ringEl.style.opacity = live ? sm(0.02, 0.12, t) : 0;
+    // The console is at his hand: above it and to its left, so it never covers him; always on the screen.
+    const bw = consoleEl.offsetWidth, bh = consoleEl.offsetHeight;
+    const bx = clamp(this.ring[0] - bw - 28, 16, innerWidth - bw - 16), by = clamp(this.ring[1] - bh - 28, 16, innerHeight - bh - 16);
+    consoleEl.style.transform = `translate(${bx.toFixed(1)}px, ${by.toFixed(1)}px)`;
     if (!H) return;
     H.pose.rest(); place(F + 1.75, 0, -PI2, { lean: 0.1 });
     const grip = sm(0, 0.06, t);   // his hands come onto the cart, not in one frame
@@ -748,9 +793,6 @@ C[5] = {
     else { text = 'no faults: both hands touch the cart'; ok = true; }
     if (msgEl.textContent !== text) { msgEl.textContent = text; msgEl.animate([{ opacity: 0.15 }, { opacity: 1 }], { duration: 240, easing: 'ease-out' }); }   // a new message fades in
     if (ok !== this.ok) { this.ok = ok; consoleEl.classList.toggle('ok', ok); ringEl.classList.toggle('ok', ok); }
-    const [sx, sy] = toScreen(this.target);
-    this.ring ??= [sx, sy]; this.ring[0] = damp(this.ring[0], sx, 14); this.ring[1] = damp(this.ring[1], sy, 14);
-    ringEl.style.transform = `translate(${this.ring[0]}px, ${this.ring[1]}px)`; ringEl.style.opacity = live ? sm(0.02, 0.12, t) : 0;
     H.blendExpression('neutral', ok ? 'smile' : 'worried', 0.8);
   },
   shot(t) { return { at: [FACE + 0.6, 3.6, 0], dist: 21, az: -22 + 3 * pn.x, el: 8 - 2 * pn.y, sx: 0.18, sy: 0.1 }; },
@@ -758,10 +800,12 @@ C[5] = {
 
 // 6. The result is a real MP4: a film strip rolls out of his hands, from the title card of the visitor's own
 // topic to frames of six finished videos. A click brings a frame to the camera and plays it.
-const CLIPS = ['bayes', 'ruler', 'knn', 'shadow', 'lever', 'servo'];
+const CLIPS = ['bayes', 'ruler', 'knn', 'robot', 'lever', 'servo'];
 const FW = 7.2, FH = 4.05, GAP = 8.1;
+// He holds a film spool by its rim, and the strip comes out of it. He stands behind the end of the strip.
+const SPOOL = [FX + 9.7, 4.6, 0], STAND = [FX + 11.35, -1.2], SFACE = Math.atan2(SPOOL[0] - STAND[0], SPOOL[2] - STAND[1]);
 C[6] = {
-  start: [FX + 10.6, 1.4, -PI2 + 0.35], end: [FX + 10.6, 1.4, -0.3],
+  start: [...STAND, SFACE], end: [...STAND, SFACE],
   build() {
     film = this;
     this.strip = new THREE.Group(); put(this.strip);
@@ -775,10 +819,11 @@ C[6] = {
       for (const wd of tt.split(' ')) { const l = lines.at(-1) + (lines.at(-1) ? ' ' : '') + wd; if (g.measureText(l).width > w * 0.84 && lines.at(-1)) lines.push(wd); else lines[lines.length - 1] = l; }
       lines.slice(0, 3).forEach((l, i) => g.fillText(l, w * 0.07, h * (0.34 + i * 0.14)));
       g.fillStyle = '#d6336c'; g.fillRect(w * 0.07, h * 0.82, w * 0.22, h * 0.025);
-    });
+    }, { px: 2048 });
     const loader = new THREE.TextureLoader();
     const pics = [this.title, ...CLIPS.map((c) => {
-      const tex = loader.load(`film/${c}.jpg`); tex.colorSpace = THREE.SRGBColorSpace;
+      // Sent to the GPU as soon as it loads, so the first frame that shows it does not stall.
+      const tex = loader.load(`film/${c}.jpg`, (q) => R.initTexture(q)); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
       const m = new THREE.Mesh(new THREE.PlaneGeometry(FW, FH), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false })); m.poster = tex; m.clip = c; return m;
     })];
     this.cells = pics.map((pic, i) => {
@@ -787,23 +832,45 @@ C[6] = {
       pic.position.z = 0.07; cell.add(new THREE.Mesh(plateGeo, plateMat), holes, pic); cell.i = i; pic.lift = 0;
       this.strip.add(cell); return cell;
     });
-    this.pics = pics;
+    this.pics = pics; R.initTexture(this.title.material.map);
     this.strip.position.set(0, 4.6, 0);
     shadow(16, 3, FX, 0, 0.3);
+    // The roll: the film is rolled up round a tall core, and the strip comes out of it. The part of the strip
+    // that is still in the roll is cut off by a clipping plane through the roll's middle.
+    const rollEnd = holeMat.clone();   // its own materials: the clipping plane is only for the strip
+    this.spool = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, FH + 1.3, 56), [plateMat.clone(), rollEnd, rollEnd]);
+    this.spool.position.set(...SPOOL); put(this.spool);
+    this.cut = new THREE.Plane(new THREE.Vector3(-1, 0, 0), SPOOL[0]);
+    for (const m of [plateMat, holeMat, ...pics.map((q) => q.material)]) m.clippingPlanes = [this.cut];
+    // His hands hold the roll on each side of it, towards him (H.hold in act, as the roll gets thinner).
+    this.d = new THREE.Vector2(STAND[0] - SPOOL[0], STAND[1] - SPOOL[2]).normalize(); this.p = new THREE.Vector2(Math.cos(SFACE), -Math.sin(SFACE));
+    // The clips load now, so a selected frame plays at once.
+    for (const pic of pics) if (pic.clip) {
+      pic.video = Object.assign(document.createElement('video'), { muted: true, loop: true, playsInline: true, preload: 'auto', src: `film/${pic.clip}.mp4` });
+      pic.vtex = Object.assign(new THREE.VideoTexture(pic.video), { colorSpace: THREE.SRGBColorSpace });
+    }
   },
   act(t) {
     const roll = (still ? 0.5 : sm(0.04, 0.92, t)) * GAP * (CLIPS.length + 0.4), out = FX + 8.8;
     this.cells.forEach((c) => {
-      const x = out - GAP * 0.6 - roll + c.i * GAP, k = sm(out + 0.4, out - GAP * 0.7, x);
-      c.position.set(x, 0, 0); c.scale.set(Math.max(0.01, k), Math.max(0.01, k), 1); c.visible = k > 0.01; c.rotation.y = (1 - k) * -0.8;
+      const x = out - GAP * 0.6 - roll + c.i * GAP;
+      c.position.set(x, 0, 0); c.visible = x - GAP / 2 < SPOOL[0];
     });
-    this.pics.forEach((p) => { if (focus.obj === p) return; p.lift = damp(p.lift, !focus.obj && hovered === p ? 1 : 0, 10); p.position.z = 0.07 + 0.5 * p.lift; p.scale.setScalar(1 + 0.06 * p.lift); });
+    this.pics.forEach((p) => {
+      // A selected frame shows its clip as soon as the clip has a frame to show (its first frame is the poster).
+      if (p.video && p.material.map !== (focus.obj === p && p.video.readyState >= 2 ? p.vtex : p.poster)) { p.material.map = focus.obj === p && p.video.readyState >= 2 ? p.vtex : p.poster; p.material.needsUpdate = true; }
+      if (focus.obj === p) return;
+      p.lift = damp(p.lift, !focus.obj && hovered === p ? 1 : 0, 10); p.position.z = 0.07 + 0.5 * p.lift; p.scale.setScalar(1 + 0.06 * p.lift);
+    });
+    // The roll gets thinner as the film comes out. The cut is in world units: the set grows and sinks (morph).
+    const rc = still ? 0.4 : 0.55 - 0.27 * sm(0.04, 0.92, t); this.spool.scale.set(rc, 1, rc);
+    const g = this.strip.parent; this.cut.constant = g.position.x + g.scale.x * SPOOL[0];
+    this.grip = [-1, 1].map((s) => { const r = rc + 0.1; return [SPOOL[0] + r * (0.5 * this.d.x + s * 0.87 * this.p.x), SPOOL[1], SPOOL[2] + r * (0.5 * this.d.y + s * 0.87 * this.p.y)]; });
     if (!H) return;
-    H.pose.rest(); place(FX + 10.6, 1.4, lerp(-PI2 + 0.35, -0.3, sm(0.92, 1, t)));
-    const g = 1 - sm(0.9, 0.97, t);
-    H.hold(0, [out + 0.4, 3.0, 0.3], g); H.hold(1, [out + 0.4, 5.6, 0.3], g);
+    H.pose.rest(); place(STAND[0], STAND[1], SFACE);
+    H.hold(0, this.grip[0], sm(0, 0.04, t)); H.hold(1, this.grip[1], sm(0, 0.04, t));
     H.blendExpression('neutral', 'smile', 0.7);
-    lookAt(null, sm(0.92, 1, t) * 0.8);
+    lookAt(cam.position, sm(0.9, 1, t) * 0.8);
   },
   shot(t) { return { at: [FX + 3.5, 4.6, 0.5], dist: 30, az: -4 + 4 * pn.x, el: 4 - 2 * pn.y, sx: 0.0, sy: 0.14 }; },
 };
@@ -856,53 +923,74 @@ function shotAt(s) {
   const a = C[s.i].shot(s.t);
   if (!s.u) return a;
   const b = C[s.i + 1].shot(0);
-  if (s.kind === 'pen') return s.u < 0.5 ? a : b;   // the cut is behind the full blue
+  if (s.kind === 'pen') return s.u < 0.5 ? a : b;   // the cut is behind the pen's blue, which fills the frame
   const u = pace(s.u), lift = still ? 0 : Math.sin(Math.PI * s.u), mid = (k) => lerp(a[k], b[k], u);
   return { at: a.at.map((v, i) => lerp(v, b.at[i], u)), dist: mid('dist') * (1 + 0.35 * lift), az: mid('az') - 18 * lift, el: mid('el') + 16 * lift, sx: mid('sx'), sy: mid('sy') };
 }
-// From the book to the files: the pen flies into the camera, the whole screen goes the pen's blue, the cut
-// happens behind the blue, and the blue fades out on the blue files chapter while the pen flies to the page.
+// From the book to the files: the pen flies to a point in front of the camera, across the middle of the
+// screen; then the camera moves in on its barrel until the pen's own blue fills the whole frame. The cut to the
+// files happens there. After the cut, the camera moves back out of the pen and the pen flies to the first page.
+const PEN_R = 0.064, PEN_MID = -0.15, NEAR = 0.1;   // the barrel's radius, and its middle on the pen's axis (pen units)
+let penZoom = 0;
 function penFlight(s) {
-  // A point in front of the camera, in the middle of the screen, and a slanted pose there: the blue barrel
-  // shows, not the dark end, and the pen never passes behind the camera.
+  // The camera of the set (no zoom yet): the ray through the middle of the screen, and the pen's pose there,
+  // its axis across the screen, at right angles to the ray, so the barrel (not an end) comes to the camera.
+  cam.near = NEAR; cam.updateProjectionMatrix();
   ray.setFromCamera(new THREE.Vector2(0, 0), cam);
-  const hover = cam.position.clone().addScaledVector(ray.ray.direction, 2.6);
+  const dir = ray.ray.direction.clone(), D0 = 3.2, hover = cam.position.clone().addScaledVector(dir, D0);
   const right = new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion), up = new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion);
-  const slant = new THREE.Quaternion().setFromUnitVectors(PEN_AXIS, right.clone().multiplyScalar(0.8).addScaledVector(up, 0.35).addScaledVector(ray.ray.direction, -0.45).normalize());
+  const across = right.multiplyScalar(Math.cos(0.3)).addScaledVector(up, Math.sin(0.3)).normalize();
+  const slant = new THREE.Quaternion().setFromUnitVectors(PEN_AXIS, across), SC = 2;
+  const atHover = { p: hover.clone().addScaledVector(across, -PEN_MID * SC), q: slant, s: new THREE.Vector3(SC, SC, SC) };
   const u = s.u;
-  if (u < 0.5) {
-    const a = C[1].penAt(1), f = inOut(sm(0, 0.46, u));
-    pen.position.lerpVectors(a.p, hover, f); pen.position.y += Math.sin(f * Math.PI) * 0.8;
-    pen.quaternion.slerpQuaternions(a.q, slant, inOut(sm(0, 0.35, u))); pen.scale.copy(a.s).multiplyScalar(lerp(1, 1.8, f));
-  } else {
-    const b = C[2].penAt(0), f = inOut(sm(0.56, 1, u));
-    pen.position.lerpVectors(hover, b.p, f); pen.position.y += Math.sin(f * Math.PI) * 0.8;
-    pen.quaternion.slerpQuaternions(slant, b.q, f); pen.scale.copy(b.s).multiplyScalar(lerp(1.8 * 1.25 / b.s.x, 1, f));
+  let f, a, b;
+  if (u < 0.5) { a = C[1].penAt(1); b = atHover; f = inOut(sm(0, 0.26, u)); penZoom = inOut(sm(0.22, 0.5, u)); }
+  else { a = atHover; b = C[2].penAt(0); f = inOut(sm(0.66, 1, u)); penZoom = inOut(1 - sm(0.5, 0.72, u)); }
+  pen.position.lerpVectors(a.p, b.p, f); pen.position.y += Math.sin(f * Math.PI) * (u < 0.5 ? 0.8 : 0.6);
+  pen.quaternion.slerpQuaternions(a.q, b.q, f); pen.scale.lerpVectors(a.s, b.s, f);
+  // The camera moves along the ray to the barrel: at the end, the barrel's edge is far outside the frame.
+  const rEnd = PEN_R * SC, dEnd = rEnd * 1.22, step = (D0 - dEnd) * penZoom;
+  if (step > 0) {
+    cam.position.addScaledVector(dir, step);
+    const gapToPen = D0 - step - rEnd;   // how far the camera is from the barrel's skin
+    cam.near = clamp(gapToPen * 0.5, 0.005, NEAR); cam.updateProjectionMatrix(); cam.updateMatrixWorld();
   }
 }
 
-// ---------- the colour of each chapter: a soft bloom of the next colour grows out of the mascot ----------
-const bgEl = $('#bg'), wipeEl = $('#wipe'), coverEl = $('#cover');
-function circle(colour, cx, cy, r, soft = 1.2) {
-  const m = `radial-gradient(circle ${Math.max(0, r).toFixed(1)}px at ${cx.toFixed(1)}px ${cy.toFixed(1)}px, #000 ${Math.max(0, r - soft).toFixed(1)}px, transparent ${(r + 0.5).toFixed(1)}px)`;
-  wipeEl.style.display = 'block'; wipeEl.style.background = colour; wipeEl.style.webkitMaskImage = m; wipeEl.style.maskImage = m;
-}
-const farFrom = (cx, cy) => Math.hypot(Math.max(cx, innerWidth - cx), Math.max(cy, innerHeight - cy)) * 1.02;
-function colours(s) {
-  wipeEl.style.display = 'none'; coverEl.style.opacity = 0;
-  if (!(s.u > 0) || !chs[s.i + 1]) { bgEl.style.background = chs[s.i].dataset.bg; return; }
-  if (s.kind === 'pen') {
-    // The whole screen goes blue as the pen comes close, and clears on the blue chapter after the cut.
-    bgEl.style.background = chs[s.u < 0.5 ? s.i : s.i + 1].dataset.bg;
-    coverEl.style.opacity = s.u < 0.5 ? sm(0.24, 0.48, s.u) : 1 - sm(0.52, 0.74, s.u);
-    return;
+// ---------- the colour of each chapter: a blob of the next colour grows out of the mascot ----------
+// Its edge moves (three slow waves round it), and it is a smooth curve through 120 points: round, with no
+// corners and no blur.
+const bgEl = $('#bg'), wipeEl = $('#wipe'), wipeG = wipeEl.getContext('2d');
+function blob(colour, cx, cy, r) {
+  const dpr = Math.min(devicePixelRatio, 2), W = Math.round(innerWidth * dpr), Hh = Math.round(innerHeight * dpr);
+  if (wipeEl.width !== W || wipeEl.height !== Hh) { wipeEl.width = W; wipeEl.height = Hh; }
+  wipeEl.style.display = 'block'; wipeG.setTransform(dpr, 0, 0, dpr, 0, 0); wipeG.clearRect(0, 0, innerWidth, innerHeight);
+  if (r <= 0) return;
+  const T = now() / 1000, N = 120, P = [];
+  for (let k = 0; k < N; k++) {
+    const a = k / N * Math.PI * 2, w = 1 + 0.07 * Math.sin(3 * a + T * 1.7) + 0.045 * Math.sin(5 * a - T * 2.3) + 0.025 * Math.sin(7 * a + T * 1.1);
+    P.push([cx + Math.cos(a) * r * w, cy + Math.sin(a) * r * w]);
   }
+  // A closed Catmull-Rom curve through the points, as cubic Bézier segments.
+  wipeG.beginPath(); wipeG.moveTo(...P[0]);
+  for (let k = 0; k < N; k++) {
+    const p0 = P[(k + N - 1) % N], p1 = P[k], p2 = P[(k + 1) % N], p3 = P[(k + 2) % N];
+    wipeG.bezierCurveTo(p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6, p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6, p2[0], p2[1]);
+  }
+  wipeG.closePath(); wipeG.fillStyle = colour; wipeG.fill();
+}
+const farFrom = (cx, cy) => Math.hypot(Math.max(cx, innerWidth - cx), Math.max(cy, innerHeight - cy));
+function colours(s) {
+  wipeEl.style.display = 'none';
+  if (!(s.u > 0) || !chs[s.i + 1]) { bgEl.style.background = chs[s.i].dataset.bg; return; }
+  // From the book to the files there is no blob: the pen's blue fills the frame, and the cut is behind it.
+  if (s.kind === 'pen') { bgEl.style.background = chs[s.u < 0.5 ? s.i : s.i + 1].dataset.bg; return; }
   bgEl.style.background = chs[s.i].dataset.bg;
   let cx = innerWidth / 2, cy = innerHeight / 2;
   if (H && cam) { [cx, cy] = toScreen(H.root.getWorldPosition(new THREE.Vector3())); cx = clamp(cx, 0, innerWidth); cy = clamp(cy, 0, innerHeight); }
-  // A soft bloom: its edge fades over 45 % of its radius, so the colour flows in.
-  const R0 = farFrom(cx, cy) / 0.55, r = R0 * (still ? (s.u > 0.5 ? 1 : 0) : Math.sqrt(sm(0.08, 0.92, s.u)));   // an even rate of area
-  circle(chs[s.i + 1].dataset.bg, cx, cy, r, r * 0.45);
+  // At its full size the blob's smallest radius (1 - 0.14 of it) still goes past every corner of the screen.
+  const R0 = farFrom(cx, cy) / 0.85 + 4, r = R0 * (still ? (s.u > 0.5 ? 1 : 0) : inOut(sm(0.08, 0.92, s.u)));
+  blob(chs[s.i + 1].dataset.bg, cx, cy, r);
 }
 
 // ---------- the morph: a set that the camera leaves sinks into the floor like soft clay, and the next one grows
@@ -956,11 +1044,9 @@ addEventListener('click', (e) => {
   if (h) {
     const o = h.object;
     openFocus(o, () => {
-      if (!o.clip) return null;
-      o.video ??= Object.assign(document.createElement('video'), { muted: true, loop: true, playsInline: true, src: `film/${o.clip}.mp4` });
-      o.vtex ??= Object.assign(new THREE.VideoTexture(o.video), { colorSpace: THREE.SRGBColorSpace });
-      o.material.map = o.vtex; o.material.needsUpdate = true; o.video.currentTime = 0; o.video.play().catch(() => {});
-      return () => { o.video.pause(); o.material.map = o.poster; o.material.needsUpdate = true; };
+      if (!o.video) return null;
+      o.video.currentTime = 0; o.video.play().catch((err) => console.warn('clip', o.clip, err));
+      return () => { o.video.pause(); };
     });
     return;
   }
@@ -978,6 +1064,9 @@ function frame() {
   pn.sx = damp(pn.sx, ptr.x / innerWidth * 2 - 1, 9); pn.sy = damp(pn.sy, 1 - ptr.y / innerHeight * 2, 9);
   state = where(scrollY);
   words(state);
+  // The console and the ring of chapter 5 are outside the chapter (on the top layer): they fade with it.
+  consoleEl.style.opacity = chs[5].style.opacity; consoleEl.style.visibility = chs[5].style.visibility;
+  if (state.i !== 5 || state.u > 0) ringEl.style.opacity = 0;
   [...dots.children].forEach((d, j) => d.classList.toggle('on', j === (state.u > 0.5 ? state.i + 1 : state.i)));
   if (state.i !== 1 || state.u > 0) document.querySelectorAll('.fly').forEach((f) => { f.style.display = 'none'; });
   if (!built) { colours(state); return; }
@@ -994,14 +1083,14 @@ function frame() {
   }
   if (state.u > 0 && C[state.i + 1]?.ready) {
     if (state.kind === 'pen') {
-      penFlight(state);
-      // Behind the blue, he is already at the next set.
+      // He stays at the book until the cut, and is at the files after it.
       if (H) { if (state.u < 0.5) C[1].act(1); else C[2].act(0); }
     } else walkBetween(state);
   } else walkFace = null;
   morphs(state);
   settle();
   aim(shotAt(state));
+  if (state.kind === 'pen' && state.u > 0 && C[2].ready) penFlight(state); else if (cam.near !== NEAR) { cam.near = NEAR; cam.updateProjectionMatrix(); }
   stepFocus();
   colours(state);
   R.render(scene, cam);
@@ -1014,8 +1103,8 @@ async function boot() {
   try {
     if (!canvas.getContext('webgl2') || typeof DecompressionStream === 'undefined') throw new Error('no WebGL 2');
     R = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-    R.setClearColor(0, 0); R.setPixelRatio(Math.min(devicePixelRatio, 1.5)); R.setSize(innerWidth, innerHeight, false);
-    R.outputColorSpace = THREE.SRGBColorSpace; R.toneMapping = THREE.NoToneMapping;
+    R.setClearColor(0, 0); R.setPixelRatio(Math.min(devicePixelRatio, 2)); R.setSize(innerWidth, innerHeight, false);
+    R.outputColorSpace = THREE.SRGBColorSpace; R.toneMapping = THREE.NoToneMapping; R.localClippingEnabled = true;   // the film roll (chapter 6)
     scene = new THREE.Scene(); studio(THREE, R, scene);
     cam = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.1, 800);
     document.body.prepend(canvas);
@@ -1032,7 +1121,7 @@ async function boot() {
     put = (...o) => scene.add(...o);
     const m = createMascot(THREE, {}); m.root.position.set(0, 6.82, 0.6); scene.add(m.root);
     m.shadow = shadow(3.8, 2.4, 0, 0.6, 0.45); H = m; heroReady = true;
-    realSetExpression = m.setExpression; m.blendExpression = blendFace;
+    realSetExpression = m.setExpression; m.blendExpression = blendFace; wrapHands(m);
     for (const name of ['table', 'book', 'cart']) await load(name);
     for (let j = 1; j < C.length; j++) { group(j); C[j].build(); C[j].ready = true; }
     plan();
