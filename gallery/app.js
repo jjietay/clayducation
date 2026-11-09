@@ -71,6 +71,7 @@ const focus = { obj: null, k: 0, want: 0 };
 const scrollMax = () => document.documentElement.scrollHeight - innerHeight;
 let goal = scrollY, cur = scrollY, gliding = false;
 addEventListener('wheel', (e) => {
+  if (stylesOpen()) { if (!e.target.closest('.styles .sheet')) e.preventDefault(); return; }   // the panel scrolls; the page does not
   if (focus.obj) { e.preventDefault(); return; }
   if (still || e.ctrlKey) return;
   e.preventDefault();
@@ -79,6 +80,7 @@ addEventListener('wheel', (e) => {
   goal = clamp(goal + d, 0, scrollMax()); gliding = true;
 }, { passive: false });
 addEventListener('keydown', (e) => {
+  if (stylesOpen()) { if (e.key === 'Escape') closeStyles(); return; }
   if (focus.obj && ['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', ' ', 'Home', 'End'].includes(e.key)) e.preventDefault();
   if (e.key === 'Escape') closeFocus();
 });
@@ -88,6 +90,16 @@ function glide() {
   if (Math.abs(cur - goal) < 0.5) { cur = goal; gliding = false; }
   scrollTo(0, cur);
 }
+// More styles (chapter 7): a panel over the darkened page. A click outside the panel, or Escape, closes it.
+const stylesEl = $('.styles'), moreEl = $('.more');
+const stylesOpen = () => !stylesEl.hidden;
+function openStyles() { stylesEl.hidden = false; stylesEl.offsetWidth; stylesEl.classList.add('on'); $('.sheet', stylesEl).focus({ preventScroll: true }); }
+function closeStyles() {
+  stylesEl.classList.remove('on');
+  setTimeout(() => { if (!stylesEl.classList.contains('on')) { stylesEl.hidden = true; moreEl.focus({ preventScroll: true }); } }, 320);
+}
+moreEl.addEventListener('click', openStyles);
+stylesEl.addEventListener('click', (e) => { if (!e.target.closest('.sheet')) closeStyles(); });
 const jump = (y) => { goal = clamp(y, 0, scrollMax()); cur = scrollY; gliding = !still; if (still) scrollTo(0, goal); };
 
 // ---------- words: one statement per chapter, in place on the screen; nothing floats between chapters ----------
@@ -1263,7 +1275,7 @@ function hover() {
   document.body.style.cursor = hovered ? 'zoom-in' : '';
 }
 addEventListener('click', (e) => {
-  if (!built || e.target.closest('a, button, [contenteditable], .graph')) return;
+  if (!built || e.target.closest('a, button, [contenteditable], .graph, .styles')) return;
   if (focus.obj) { closeFocus(); return; }
   const list = pickables(), h = list.length ? rayAt(e.clientX, e.clientY).intersectObjects(list)[0] : null;
   if (h) {

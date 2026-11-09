@@ -104,6 +104,24 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 .cmd p { margin: 0; font-weight: 700; }
 .cmd .links { display: flex; gap: 22px; font-weight: 700; }
 
+/* 7: the tab for more styles, and its panel over the darkened page. */
+.more { position: absolute; right: 5vw; bottom: 5vh; border: 0; border-radius: 999px; padding: 11px 18px; background: var(--ink); color: var(--paper); font: 700 15px/1 'Plus Jakarta Sans', sans-serif; cursor: pointer;
+  box-shadow: 0 14px 30px -16px rgba(20, 20, 30, .7); transition: transform .2s; }
+.more:hover { transform: translateY(-2px); }
+.styles { position: fixed; inset: 0; z-index: 8; display: grid; place-items: center; background: rgba(14, 15, 22, .66); opacity: 0; transition: opacity .3s ease; cursor: zoom-out; }
+.styles[hidden] { display: none; }   /* else display: grid wins, and the clear panel takes every click */
+.styles.on { opacity: 1; }
+.styles .sheet { width: min(1120px, 90vw); max-height: 84vh; overflow-y: auto; overscroll-behavior: contain; padding: 30px 32px 36px; border-radius: 20px; background: #1f1e24; color: var(--paper); cursor: auto;
+  transform: translateY(24px) scale(.98); transition: transform .35s cubic-bezier(.2, .8, .2, 1); scrollbar-color: #4a4752 transparent; }
+.styles.on .sheet { transform: none; }
+.styles h3 { margin: 6px 0 6px; font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
+.styles h3 + p { margin: 0 0 18px; max-width: 70ch; color: #b9b4a8; }
+.styles .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; margin-bottom: 30px; }
+.styles figure { margin: 0; }
+.styles img { display: block; width: 100%; height: auto; border-radius: 10px; background: #14161f; }
+.styles figcaption { margin-top: 8px; font-size: 14px; line-height: 1.4; color: #b9b4a8; }
+.styles figcaption b { color: var(--paper); }
+
 /* Without WebGL: a still frame on each screen that has one. */
 .still { display: none; position: absolute; right: 5vw; top: 50%; transform: translateY(-50%); width: min(46vw, 640px); border-radius: 18px; }
 .no3d .still { display: block; }
@@ -200,9 +218,39 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
       <p>Then ask Claude Code for a video, in the conversation where the topic came up.</p>
       <div class="links"><a href="https://github.com/jjietay/clayducation">Source on GitHub</a><a href="https://github.com/jjietay/clayducation/blob/main/INSTALL.md">Manual setup</a></div>
     </div>
+    <button class="more" type="button" aria-haspopup="dialog">More styles <span aria-hidden="true">→</span></button>
   </div>
 </section>
 </main>
+
+<!-- 7: more styles. A panel over the darkened page; a click outside it (or Escape) goes back. -->
+<div class="styles" role="dialog" aria-modal="true" aria-label="More styles" hidden>
+  <div class="sheet" tabindex="-1">
+    <h3>Manim, inside the clay videos</h3>
+    <p>For a curve, a plot or a formula that changes step by step, the video changes to Manim and back.</p>
+    <div class="grid">
+      <figure><img src="png/manim/gains.jpg" width="1280" height="720" loading="lazy" alt="A Manim scene: gains from the poles."><figcaption><b>Gains from the poles.</b> Computed torque: the damping and the frequency give k<sub>v</sub> and k<sub>p</sub>.</figcaption></figure>
+      <figure><img src="png/manim/limit.jpg" width="1280" height="720" loading="lazy" alt="A Manim scene: how fast the gains grow."><figcaption><b>How fast the gains grow.</b> Computed torque: each gain against the frequency.</figcaption></figure>
+      <figure><img src="png/manim/error2.jpg" width="1280" height="720" loading="lazy" alt="A Manim scene: the bayes error."><figcaption><b>The Bayes error.</b> Bayes decision: the area that each decision gets wrong.</figcaption></figure>
+      <figure><img src="png/manim/parzen2.jpg" width="1280" height="720" loading="lazy" alt="A Manim scene: parzen windows."><figcaption><b>Parzen windows.</b> Density estimation: a small h is spiky, a large h is smooth.</figcaption></figure>
+      <figure><img src="png/manim/lagrange.jpg" width="1280" height="720" loading="lazy" alt="A Manim scene: the best line is an eigenvector."><figcaption><b>The best line is an eigenvector.</b> PCA: the spread along the line, against its angle.</figcaption></figure>
+      <figure><img src="png/manim/fisher.jpg" width="1280" height="720" loading="lazy" alt="A Manim scene: the fisher ratio has one peak."><figcaption><b>The Fisher ratio has one peak.</b> LDA: the direction that keeps the classes apart.</figcaption></figure>
+      <figure><img src="png/manim/spectrum2.jpg" width="1280" height="720" loading="lazy" alt="A Manim scene: misleading dimensions."><figcaption><b>Misleading dimensions.</b> Generalization: a small eigenvalue gets a large weight.</figcaption></figure>
+      <figure><img src="png/manim/overfit.jpg" width="1280" height="720" loading="lazy" alt="A Manim scene: stop before it learns the noise."><figcaption><b>Stop before it learns the noise.</b> MLP: the training error and the validation error.</figcaption></figure>
+      <figure><img src="png/manim/activ.jpg" width="1280" height="720" loading="lazy" alt="A Manim scene: activation functions."><figcaption><b>Activation functions.</b> MLP: step, piecewise linear, sigmoid and ReLU.</figcaption></figure>
+    </div>
+    <h3>The older 2D styles</h3>
+    <p>The first version of Clayducation drew in 29 flat styles, and they are still in the skill. Ask for one by name, for example "tell its history as a newsreel".</p>
+    <div class="grid">
+      <figure><img src="png/classic/newsreel.png" width="1280" height="720" loading="lazy" alt="A 1920s newspaper in a dark film gate, with a grease-pencil ring round the headline."><figcaption><b>Newsreel.</b> A 1920s film gate, for the history of an idea.</figcaption></figure>
+      <figure><img src="png/classic/flat.png" width="1280" height="720" loading="lazy" alt="Flat props with faces: a drone, barrels, a laptop and a tank."><figcaption><b>Flat vector.</b> Objects with faces that act out a process.</figcaption></figure>
+      <figure><img src="png/classic/boil.png" width="1280" height="720" loading="lazy" alt="Hand-drawn ink jars, a folder, a pencil and envelopes."><figcaption><b>Line boil.</b> Ink that boils like a hand-drawn cartoon.</figcaption></figure>
+      <figure><img src="png/classic/pixel.png" width="1280" height="720" loading="lazy" alt="Pixel art: a shelf, a crate, a GPU and two small workers with a dialogue box."><figcaption><b>Pixel art.</b> A small world with typed dialogue.</figcaption></figure>
+      <figure><img src="png/classic/riso.png" width="1280" height="720" loading="lazy" alt="Three overlapping ink discs and a halftone tint."><figcaption><b>Risograph.</b> Inks that multiply, as on a printed poster.</figcaption></figure>
+      <figure><img src="png/classic/blueprint.png" width="1280" height="720" loading="lazy" alt="Blue drafting lines with an arrowhead and part balloons."><figcaption><b>Blueprint.</b> A mechanism drawn in drafting order.</figcaption></figure>
+    </div>
+  </div>
+</div>
 
 <!-- 5: the console of "make look" and the ring round hand 1. They follow his hand, on the top layer. -->
 <div class="console" aria-live="polite"><span class="cmdname">make look</span><span class="line"><i></i><span class="msg"></span></span></div>
