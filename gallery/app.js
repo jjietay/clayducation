@@ -262,7 +262,7 @@ function settle() {
       if (h.glide) { h.p.lerp(w.p, 1 - Math.exp(-10 * dt)); if (h.p.distanceTo(w.p) < 0.02) h.glide = false; } else h.p.copy(w.p);
       h.last = w.p.clone();
     }
-    h.face = w ? w.face : h.face;
+    h.face = w ? w.face : h.face; h.hint = w ? w.hint : h.hint;
     if (h.k > 0.002 && h.p) palmReach(i, h);
   });
   want.face = null; want.look = null; want.hands = [null, null];
@@ -270,13 +270,29 @@ function settle() {
 // A hand on its point. With a palm direction (face), the palm (the hand's +z, where the thumb is) turns that
 // way and the fingers go on from the forearm, so the hand lies on the thing it holds; the wrist moves so that
 // the middle of the palm is still on the point.
+// The kit's reach (two bones: upper arm 1.32, forearm and hand 1.33), with a chosen way for the elbow to point
+// (hint, in the body's own frame: +z is his front). The kit's own way puts the elbow out to the side; on the cart
+// the arm moves front to back, so there the elbow points down and back, as a real arm does.
+const ARM_UP = 1.32, ARM_LOW = 1.33, DOWN = new THREE.Vector3(0, -1, 0);
+function ikReach(i, point, k, hint) {
+  if (!hint) { realReach(i, point, k); return; }
+  const a = H.arms[i]; H.root.updateMatrixWorld(true);
+  const T = a.shoulder.parent.worldToLocal(new THREE.Vector3(...point)).sub(a.shoulder.position), n = T.clone().normalize(), L = Math.min(T.length(), ARM_UP + ARM_LOW - 0.002);
+  T.copy(n).multiplyScalar(L);
+  const cosA = clamp((ARM_UP * ARM_UP + L * L - ARM_LOW * ARM_LOW) / (2 * ARM_UP * L), -1, 1), sinA = Math.sqrt(1 - cosA * cosA);
+  const hv = new THREE.Vector3(hint[0] * a.sx, hint[1], hint[2]), perp = hv.sub(n.clone().multiplyScalar(hv.dot(n))).normalize();
+  const e = n.clone().multiplyScalar(cosA).add(perp.multiplyScalar(sinA));
+  const qS = new THREE.Quaternion().setFromUnitVectors(DOWN, e), low = T.clone().sub(e.clone().multiplyScalar(ARM_UP)).normalize().applyQuaternion(qS.clone().invert());
+  a.shoulder.quaternion.slerp(qS, k); a.elbow.quaternion.slerp(new THREE.Quaternion().setFromUnitVectors(DOWN, low), k); a.wrist.quaternion.slerp(new THREE.Quaternion(), k);
+}
+const ELBOW_BACK = [0.1, -0.6, -1];   // down and back, a little out
 function palmReach(i, h) {
-  if (!h.face) { realReach(i, h.p.toArray(), h.k); return; }
+  if (!h.face) { ikReach(i, h.p.toArray(), h.k, h.hint); return; }
   const a = H.arms[i], sh = a.shoulder.getWorldPosition(new THREE.Vector3());
   const z = h.face.clone().normalize(), fd = h.p.clone().sub(sh).normalize();
   let y = fd.clone().addScaledVector(z, -fd.dot(z)).multiplyScalar(-1); if (y.lengthSq() < 1e-6) y.set(0, 1, 0); y.normalize();   // the fingers (-y) go on from the forearm
   const x = y.clone().cross(z).normalize(), wristAt = h.p.clone().addScaledVector(y, 0.3);
-  realReach(i, wristAt.addScaledVector(fd, 0.3).toArray(), h.k);
+  ikReach(i, wristAt.addScaledVector(fd, 0.3).toArray(), h.k, h.hint);
   a.wrist.parent.updateMatrixWorld(true);
   const want = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
   a.wrist.quaternion.slerp(a.wrist.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(want), h.k);
@@ -287,17 +303,17 @@ want.hands = [null, null];
 let realReach = null;
 function wrapHands(m) {
   realReach = m.reach;
-  const reachOf = (i, point, k, face) => { want.hands[i] = { p: new THREE.Vector3(...point), k: clamp(k), face: face ? new THREE.Vector3(...face) : null }; };
+  const reachOf = (i, point, k, face, hint) => { want.hands[i] = { p: new THREE.Vector3(...point), k: clamp(k), face: face ? new THREE.Vector3(...face) : null, hint }; };
   m.reach = (i, point, k = 1) => { if (k > 0) reachOf(i, point, k); };
   // As the kit's hold(): a hand that cannot get to what it holds is a fault for "make look" (H.grips).
-  m.hold = (i, point, k = 1, face = null) => {
+  m.hold = (i, point, k = 1, face = null, hint = null) => {
     if (k > 0.5) {
       m.root.updateMatrixWorld(true);
       const a = m.arms[i], gap = a.shoulder.parent.worldToLocal(new THREE.Vector3(...point)).sub(a.shoulder.position).length() - 2.65;
       if (gap > 0) (m.grips ??= []).push({ i, gap });
       (m.holds ??= []).push({ i, point, k });
     }
-    if (k > 0) reachOf(i, point, k, face);
+    if (k > 0) reachOf(i, point, k, face, hint);
   };
 }
 let happyAt = -1e9;
@@ -809,7 +825,7 @@ C[4] = {
     const hx = t < 0.42 ? F + 1.75 : lerp(FACE + cartX(REL) * KK + 1.75, FACE + 3.4, away);   // the cart is fully pushed by 0.37
     place(hx, 0, -PI2, { lean: 0.2 * grip });
     H.stride((hx - FACE) * H.STEP * 1.4, 0.25 * sm(0.12, 0.16, t) * (1 - sm(0.42, 0.44, t)) + 0.42 * bump(0.42, 0.54, t));
-    if (grip > 0) { H.hold(0, [F + 0.02, 2.6, -0.62], grip); H.hold(1, [F + 0.02, 2.6, 0.62], grip); }
+    if (grip > 0) { H.hold(0, [F + 0.02, 2.6, -0.62], grip, null, ELBOW_BACK); H.hold(1, [F + 0.02, 2.6, 0.62], grip, null, ELBOW_BACK); }
     H.blendExpression('neutral', 'thinking', grip); H.blendExpression('thinking', 'smile', sm(0.55, 0.65, t));
     lookAt(t > 0.5 ? this.c.groups.body.getWorldPosition(new THREE.Vector3()) : null, t > 0.5 ? 0.8 : 0);
   },
@@ -862,7 +878,7 @@ C[5] = {
     if (!H) return;
     H.pose.rest(); place(F + 1.75, 0, -PI2, { lean: 0.1 });
     const grip = sm(0, 0.06, t);   // his hands come onto the cart, not in one frame
-    H.hold(0, [F + 0.02, 2.6, -0.62], grip); H.hold(1, this.target.toArray(), grip);
+    H.hold(0, [F + 0.02, 2.6, -0.62], grip, null, ELBOW_BACK); H.hold(1, this.target.toArray(), grip, null, ELBOW_BACK);
     const reach = (H.grips || []).filter((g) => g.i === 1).reduce((a, g) => Math.max(a, g.gap), 0);
     const l = C[4].c.root.worldToLocal(this.target.clone()), gap = Math.max(0, this.body(l.x, l.y, l.z) * KK - 0.25);
     let text, ok = false;
@@ -998,47 +1014,30 @@ C[6] = {
 // string of the balloon catches on the command, and he catches the roll. Then he points at the command; a copy
 // makes him wave. The pointer can push the balloon; it swings back.
 const termEl = $('.term');
-// The string of the balloon in chapter 7 is drawn on a canvas over the page (#ink), so it can go round the black
-// bar of the command. It has one length (STRING px on the screen): a rope of points that hangs from the knot
-// and trails behind as the balloon flies. Its end catches the bar between "clayducation" and Copy and winds
-// round it; what is wound comes off the free part, so the winding pulls the balloon down a little.
+// The string of the balloon in chapter 7 is drawn on a canvas over the page (#ink), so it can lie on the black
+// bar of the command. It is a rope of points with one length and its own weight, tied to the knot. The bar is
+// solid to it, and its top holds the string by friction: as the balloon floats in from the right, the end of
+// the string meets the side of the bar, is pulled up over its corner, and stays caught on its top. Nothing pins it.
 const inkEl = $('#ink'), ink = inkEl.getContext('2d'), codeEl = $('.term code'), copyEl = $('.copy');
-const STRING = 340, KNOTS = 30;
+const STRING = 230, KNOTS = 26;
 function inkClear() { if (inkEl.dataset.on) { ink.setTransform(1, 0, 0, 1, 0, 0); ink.clearRect(0, 0, inkEl.width, inkEl.height); delete inkEl.dataset.on; } }
 function hookOf() {
   const r = termEl.getBoundingClientRect(), a = codeEl.getBoundingClientRect(), b = copyEl.getBoundingClientRect();
-  return { x: (a.right + b.left) / 2, top: r.top, bottom: r.bottom };
+  return { x: (a.right + b.left) / 2, top: r.top, bottom: r.bottom, left: r.left, right: r.right };
 }
-// The turn round the bar from its top edge: down the front, under, up the back (faint), over the top; a point at
-// length l along it, and whether that point is in front.
-// The way the end goes round the bar: straight down over its front, under it, up its back (faint), over the
-// top again, and down the front at an angle, across the first strand, to a short loose end.
-function wrapPath(h) {
-  const x = h.x, T = h.top, B = h.bottom;
-  return [[x, T, 1], [x, B, 1], [x + 5, B + 3, 1], [x + 7, B, 0], [x + 7, T, 0], [x + 5, T - 3, 1], [x - 14, B, 1], [x - 18, B + 12, 1]];
-}
-function turnAt(h, l) {
-  const P = wrapPath(h);
-  for (let q = 1; q < P.length; q++) {
-    const a = P[q - 1], b = P[q], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    if (l <= len) { const f = l / len; return [lerp(a[0], b[0], f), lerp(a[1], b[1], f), Math.min(a[2], b[2])]; }
-    l -= len;
-  }
-  return P.at(-1);
-}
-const turnLen = (h) => { const P = wrapPath(h); let s = 0; for (let q = 1; q < P.length; q++) s += Math.hypot(P[q][0] - P[q - 1][0], P[q][1] - P[q - 1][1]); return s; };
 // Hand 0 (his right hand) catches the roll in the air, the arm fully out, then brings it down to his side and
 // turns it so that it is level with the ground. The roll touches his hand at one point: the middle of the palm.
 const F7 = 1.2, FWD7 = [Math.sin(F7), Math.cos(F7)], RIGHT7 = [-Math.cos(F7), Math.sin(F7)];
 // The catch is ahead of him (to the right on the screen), so the roll is never in front of his face.
 const CATCH7 = (() => { const sh = [S7[0] + RIGHT7[0] * 1.3, 4.5, S7[1] + RIGHT7[1] * 1.3], d = new THREE.Vector3(FWD7[0] * 0.95 + RIGHT7[0] * 0.05, 0.3, FWD7[1] * 0.95 + RIGHT7[1] * 0.05).normalize();
   return new THREE.Vector3(...sh).addScaledVector(d, 2.6); })();
-// At his side the roll is between his body and his arm (against his hip), and his hand is over it.
-const ROLL7 = new THREE.Vector3(S7[0] + RIGHT7[0] * 1.5, 3.0, S7[1] + RIGHT7[1] * 1.5);
-const PALM7 = new THREE.Vector3(RIGHT7[0], 0, RIGHT7[1]);                                  // at the catch: from the palm to the roll's axis
-const OVER7 = new THREE.Vector3(-RIGHT7[0] * 0.55, -0.83, -RIGHT7[1] * 0.55).normalize();   // at his side: down and in, over the roll
-const GRIP7 = 0.61;                                                                         // from the middle of the palm to the axis
-const CARRY7 = ROLL7.clone().addScaledVector(OVER7, -GRIP7);
+// At his side his arm hangs straight down (a little out from his hip), and his palm is on top of the roll.
+const PALM7 = new THREE.Vector3(RIGHT7[0], 0, RIGHT7[1]);   // at the catch: from the palm to the roll's axis
+// The palm faces down and a little in (straight down would bend the wrist square), and the roll lies just
+// outside his leg, under the hand: the arm hangs nearly straight, a little out.
+const OVER7 = new THREE.Vector3(-RIGHT7[0] * 0.35, -0.94, -RIGHT7[1] * 0.35).normalize();
+const GRIP7 = 0.61;                                         // from the middle of the palm to the axis
+const CARRY7 = new THREE.Vector3(S7[0] + RIGHT7[0] * 1.66 + FWD7[0] * 0.1, 4.52 - 2.56, S7[1] + RIGHT7[1] * 1.66 + FWD7[1] * 0.1);
 C[7] = {
   start: [S7[0], S7[1], F7], end: [S7[0], S7[1], F7],
   build() {
@@ -1052,45 +1051,49 @@ C[7] = {
     if (!live) { inkClear(); this.rope = null; }
     B.root.visible = live && t > 0.03; this.roll.visible = live && t > 0.1;
     if (live) {
-      const hk = hookOf(), fin = sm(0.04, 0.4, t), e = 1 - (1 - fin) ** 3, wound = sm(0.42, 0.58, t) * turnLen(hk), free = STRING - wound;
-      // The knot: in from the right, to straight over the hook with the string at full length; the winding
-      // pulls it down; a small swing after the catch; the pointer pushes it, a spring brings it back.
-      const sw = clamp((t - 0.42) / 0.25);
-      let kx = lerp(innerWidth + 200, hk.x, e) + 26 * Math.exp(-4 * sw) * Math.sin(sw * 14) * (t > 0.42 ? 1 : 0), ky = hk.top - Math.min(210, (STRING - wound) * 0.97);   // the string hangs slack until the winding takes it up
+      const hk = hookOf(), fin = sm(0.04, 0.42, t), e = 1 - (1 - fin) ** 3, T = now() / 1000;
+      // The knot: it floats in from the right, low enough that the string meets the bar, and comes to rest over
+      // the bar between the command and Copy, where it bobs a little in the air. The pointer pushes the balloon;
+      // a spring brings it back.
+      let kx = lerp(innerWidth + 220, hk.x - 20, e) + fin * 6 * Math.sin(T / 1.1), ky = lerp(hk.top - 200, hk.top - 165, e) + fin * 4 * Math.sin(T / 1.5);
       const [ex] = toScreen(B.body.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0.9, 0, 0))), [bx, by] = toScreen(B.body.getWorldPosition(new THREE.Vector3()));
       const rad = Math.abs(ex - bx) * 1.3, dx = bx - ptr.x, dy = by - ptr.y, dd = Math.hypot(dx, dy), push = ptr.mouse && dd < rad && fin >= 1 ? 2400 * (1 - dd / rad) : 0;
       for (const q of [0, 1]) { const f = push * (q ? dy : dx) / (dd || 1); this.vel[q] += (-60 * this.off[q] - 7 * this.vel[q] + f) * dt; this.off[q] += this.vel[q] * dt; }
       kx += this.off[0]; ky += this.off[1];
-      if (t > 0.4) { const L = Math.hypot(kx - hk.x, ky - hk.top); if (L > free) { kx = hk.x + (kx - hk.x) * free / L; ky = hk.top + (ky - hk.top) * free / L; } }   // the string does not stretch
-      B.root.position.copy(worldAt(kx, ky)); B.root.rotation.z = clamp((hk.x - kx) / STRING, -0.4, 0.4) * 0.6;
-      // The rope: knot pinned; after the catch, its end pinned on the top of the bar.
+      // The rope: its own weight, a little air drag, one length; the bar pushes it out, and its top holds it.
       if (!this.rope) this.rope = Array.from({ length: KNOTS + 1 }, (_, q) => ({ x: kx, y: ky + q * STRING / KNOTS, px: kx, py: ky + q * STRING / KNOTS }));
-      const seg = free / KNOTS, pin = sm(0.36, 0.42, t), Rp = this.rope;
-      for (const p of Rp) { const vx = (p.x - p.px) * 0.94, vy = (p.y - p.py) * 0.94; p.px = p.x; p.py = p.y; p.x += vx; p.y += vy + 500 * dt * dt; }
-      for (let it = 0; it < 14; it++) {
+      const Rp = this.rope, seg = STRING / KNOTS, h = Math.min(dt, 1 / 30);
+      for (const p of Rp) { const vx = (p.x - p.px) * 0.97, vy = (p.y - p.py) * 0.97; p.px = p.x; p.py = p.y; p.x += vx; p.y += vy + 900 * h * h; }
+      for (let it = 0; it < 16; it++) {
         Rp[0].x = kx; Rp[0].y = ky;
-        if (pin > 0) { const end = Rp[KNOTS]; end.x = lerp(end.x, hk.x, pin); end.y = lerp(end.y, hk.top, pin); }
         for (let q = 0; q < KNOTS; q++) {
           const a = Rp[q], b = Rp[q + 1], ddx = b.x - a.x, ddy = b.y - a.y, l = Math.hypot(ddx, ddy) || 1e-6, c = (l - seg) / l / 2;
           if (q === 0) { b.x -= ddx * c * 2; b.y -= ddy * c * 2; } else { a.x += ddx * c; a.y += ddy * c; b.x -= ddx * c; b.y -= ddy * c; }
         }
+        for (let q = 1; q <= KNOTS; q++) {
+          const p = Rp[q], m = 1.5, L = hk.left - m, Rr = hk.right + m, Tt = hk.top - m, Bb = hk.bottom + m;
+          if (p.x > L && p.x < Rr && p.y > Tt && p.y < Bb) {
+            const out = [[p.y - Tt, 'top'], [Rr - p.x, 'right'], [p.x - L, 'left'], [Bb - p.y, 'bottom']].sort((u, v) => u[0] - v[0])[0][1];
+            if (out === 'top') { p.y = Tt; p.px = lerp(p.px, p.x, 0.85); }   // friction on the top: it stays where it lies
+            else if (out === 'right') p.x = Rr; else if (out === 'left') p.x = L; else p.y = Bb;
+          }
+        }
       }
-      // Draw: the free rope, then the wound turns round the bar (the turn behind it is faint).
+      B.root.position.copy(worldAt(kx, ky)); B.root.rotation.z = clamp(Math.atan2(Rp[0].x - Rp[3].x, Rp[3].y - Rp[0].y), -0.35, 0.35) * 0.6;
+      // Draw the string.
       const dpr = Math.min(devicePixelRatio, 2), W = Math.round(innerWidth * dpr), Hh = Math.round(innerHeight * dpr);
       if (inkEl.width !== W || inkEl.height !== Hh) { inkEl.width = W; inkEl.height = Hh; }
       ink.setTransform(dpr, 0, 0, dpr, 0, 0); ink.clearRect(0, 0, innerWidth, innerHeight); inkEl.dataset.on = 1;
-      const pts = Rp.map((p) => [p.x, p.y, 1]);
-      for (let l = 2; l <= wound; l += 2) pts.push(turnAt(hk, l));
       ink.lineCap = 'round'; ink.lineJoin = 'round';
       for (const [col, lw] of [['rgba(38,38,42,.55)', 3.6], ['#efe6d8', 2]]) {
-        ink.strokeStyle = col; ink.lineWidth = lw;
-        for (let q = 1; q < pts.length; q++) { ink.globalAlpha = pts[q][2] && pts[q - 1][2] ? 1 : 0.28; ink.beginPath(); ink.moveTo(pts[q - 1][0], pts[q - 1][1]); ink.lineTo(pts[q][0], pts[q][1]); ink.stroke(); }
+        ink.strokeStyle = col; ink.lineWidth = lw; ink.beginPath(); ink.moveTo(Rp[0].x, Rp[0].y);
+        for (let q = 1; q < Rp.length - 1; q++) ink.quadraticCurveTo(Rp[q].x, Rp[q].y, (Rp[q].x + Rp[q + 1].x) / 2, (Rp[q].y + Rp[q + 1].y) / 2);
+        ink.lineTo(Rp.at(-1).x, Rp.at(-1).y); ink.stroke();
       }
-      ink.globalAlpha = 1;
       // The roll: in from the right, turning over, to his open hand (0.1 to 0.42); then with his hand down to his
       // side, turned level with the ground (0.46 to 0.62).
       const rc = 0.28, f = sm(0.1, 0.42, t), fe = 1 - (1 - f) ** 3, down = sm(0.46, 0.62, t);
-      const hand = CATCH7.clone().lerp(CARRY7, down), palm = PALM7.clone().lerp(OVER7, down).normalize(), atHand = hand.clone().addScaledVector(palm, GRIP7);   // the palm touches the roll at one point
+      const hand = CATCH7.clone().lerp(CARRY7, down), palm = PALM7.clone().lerp(OVER7, down).normalize(), atHand = hand.clone().addScaledVector(palm, lerp(GRIP7, 0.39, sm(0.7, 1, down)) + 0.1 * Math.sin(down * Math.PI));   // the straight arm stops short of its point: the roll comes up to the palm   // the palm touches the roll at one point
       if (f < 1) {
         const A = worldAt(innerWidth + 260, innerHeight * 0.2, CATCH7.z);
         this.roll.position.copy(A).lerp(atHand, fe); this.roll.position.y += Math.sin(f * Math.PI) * 1.0;
