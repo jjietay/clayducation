@@ -19,21 +19,23 @@ node ~/.claude/skills/kaleidoscope/engine/make.mjs <command> <project-dir>
 Whether the user typed `/kaleidoscope` or asked for a video in words, the first thing you do is
 ask the questions below with AskUserQuestion, with clickable options. Leave out each question that
 the user's message or this conversation already answers (for example "as a newsreel" answers the
-look, and "for my exam" answers who it is for). Put the recommended option first and mark it
-"(Recommended)". The tool takes at most 4 questions in one call: ask the first four together, and
-music in a second call right after, unless a skipped question leaves room for it in the first.
-If the topic itself is unclear, ask about it in the same call.
+look, and "with lo-fi music" answers the music). Put the recommended option first and mark it
+"(Recommended)". Ask all four questions in one call (the tool takes at most 4). If the topic
+itself is unclear and no question is skipped, ask about the topic first, in its own call.
 
 | Question | Header | Options (first = default) |
 |---|---|---|
 | Which look should the video use? | Look | **Clay 3D**: one soft clay look, with the silent mascot doing the work · **Classic 2D, mixed**: a different 2D style for each part · **Classic 2D, one style**: the user names it (newsreel, whiteboard, ...) |
-| Who is the video for? | Viewer | **Exam revision**: the lecture's notation, worked numbers, exam traps · **First-time learner**: intuition first, fewer symbols · **Expert refresher**: fast and dense |
-| How long and how deep? | Length | **Standard**: 5 to 6 min · **Short overview**: 2 to 4 min · **Deep**: 8 to 9 min, every step of the derivation |
+| Who is the video for, and how long? | Viewer | **Exam revision, standard**: the lecture's notation, worked numbers, exam traps, 5 to 6 min · **Exam revision, deep**: the same, 8 to 9 min, every step of the derivation · **First-time learner, short**: intuition first, fewer symbols, 2 to 4 min · (Other: the user names a viewer and a length, for example "expert refresher, short") |
 | When should I check with you? | Checkpoint | **One shot**: come back with the finished video · **After the storyboard**: show the plan and wait for approval · **After the first look**: show the first frames and wait |
 | Which music? | Music | **Calm** (`current`): soft pad, no beat · **Lo-fi** (`lofi`): light beat, more energy · **None** |
 
 Put a recommended option first when the conversation suggests one (an exam the next week: Exam
-revision and Deep). Write the answers into `video.json` at step 4: `"_look"` (`clay` or `classic`),
+revision, deep). If the message answers only one half of the Viewer question (for example "for my
+exam"), keep the question and offer only the options that agree with that half. The viewers are
+exam revision, first-time learner and expert refresher (fast and dense); the lengths are short
+(2 to 4 min), standard (5 to 6 min) and deep (8 to 9 min). Write the answers into `video.json`
+at step 4: `"_look"` (`clay` or `classic`),
 `"_brief": { "viewer": ..., "length": ..., "checkpoint": ..., "style": ... }` and
 `"_render": { "music": "current" | "lofi" | false }`. Every later step, and a rebuild, reads them
 there and does not ask again. If the user dismisses the questions, use the first option of each.
