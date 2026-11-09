@@ -22,7 +22,6 @@ const now = () => performance.now();
 
 // ---------- the chapters and the scroll ----------
 const chs = [...document.querySelectorAll('.ch')];
-for (const c of chs) c.style.background = c.dataset.bg;
 let tops = [];
 function measure() { tops = chs.map((c) => c.offsetTop); }
 // { i, t, u }: chapter i is pinned at t, or (u > 0) chapter i + 1 is pushing it up.
@@ -51,6 +50,7 @@ function words(s) {
     const q = j === 0 ? Math.min(qOf(s, 0) + 1, (now() - born) / 1400) : qOf(s, j);
     c.querySelectorAll('.say .w').forEach((w, k) => w.style.setProperty('--in', still ? 1 : sm(-0.42 + k * 0.035, -0.18 + k * 0.035, q - (j === 0 ? 1 : 0))));
     const b = $('.say b', c); if (b) b.style.setProperty('--k', still ? 1 : sm(0.02, 0.14, q - (j === 0 ? 0.02 : 0)));
+    const cmd = $('.cmd', c); if (cmd) { const k = still ? 1 : sm(-0.2, 0.06, q); cmd.style.opacity = k; cmd.style.translate = `0 ${(1 - k) * 40}px`; }
   });
 }
 
@@ -62,38 +62,21 @@ chs.forEach((c, j) => {
   dots.append(b);
 });
 
-// ---------- sound: the engine's own music and sound effects, off until the visitor turns them on ----------
-const snd = { on: false, music: null, voice: null };
-const soundBtn = $('.sound');
-soundBtn.addEventListener('click', () => {
-  snd.on = !snd.on;
-  soundBtn.textContent = snd.on ? 'Sound on' : 'Sound off'; soundBtn.setAttribute('aria-pressed', snd.on);
-  if (!snd.music) { snd.music = new Audio('music/current-30s.flac'); snd.music.loop = true; snd.music.volume = 0.28; }
-  if (snd.on) snd.music.play().catch(() => {}); else snd.music.pause();
-});
-const sfxCache = {};
-function sfx(name, vol = 0.6) {
-  if (!snd.on) return;
-  const a = (sfxCache[name] ??= new Audio(`sfx/${name}.flac`)).cloneNode(); a.volume = vol; a.play().catch(() => {});
-}
-// A sound at the moment a value passes a mark, in either direction.
-const marks = new Map();
-function cross(key, value, mark, fn) {
-  const last = marks.get(key); marks.set(key, value);
-  if (last !== undefined && (last < mark) !== (value < mark)) fn(value > last);
-}
-
 // ---------- the pointer ----------
-const ptr = { x: innerWidth / 2, y: innerHeight / 2, at: -1e9, nx: 0, ny: 0, mouse: false, down: null };
+const ptr = { x: innerWidth / 2, y: innerHeight / 2, at: -1e9, nx: 0, ny: 0, mouse: false, down: null, pressed: false };
 addEventListener('pointermove', (e) => {
   Object.assign(ptr, { x: e.clientX, y: e.clientY, at: now(), nx: e.clientX / innerWidth * 2 - 1, ny: e.clientY / innerHeight * 2 - 1, mouse: e.pointerType === 'mouse' });
   if (ptr.down) { view.drag = clamp(ptr.down.drag + (e.clientX - ptr.down.x) * 0.15, -50, 50); }
 }, { passive: true });
 const fresh = (ms = 2500) => ptr.mouse && now() - ptr.at < ms;
+// A damped copy of the pointer, so the camera drifts and the head turns without steps.
+const pn = { x: 0, y: 0, sx: 0, sy: 0 };
+let lastT = now(), dt = 1 / 60;
+const damp = (a, b, rate) => a + (b - a) * (1 - Math.exp(-rate * dt));
 
 // ---------- the world ----------
 const canvas = document.createElement('canvas'); canvas.className = 'world'; canvas.setAttribute('aria-hidden', 'true');
-let R, scene, cam, H = null, put = null;   // put: adds to the group of the chapter that builds now
+let R, scene, cam, H = null, put = null, heroReady = false;   // put: adds to the group of the chapter that builds now
 const view = { drag: 0 };
 const ray = new THREE.Raycaster();
 function rayAt(x = ptr.x, y = ptr.y) { ray.setFromCamera(new THREE.Vector2(x / innerWidth * 2 - 1, 1 - y / innerHeight * 2), cam); return ray; }
@@ -149,11 +132,17 @@ async function load(name) {
 
 // ---------- the mascot: placed, posed, and looking at the pointer when he is free ----------
 function place(x, z, face, o = {}) { H.place(x, z, { face, ...o }); }
+const gaze = { yaw: 0, pitch: 0, k: 0 };
 function look(k) {
-  if (!H || k <= 0.01) return;
-  const head = H.headPivot, at = head.getWorldPosition(new THREE.Vector3()), d0 = rayAt().ray.direction.clone();
-  const target = cam.position.clone().addScaledVector(d0, cam.position.distanceTo(at)), d = head.parent.worldToLocal(target).sub(head.position);
-  head.rotation.y += clamp(Math.atan2(d.x, d.z), -0.6, 0.6) * k; head.rotation.x -= clamp(Math.atan2(d.y, Math.hypot(d.x, d.z)), -0.35, 0.35) * k;
+  if (!H) return;
+  // Where the pointer is, as a turn of the head. The head follows it with a damped spring, never in steps.
+  const head = H.headPivot, at = head.getWorldPosition(new THREE.Vector3());
+  ray.setFromCamera(new THREE.Vector2(pn.sx, pn.sy), cam);
+  const target = cam.position.clone().addScaledVector(ray.ray.direction, cam.position.distanceTo(at)), d = head.parent.worldToLocal(target).sub(head.position);
+  gaze.yaw = damp(gaze.yaw, clamp(Math.atan2(d.x, d.z), -0.6, 0.6), 6); gaze.pitch = damp(gaze.pitch, clamp(Math.atan2(d.y, Math.hypot(d.x, d.z)), -0.35, 0.35), 6);
+  gaze.k = damp(gaze.k, k, 4);
+  if (gaze.k <= 0.01) return;
+  head.rotation.y += gaze.yaw * gaze.k; head.rotation.x -= gaze.pitch * gaze.k;
   const b = (now() / 1000) % 3.9; if (b < 0.16) H.blink(Math.sin(b / 0.16 * Math.PI));
 }
 let happyAt = -1e9;
@@ -165,39 +154,117 @@ const happy = () => clamp(1 - Math.abs((now() - happyAt) / 1000 - 0.9) / 0.9);
 // its width and height), so the set sits beside the chapter's words.
 const C = [];
 
-// 0. A lump of clay in a spotlight. It dents under the pointer; the scroll squashes and stretches it, and
-// the mascot comes out of it.
+// 0. A lump of clay in a spotlight. It is not a perfect ball: it has a flat bottom, finger marks and uneven
+// colour. The pointer presses it, and a press with the button down leaves a dent that stays, as in real
+// clay. The scroll squashes and stretches it, and the mascot comes out of it in a burst of crumbs.
+function hash3(x, y, z) { const h = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return h - Math.floor(h); }
+function noise3(x, y, z) {
+  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z), xf = x - xi, yf = y - yi, zf = z - zi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), w = zf * zf * (3 - 2 * zf);
+  const c = (a, b, d) => hash3(xi + a, yi + b, zi + d);
+  return lerp(lerp(lerp(c(0, 0, 0), c(1, 0, 0), u), lerp(c(0, 1, 0), c(1, 1, 0), u), v), lerp(lerp(c(0, 0, 1), c(1, 0, 1), u), lerp(c(0, 1, 1), c(1, 1, 1), u), v), w) * 2 - 1;
+}
+const fbm = (x, y, z) => noise3(x, y, z) * 0.6 + noise3(x * 2.1, y * 2.1, z * 2.1) * 0.28 + noise3(x * 4.3, y * 4.3, z * 4.3) * 0.12;
+// Fine surface marks, as a normal map: soft bumps and the ridges of a few fingerprints.
+function clayNormals() {
+  const W = 1024, Hh = 512, h = new Float32Array(W * Hh);
+  for (let y = 0; y < Hh; y++) for (let x = 0; x < W; x++) h[y * W + x] = fbm(x / 34, y / 34, 0.5) * 0.5 + fbm(x / 9, y / 9, 3.1) * 0.18;
+  for (const [cx, cy, r] of [[300, 210, 70], [690, 300, 60], [520, 120, 52]]) for (let y = cy - r; y < cy + r; y++) for (let x = cx - r; x < cx + r; x++) {
+    const d = Math.hypot((x - cx) / 1.3, y - cy); if (d < r) h[y * W + x] += Math.sin(d * 0.9) * 0.16 * (1 - d / r);
+  }
+  const c = document.createElement('canvas'); c.width = W; c.height = Hh; const g = c.getContext('2d'), img = g.createImageData(W, Hh);
+  for (let y = 0; y < Hh; y++) for (let x = 0; x < W; x++) {
+    const dx = h[y * W + (x + 1) % W] - h[y * W + (x + W - 1) % W], dy = h[Math.min(Hh - 1, y + 1) * W + x] - h[Math.max(0, y - 1) * W + x];
+    const n = [-dx * 4, -dy * 4, 1], l = Math.hypot(...n), o = (y * W + x) * 4;
+    img.data[o] = (n[0] / l * 0.5 + 0.5) * 255; img.data[o + 1] = (n[1] / l * 0.5 + 0.5) * 255; img.data[o + 2] = (n[2] / l * 0.5 + 0.5) * 255; img.data[o + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; return t;
+}
+const FLOOR = -1.8;   // the lump's flat bottom, in its own units
 C[0] = {
   start: [0, 0.6, 0], end: [0, 0.6, 0.35],
   build() {
-    const g = new THREE.SphereGeometry(2, 128, 96);
-    this.base = g.attributes.position.array.slice(); this.lump = new THREE.Mesh(g, clayMat('#c98f6b', { roughness: 0.66 }));
-    this.lump.position.set(0, 2, 0.6); put(this.lump);
+    const g = new THREE.SphereGeometry(2, 180, 130), P = g.attributes.position, n = P.count;
+    this.base = P.array.slice();
+    // The fixed shape of this lump: uneven, with three soft thumb marks.
+    this.shape = new Float32Array(n); this.perm = new Float32Array(n); this.temp = new Float32Array(n);
+    const thumbs = [[0.55, 0.35, 0.76], [-0.7, 0.1, 0.7], [0.1, 0.8, 0.5]].map((d) => new THREE.Vector3(...d).normalize());
+    const col = new Float32Array(n * 3), base = new THREE.Color('#c98f6b'), v = new THREE.Vector3();
+    for (let i = 0; i < n; i++) {
+      v.fromArray(this.base, i * 3).normalize();
+      let r = 1 + 0.085 * fbm(v.x * 1.2 + 3, v.y * 1.2, v.z * 1.2) + 0.03 * fbm(v.x * 3, v.y * 3 + 7, v.z * 3);
+      for (const d of thumbs) { const a = v.angleTo(d); r -= 0.07 * Math.exp(-((a / 0.33) ** 2)); }
+      this.shape[i] = r;
+      const k = 0.93 + 0.1 * fbm(v.x * 2.5 + 11, v.y * 2.5, v.z * 2.5);
+      col[i * 3] = base.r * k; col[i * 3 + 1] = base.g * k; col[i * 3 + 2] = base.b * k;
+    }
+    this.col0 = col.slice();
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    // A UV sphere repeats its seam and pole points; their normals are averaged, or the seam shows as a line.
+    const key = new Map(); this.twins = [];
+    for (let i = 0; i < n; i++) { const k = `${this.base[i * 3].toFixed(4)},${this.base[i * 3 + 1].toFixed(4)},${this.base[i * 3 + 2].toFixed(4)}`; if (key.has(k)) key.get(k).push(i); else key.set(k, [i]); }
+    for (const list of key.values()) if (list.length > 1) this.twins.push(list);
+    const nm = clayNormals();
+    this.lump = new THREE.Mesh(g, new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.74, sheen: 0.45, sheenRoughness: 0.55, sheenColor: new THREE.Color('#ffd9bf'),
+      specularIntensity: 0.25, normalMap: nm, normalScale: new THREE.Vector2(0.45, 0.45) }));
+    this.lump.position.set(0, 0, 0.6); put(this.lump);
     this.sh = shadow(5.5, 4.5, 0, 0.6, 0.55);
-    this.dent = { dir: new THREE.Vector3(0, 0, 1), k: 0 };
+    // Crumbs: small bits of the lump that fly off when he comes out, and stay on the floor.
+    const cg = new THREE.IcosahedronGeometry(0.2, 2), cm = this.lump.material.clone(); cm.vertexColors = false; cm.color = new THREE.Color('#c48a66'); cm.normalMap = null;
+    this.crumbs = Array.from({ length: 26 }, (_, i) => {
+      const m = new THREE.Mesh(cg, cm), a = hash3(i, 1, 2) * Math.PI * 2, s = 0.5 + hash3(i, 3, 4) * 0.9;
+      m.dir = [Math.cos(a), Math.sin(a)]; m.reach = 1.8 + hash3(i, 5, 6) * 3.4; m.up = 3 + hash3(i, 7, 8) * 5; m.size = s; m.spin = hash3(i, 9, 1) * 6;
+      m.scale.set(s, s * (0.6 + hash3(i, 2, 9) * 0.5), s); put(m); return m;
+    });
+    this.press = 0;
   },
   act(t) {
-    const L = this.lump, born = H ? sm(0.55, 0.72, t) : 0, T = now() / 1000;
+    const L = this.lump, born = heroReady ? sm(0.55, 0.7, t) : 0;
     // Squash, then stretch up, then give the mascot his shape.
-    const sq = sm(0.05, 0.32, t) * (1 - sm(0.32, 0.45, t)), st = sm(0.36, 0.52, t) * (1 - born);
-    const s = 1 - born;
+    const sq = sm(0.05, 0.3, t) * (1 - sm(0.3, 0.42, t)), st = sm(0.34, 0.52, t), s = 1 - born;
+    const jig = still ? 0 : Math.sin(t * 60) * 0.03 * bump(0.28, 0.48, t);
     L.visible = s > 0.01;
-    L.scale.set((1 + 0.3 * sq - 0.25 * st) * s, (1 - 0.32 * sq + 0.7 * st) * s, (1 + 0.3 * sq - 0.25 * st) * s);
-    L.position.y = 2 * L.scale.y; L.rotation.y = t * 3;
-    this.sh.scale.set(5.5 * L.scale.x + 3 * born, 4.5 * L.scale.z + 1.5 * born, 1);
-    // The dent: the pointer's hit on the lump, which springs back when the pointer leaves.
-    const hit = fresh(1200) && L.visible ? rayAt().intersectObject(L)[0] : null;
-    if (hit) { this.dent.dir.copy(L.worldToLocal(hit.point.clone()).normalize()); }
-    this.dent.k = lerp(this.dent.k, hit ? 1 : 0, hit ? 0.2 : 0.06);
-    const p = L.geometry.attributes.position, b = this.base, dd = this.dent.dir, v = new THREE.Vector3();
-    for (let i = 0; i < p.count; i++) {
-      v.set(b[i * 3], b[i * 3 + 1], b[i * 3 + 2]); const n = v.clone().normalize();
-      const breathe = still ? 0 : 0.035 * Math.sin(n.x * 3 + T * 1.3) * Math.sin(n.y * 2.4 + T) + 0.02 * Math.sin(n.z * 5 - T * 0.7);
-      const a = Math.acos(clamp(n.dot(dd), -1, 1)), dent = -0.42 * this.dent.k * Math.exp(-((a / 0.42) ** 2)) + 0.07 * this.dent.k * Math.exp(-(((a - 0.62) / 0.2) ** 2));
-      v.multiplyScalar(1 + breathe + dent); p.setXYZ(i, v.x, v.y, v.z);
+    L.scale.set((1 + 0.32 * sq - 0.22 * st + jig) * s, (1 - 0.34 * sq + 0.62 * st - jig) * s, (1 + 0.32 * sq - 0.22 * st + jig) * s);
+    L.position.y = -FLOOR * L.scale.y + 0.03; L.rotation.y = t * 2.4 + 0.4;
+    this.sh.scale.set(5.6 * L.scale.x + 2.5 * born, 4.6 * L.scale.z + 1.5 * born, 1);
+    // The pointer: a soft press that springs back, and with the button down, a dent that stays.
+    const hit = fresh(1500) && L.visible && state.i === 0 ? rayAt().intersectObject(L)[0] : null;
+    const P = L.geometry.attributes.position, b = this.base, n = P.count, v = new THREE.Vector3();
+    const dir = hit ? L.worldToLocal(hit.point.clone()).normalize() : null, hard = hit && ptr.pressed;
+    let moved = false;
+    for (let i = 0; i < n; i++) {
+      v.fromArray(b, i * 3).normalize();
+      let tp = this.temp[i] * (1 - Math.min(1, dt * 7));
+      if (dir) { const a = v.angleTo(dir); if (a < 0.9) { const f = Math.exp(-((a / 0.36) ** 2)); tp = Math.max(tp, 0.16 * f); if (hard) this.perm[i] = Math.min(0.5, this.perm[i] + dt * 0.9 * f); } }
+      if (Math.abs(tp - this.temp[i]) > 1e-5) moved = true;
+      this.temp[i] = tp;
     }
-    p.needsUpdate = true; L.geometry.computeVertexNormals();
-    cross('pop', t, 0.62, (fw) => fw && sfx('pop', 0.7));
+    if (moved || hard || !this.done) {
+      const col = L.geometry.attributes.color;
+      for (let i = 0; i < n; i++) {
+        v.fromArray(b, i * 3).normalize();
+        const r = 2 * (this.shape[i] - this.perm[i] - this.temp[i]);
+        let x = v.x * r, y = v.y * r, z = v.z * r;
+        // The flat bottom: a soft floor, so the lump sits on the table and never cuts through its shadow.
+        if (y < FLOOR + 0.5) y = FLOOR + Math.log1p(Math.exp((y - FLOOR) * 6)) / 6;
+        P.setXYZ(i, x, y, z);
+        const k = 1 - 0.5 * this.perm[i] - 0.25 * this.temp[i];
+        col.setXYZ(i, this.col0[i * 3] * k, this.col0[i * 3 + 1] * k, this.col0[i * 3 + 2] * k);
+      }
+      P.needsUpdate = true; col.needsUpdate = true; L.geometry.computeVertexNormals();
+      const N = L.geometry.attributes.normal, a = new THREE.Vector3();
+      for (const list of this.twins) { a.set(0, 0, 0); for (const i of list) a.add(v.fromBufferAttribute(N, i)); a.normalize(); for (const i of list) N.setXYZ(i, a.x, a.y, a.z); }
+      N.needsUpdate = true; this.done = true;
+    }
+    // The crumbs fly when he comes out, and stay on the floor.
+    const ck = sm(0.6, 0.82, t);
+    this.crumbs.forEach((m) => {
+      m.visible = ck > 0.001;
+      const h = 2.6 + m.up * ck - 9 * ck * ck;
+      m.position.set(m.dir[0] * m.reach * ck, Math.max(0.12 * m.size, h), 0.6 + m.dir[1] * m.reach * ck * 0.7);
+      m.rotation.set(m.spin * ck, m.spin * 1.3 * ck, 0);
+    });
     if (!H) return;
     const s2 = back((t - 0.56) / 0.2);
     H.root.visible = s2 > 0.01;
@@ -211,7 +278,7 @@ C[0] = {
   },
   shot(t) {
     const o = still ? 1 : sm(0.38, 0.62, t);
-    return { at: [0, lerp(2, 4.3, o), 0.6], dist: lerp(13, 31, o), az: lerp(-12, -8, o) + 3 * ptr.nx, el: lerp(14, 8, o) - 2 * ptr.ny, sx: 0.16, sy: lerp(-0.04, 0.02, o) };
+    return { at: [0, lerp(2, 4.3, o), 0.6], dist: lerp(13, 31, o), az: lerp(-12, -8, o) + 3 * pn.x, el: lerp(14, 8, o) - 2 * pn.y, sx: 0.16, sy: lerp(-0.04, 0.02, o) };
   },
 };
 
@@ -228,7 +295,6 @@ C[1] = {
     const ty = still ? 1 : sm(0.03, 0.22, t), n = Math.round(ty * fullAsk.length);
     if (askEl.textContent.length !== n) askEl.textContent = fullAsk.slice(0, n);
     if (!edited) topicEl.style.opacity = sm(0.2, 0.26, t);
-    cross('type', t, 0.04, (fw) => fw && sfx('typing', 0.4));
     $('.prompt').style.setProperty('--in', sm(-0.3, 0.02, qOf(state, 1)));
     // The flying words: copies of the prompt's words that travel into the book.
     const parts = (askEl.textContent + topicEl.textContent).split(/\s+/).filter(Boolean);
@@ -254,7 +320,6 @@ C[1] = {
     });
     const gone = sm(0.42, 0.62 + parts.length * 0.025, t);
     $('.prompt').style.opacity = state.i === 1 ? 1 - 0.75 * gone : '';
-    cross('fly', t, 0.45, (fw) => fw && sfx('swish', 0.5));
     // The book writes while the words arrive.
     this.book.setPose(still ? 0 : (0.5 - 0.5 * Math.cos(now() / 140)) * bump(0.5, 0.95, t));
     if (!H) return;
@@ -265,7 +330,7 @@ C[1] = {
     H.hold(0, [B.x - 1.15, B.y + 0.25, B.z], grip); H.hold(1, [B.x + 1.15, B.y + 0.25, B.z], grip);
     H.blendExpression('neutral', 'thinking', sm(0.1, 0.3, t)); H.blendExpression('thinking', 'understanding', sm(0.7, 0.85, t));
   },
-  shot(t) { return { at: [20.3, 4.4, -0.6], dist: 31, az: 10 + 3 * ptr.nx, el: 8 - 2 * ptr.ny, sx: 0.02, sy: -0.04 }; },
+  shot(t) { return { at: [20.3, 4.4, -0.6], dist: 31, az: 10 + 3 * pn.x, el: 8 - 2 * pn.y, sx: 0.02, sy: -0.04 }; },
 };
 
 // 2. Three files fan out of his hands. The script agent strikes a wrong fact and writes the fix.
@@ -275,7 +340,7 @@ const FILES = [
   ['scenes.js', ["scene('cancel', {", '  bg: BG.sand,', '  async setup(s) {', "    s.j = await s.g.model('joint');", '    s.hero = await s.g.mascot();', '  },', '  draw(s) {', '    s.hero.hold(0, massAt(a));', "    s.e.draw(); s.g.render();", '  },', '});'], 'mono'],
 ];
 C[2] = {
-  start: [40, 1.4, 0.2], end: [40, 1.4, 0.2],
+  start: [40, 1.4, 0.2], end: [40, 1.4, 0.2], via: [[47, 3]],
   build() {
     this.pages = FILES.map(([name, lines, kind], i) => {
       const m = card(3.5, 4.5, (g, w, h, k = 0) => {
@@ -312,17 +377,15 @@ C[2] = {
       m.rotation.set(0, m.ry * (1 - m.lift) + (1 - clamp(k)) * 1.5, (1 - clamp(k)) * (i - 1) * 0.6);
       m.visible = k > 0.01;
     });
-    cross('paper', t, 0.08, (fw) => fw && sfx('paper', 0.6));
     const fk = still ? 1 : sm(0.45, 0.8, t);
     if (Math.abs(fk - this.fix) > 0.004) { this.pages[1].redraw(fk); this.fix = fk; }
-    cross('strike2', t, 0.47, (fw) => fw && sfx('marker', 0.6));
     if (!H) return;
     H.pose.rest(); place(40, 1.4, 0.2);
     H.blendPose('rest', 'point', bump(0.04, 0.3, t) * 0.8);
     H.blendExpression('neutral', 'thinking', sm(0.35, 0.45, t)); H.blendExpression('thinking', 'understanding', sm(0.75, 0.85, t));
     look(sm(0.85, 0.95, t) * 0.8);
   },
-  shot(t) { return { at: [40.4, 4.8, -0.4], dist: 29, az: -3 + 4 * ptr.nx, el: 6 - 2 * ptr.ny, sx: 0.15, sy: 0.1 }; },
+  shot(t) { return { at: [40.4, 4.8, -0.4], dist: 29, az: -3 + 4 * pn.x, el: 6 - 2 * pn.y, sx: 0.15, sy: 0.1 }; },
 };
 
 // 3. The voice: the real waveform of one sentence, and each word drops onto the timeline at its time.
@@ -330,7 +393,7 @@ C[2] = {
 let VOICE;
 const WX0 = 54, WX1 = 78, WZ = 1.2;
 C[3] = {
-  start: [WX0 - 1, -1.6, PI2], end: [WX1, -1.6, PI2],
+  start: [WX0 - 1, -2.6, PI2], end: [WX1, -2.6, PI2], via: [[81, -1], [84, 4.6], [96, 4]],
   build() {
     const { wave, words } = VOICE, n = wave.length, dur = 6.48;
     this.dur = dur;
@@ -355,25 +418,23 @@ C[3] = {
     const { words } = VOICE, n = this.h.length, T = clamp((t - 0.08) / 0.82) * this.dur, x = WX0 + T / this.dur * (WX1 - WX0);
     this.head.position.set(x, 0, WZ); this.head.visible = t > 0.05 && t < 0.97;
     const c = new THREE.Color();
-    for (let i = 0; i < n; i++) this.bars.setColorAt(i, c.set((i + 0.5) / n * this.dur < T ? '#d6336c' : '#3d3a44'));
-    this.bars.instanceColor.needsUpdate = true;
-    // The pointer on the wave: the word under it lifts, and plays when the sound is on.
+    // The pointer on the wave: the word under it lifts, and its bars light up.
     let hov = -1;
     if (fresh() && state.i === 3) { const h = rayAt().intersectObject(this.bars)[0]; if (h) { const tt = (h.instanceId + 0.5) / n * this.dur; hov = words.findIndex((w) => tt >= w.a - 0.05 && tt <= w.b + 0.05); } }
-    if (hov !== this.heard) { this.heard = hov; if (hov >= 0 && snd.on) { const w = words[hov], a = (snd.voice ??= new Audio('voice/sentence.m4a')); a.currentTime = w.a; a.play().catch(() => {}); clearTimeout(this.stop); this.stop = setTimeout(() => a.pause(), (w.b - w.a) * 1000 + 60); } }
+    for (let i = 0; i < n; i++) { const tt = (i + 0.5) / n * this.dur, w = words[hov]; this.bars.setColorAt(i, c.set(w && tt >= w.a && tt <= w.b ? '#2f7d45' : tt < T ? '#d6336c' : '#3d3a44')); }
+    this.bars.instanceColor.needsUpdate = true;
     this.chips.forEach((m, j) => {
       const w = words[j], k = still ? 1 : back((T - w.a) / 0.35);
       m.visible = k > 0.01; m.scale.setScalar(Math.max(0.01, k) * (hov === j ? 1.25 : 1));
       m.position.set(m.x, m.y + 2.5 * (1 - clamp(k)) + (hov === j ? 0.3 : 0), WZ + 0.2);
       m.lookAt(cam.position.x, m.position.y, cam.position.z);
     });
-    cross('voice', t, 0.1, (fw) => { if (fw && snd.on) { const a = (snd.voice ??= new Audio('voice/sentence.m4a')); a.currentTime = 0; a.play().catch(() => {}); } });
     if (!H) return;
-    H.pose.rest(); place(x - 0.8, -1.6, PI2 - 0.25);
+    H.pose.rest(); place(x - 0.8, -2.6, PI2 - 0.25);
     H.stride((x - WX0) * H.STEP * 0.8, t > 0.08 && t < 0.9 ? 0.45 : 0);
     H.blendExpression('neutral', 'smile', 0.6);
   },
-  shot(t) { const x = lerp(WX0 + 5, WX1 - 5, sm(0.08, 0.9, t)); return { at: [x, 3.6, 0.6], dist: 27, az: -8 + 4 * ptr.nx, el: 8 - 2 * ptr.ny, sx: 0.1, sy: 0.15 }; },
+  shot(t) { const x = lerp(WX0 + 5, WX1 - 5, sm(0.08, 0.9, t)); return { at: [x, 3.6, 0.6], dist: 27, az: -8 + 4 * pn.x, el: 8 - 2 * pn.y, sx: 0.1, sy: 0.15 }; },
 };
 
 // 4. Code draws every frame: he holds the link, β appears as a plum ring, he lets go and the link stays.
@@ -381,7 +442,7 @@ C[3] = {
 const JX = 88, JK = 1.5, JL = 3.9, PY = 5.4, PZ = 0.93;
 const eqnEl = $('.eqn');
 C[4] = {
-  start: [JX + 6, PZ, -PI2], end: [JX + 7.3, PZ, -0.6],
+  start: [JX + 6, PZ, -PI2], end: [JX + 7.3, PZ, -0.6], via: [[100, 4.6], [118, 4.6]],
   build() {
     this.j = model('joint', { x: JX, k: JK });
     this.ringMat = new THREE.MeshStandardMaterial({ color: '#8e3f8f', roughness: 0.45 }); this.ring = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.13, 10, 48, 0.01), this.ringMat);
@@ -406,7 +467,6 @@ C[4] = {
     for (const p of B.querySelectorAll('.b1, .b2')) { p.style.setProperty('--s', s1); p.style.maxWidth = `${4 * (1 - c1)}em`; p.style.opacity = 1 - c1; }
     for (const p of B.querySelectorAll('.m1, .m2')) { p.style.setProperty('--s', s2); p.style.maxWidth = `${4 * (1 - c2)}em`; p.style.opacity = 1 - c2; }
     B.style.gap = `${0.18 * (1 - c2 * 0.3)}em`;
-    cross('s1', t, 0.57, (fw) => fw && sfx('marker', 0.6)); cross('s2', t, 0.71, (fw) => fw && sfx('marker', 0.6)); cross('c2', t, 0.84, (fw) => fw && sfx('chime', 0.5));
     eqnEl.style.opacity = state.i === 4 ? 1 : 0;
     if (!H) return;
     // He walks in, holds the weight, lets go at 0.38, and steps back: the link stays, because β holds it.
@@ -417,7 +477,7 @@ C[4] = {
     if (grip > 0) { H.hold(0, [mx + 0.28, my, PZ - 0.59], grip); H.hold(1, [mx + 0.28, my, PZ + 0.59], grip); }
     H.blendExpression('neutral', 'surprised', sm(0.46, 0.5, t)); H.blendExpression('surprised', 'understanding', sm(0.8, 0.86, t));
   },
-  shot(t) { return { at: [JX + 3.4, 4.8, 0.5], dist: 29, az: -16 + view.drag + 3 * ptr.nx, el: 8 - 2 * ptr.ny, sx: 0.0, sy: 0.14 }; },
+  shot(t) { return { at: [JX + 3.4, 4.8, 0.5], dist: 29, az: -16 + view.drag + 3 * pn.x, el: 8 - 2 * pn.y, sx: 0.0, sy: 0.14 }; },
 };
 
 // 5. Nothing renders until the checks pass: hand 1 follows the pointer, and the hold checks of the clay kit
@@ -425,7 +485,7 @@ C[4] = {
 const KK = 2.4, CX = 112;
 const msgEl = $('.msg'), ringEl = $('.ring');
 C[5] = {
-  start: [0, 0, -PI2], end: [0, 0, -PI2],
+  start: [0, 0, -PI2], end: [0, 0, -PI2], via: [[119, 4.6], [150, 4.6]],
   build() {
     this.c = model('cart', { x: CX, k: KK });
     this.face = CX + (0.3 + 0.82) * KK + 0.04; this.start[0] = this.end[0] = this.face + 1.75;
@@ -450,13 +510,13 @@ C[5] = {
     else if (gap > 0.04) text = `hand 1 does not touch the cart body that it holds (gap ${gap.toFixed(2)})`;
     else { text = 'no faults: both hands touch the cart'; ok = true; }
     if (msgEl.textContent !== text) msgEl.textContent = text;
-    if (ok !== this.ok) { if (this.ok === false && ok) sfx('chime', 0.55); else if (this.ok && !ok) sfx('thud', 0.5); this.ok = ok; msgEl.classList.toggle('ok', ok); ringEl.classList.toggle('ok', ok); }
+    if (ok !== this.ok) { this.ok = ok; msgEl.classList.toggle('ok', ok); ringEl.classList.toggle('ok', ok); }
     const [sx, sy] = toScreen(this.target);
     ringEl.style.transform = `translate(${sx}px, ${sy}px)`; msgEl.style.transform = `translate(${Math.min(sx + 50, innerWidth - msgEl.offsetWidth - 20)}px, ${sy - 90}px)`;
-    const vis = state.i === 5 ? 1 : 0; ringEl.style.opacity = vis; msgEl.style.opacity = vis;
+    const vis = state.i === 5 ? 1 - sm(0, 0.15, state.u) : 0; ringEl.style.opacity = vis; msgEl.style.opacity = vis;
     H.blendExpression('neutral', ok ? 'smile' : 'worried', 0.8);
   },
-  shot(t) { return { at: [CX + 1.2, 3.8, 0], dist: 32, az: -20 + 4 * ptr.nx, el: 9 - 2 * ptr.ny, sx: 0.14, sy: 0.12 }; },
+  shot(t) { return { at: [CX + 1.2, 3.8, 0], dist: 32, az: -20 + 4 * pn.x, el: 9 - 2 * pn.y, sx: 0.14, sy: 0.12 }; },
 };
 
 // 6. The result is a real MP4: a film strip rolls out of his hands, from the title card of the visitor's own
@@ -498,10 +558,10 @@ C[6] = {
     this.playing = null;
   },
   act(t) {
-    // The strip comes out of his hands and rolls to the left, so each frame passes the middle in turn.
+    // The strip comes out of his hands and rolls to the left: the title card first, then each frame, past the middle.
     const roll = (still ? 0.5 : sm(0.04, 0.92, t)) * GAP * (CLIPS.length + 0.4), out = FX + 8.8;
     this.cells.forEach((c) => {
-      const x = out - GAP * 0.6 - c.i * GAP + roll, k = sm(out + 0.4, out - GAP * 0.7, x);
+      const x = out - GAP * 0.6 - roll + c.i * GAP, k = sm(out + 0.4, out - GAP * 0.7, x);
       c.position.set(x, 0, 0); c.scale.set(Math.max(0.01, k), Math.max(0.01, k), 1); c.visible = k > 0.01;
       c.rotation.y = (1 - k) * -0.8;
     });
@@ -525,7 +585,7 @@ C[6] = {
     H.blendExpression('neutral', 'smile', 0.7);
     look(sm(0.92, 1, t) * 0.8);
   },
-  shot(t) { return { at: [FX + 3.5, 4.6, 0.5], dist: 30, az: -4 + 4 * ptr.nx, el: 4 - 2 * ptr.ny, sx: 0.0, sy: 0.14 }; },
+  shot(t) { return { at: [FX + 3.5, 4.6, 0.5], dist: 30, az: -4 + 4 * pn.x, el: 4 - 2 * pn.y, sx: 0.0, sy: 0.14 }; },
 };
 
 // 7. Install it with one command: he points at the command; a copy makes him wave.
@@ -541,11 +601,11 @@ C[7] = {
     H.blendExpression('neutral', 'smile', Math.max(h, sm(0.1, 0.3, t) * 0.7));
     look(h ? 0 : 0.5);
   },
-  shot(t) { return { at: [166.6, 4.4, 0], dist: 28, az: -6 + 4 * ptr.nx, el: 6 - 2 * ptr.ny, sx: -0.18, sy: 0.17 }; },
+  shot(t) { return { at: [166.6, 4.4, 0], dist: 28, az: -6 + 4 * pn.x, el: 6 - 2 * pn.y, sx: -0.18, sy: 0.17 }; },
 };
 $('.copy').addEventListener('click', (e) => {
   navigator.clipboard?.writeText('npx clayducation').catch(() => {});
-  e.currentTarget.textContent = 'Copied'; happyAt = now(); sfx('chime', 0.6);
+  e.currentTarget.textContent = 'Copied'; happyAt = now();
   setTimeout(() => { e.currentTarget.textContent = 'Copy'; }, 1800);
 });
 
@@ -569,25 +629,50 @@ function aim(v) {
   cam.updateProjectionMatrix();
 }
 // Between two chapters he walks from the end of one set to the start of the next.
+// The route goes round the sets, through the points in "via" of the chapter that he leaves.
 function walkBetween(s) {
   if (!H) return;
-  const a = C[s.i].end, b = C[s.i + 1].start, u = inOut(s.u), x = lerp(a[0], b[0], u), z = lerp(a[1], b[1], u);
-  const head = Math.atan2(b[0] - a[0], b[1] - a[1]), face = lerp(lerp(a[2], head, sm(0, 0.15, s.u)), b[2], sm(0.85, 1, s.u));
+  const a = C[s.i].end, b = C[s.i + 1].start, pts = [a, ...(C[s.i].via || []), b];
+  const seg = pts.slice(1).map((p, k) => Math.hypot(p[0] - pts[k][0], p[1] - pts[k][1])), total = seg.reduce((x, y) => x + y, 0);
+  let d = inOut(s.u) * total, k = 0;
+  while (k < seg.length - 1 && d > seg[k]) { d -= seg[k]; k++; }
+  const f = seg[k] ? d / seg[k] : 0, p0 = pts[k], p1 = pts[k + 1], x = lerp(p0[0], p1[0], f), z = lerp(p0[1], p1[1], f);
+  const head = Math.atan2(p1[0] - p0[0], p1[1] - p0[1]);
+  let face = head;
+  if (s.u < 0.12) face = lerp(a[2], head, sm(0, 0.12, s.u)); else if (s.u > 0.88) face = lerp(head, b[2], sm(0.88, 1, s.u));
   H.pose.rest(); place(x, z, face);
-  H.stride(Math.hypot(x - a[0], z - a[1]) * H.STEP, 0.55 * bump(0, 1, s.u));
+  H.stride(inOut(s.u) * total * H.STEP, 0.55 * bump(0, 1, s.u));
   H.blendExpression('neutral', 'smile', 0.5);
 }
 
 // ---------- the frame loop ----------
 let state = { i: 0, t: 0, u: 0 }, built = false;
+// The colour change: the next chapter's colour grows out of the mascot as a soft blob with a moving edge,
+// so the world changes round him. Without the mascot it grows from the middle of the screen.
+const bgEl = $('#bg'), wipeEl = $('#wipe');
+function colours(s) {
+  bgEl.style.background = chs[s.i].dataset.bg;
+  if (!(s.u > 0) || !chs[s.i + 1]) { wipeEl.style.display = 'none'; return; }
+  let cx = innerWidth / 2, cy = innerHeight / 2;
+  if (H && cam) { const p = H.root.getWorldPosition(new THREE.Vector3()); [cx, cy] = toScreen(p); cx = clamp(cx, 0, innerWidth); cy = clamp(cy, 0, innerHeight); }
+  const far = Math.hypot(Math.max(cx, innerWidth - cx), Math.max(cy, innerHeight - cy)) * 1.12, r = far * (still ? (s.u > 0.5 ? 1 : 0) : inOut(sm(0.08, 0.92, s.u)));
+  const T = now() / 1000, pts = [];
+  for (let k = 0; k < 72; k++) {
+    const a = k / 72 * Math.PI * 2, w = 1 + 0.07 * Math.sin(3 * a + T * 1.7) + 0.045 * Math.sin(7 * a - T * 2.3) + 0.025 * Math.sin(13 * a + T);
+    pts.push(`${(cx + Math.cos(a) * r * w).toFixed(1)}px ${(cy + Math.sin(a) * r * w).toFixed(1)}px`);
+  }
+  wipeEl.style.display = 'block'; wipeEl.style.background = chs[s.i + 1].dataset.bg; wipeEl.style.clipPath = `polygon(${pts.join(',')})`;
+}
 function frame() {
   requestAnimationFrame(frame);
   if (document.hidden) return;
+  const tNow = now(); dt = Math.min(0.1, (tNow - lastT) / 1000); lastT = tNow;
+  pn.x = damp(pn.x, ptr.nx, 3); pn.y = damp(pn.y, ptr.ny, 3);
+  pn.sx = damp(pn.sx, ptr.x / innerWidth * 2 - 1, 9); pn.sy = damp(pn.sy, 1 - ptr.y / innerHeight * 2, 9);
   state = where();
   words(state);
   [...dots.children].forEach((d, j) => d.classList.toggle('on', j === (state.u > 0.5 ? state.i + 1 : state.i)));
-  if (!built) return;
-  cross(`u${state.i}`, state.u, 0.5, () => sfx('whoosh', 0.35));
+  if (!built) { colours(state); return; }
   if (state.i !== 1) document.querySelectorAll('.fly').forEach((f) => { f.style.display = 'none'; });
   if (H) { H.root.visible = true; H.root.scale.setScalar(1); }
   // The sets of the chapter in view, and of the next one while it pushes in. The mascot belongs to the
@@ -602,6 +687,7 @@ function frame() {
   }
   if (state.u > 0 && C[state.i + 1]?.ready) walkBetween(state);
   aim(shotAt(state));
+  colours(state);
   R.render(scene, cam);
 }
 
@@ -618,8 +704,9 @@ async function boot() {
     cam = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.1, 800);
     document.body.prepend(canvas);
     addEventListener('pointerdown', (e) => { if (state.i === 4 && e.pointerType === 'mouse' && !e.target.closest('a, button, [contenteditable]')) ptr.down = { x: e.clientX, drag: view.drag }; });
-    addEventListener('pointerup', () => { ptr.down = null; });
-    addEventListener('click', (e) => { if (H && !e.target.closest('a, button, [contenteditable]') && rayAt(e.clientX, e.clientY).intersectObject(H.root, true).length) { happyAt = now(); sfx('pop', 0.5); } });
+    addEventListener('pointerdown', (e) => { if (!e.target.closest('a, button, [contenteditable]')) ptr.pressed = true; });
+    addEventListener('pointerup', () => { ptr.down = null; ptr.pressed = false; });
+    addEventListener('click', (e) => { if (H && !e.target.closest('a, button, [contenteditable]') && rayAt(e.clientX, e.clientY).intersectObject(H.root, true).length) { happyAt = now(); } });
     await document.fonts?.ready;
     // The lump first: it needs no download.
     const group = (j) => { C[j].g = new THREE.Group(); scene.add(C[j].g); put = (...o) => C[j].g.add(...o); };
@@ -628,7 +715,7 @@ async function boot() {
       Promise.all([fetch('voice/wave.json').then((r) => r.json()), fetch('voice/words.json').then((r) => r.json())]).then(([wave, words]) => ({ wave, words }))]);
     await load('mascot');
     const m = createMascot(THREE, {}); m.root.position.set(0, 6.82, 0.6); scene.add(m.root);
-    put = (...o) => scene.add(...o); m.shadow = shadow(3.8, 2.4, 0, 0.6, 0.45); H = m;
+    put = (...o) => scene.add(...o); m.shadow = shadow(3.8, 2.4, 0, 0.6, 0.45); H = m; heroReady = true;
     for (const name of ['book', 'joint', 'cart']) await load(name);
     for (let j = 1; j < C.length; j++) { group(j); C[j].build(); C[j].ready = true; }
     R.compile(scene, cam);

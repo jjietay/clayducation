@@ -24,13 +24,16 @@ button { font: inherit; color: inherit; }
 
 /* Layers, from the back: the chapter colour and its wipe, the words, the clay world, the controls. */
 #bg, #wipe { position: fixed; inset: 0; z-index: -2; }
-#wipe { z-index: -1; transform: translateX(100%); }
+#wipe { z-index: -1; display: none; }
+/* Without scripts each chapter keeps its own colour. */
+.js .ch { background: none !important; }
 canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 1; pointer-events: none; }
 
 /* A chapter: a tall stretch of scroll, with a pinned screen. The scroll plays the chapter. */
 .ch { position: relative; height: 300vh; }
 .ch:first-of-type { height: 260vh; }
 .pin { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; }
+#c0 .pin { user-select: none; }
 .dark { color: var(--paper); }
 
 /* The one statement of each chapter. Its words rise in; the key word gets the pink strike under it. */
@@ -51,7 +54,6 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 .mark { font-weight: 800; font-size: 19px; letter-spacing: -.02em; text-decoration: none; }
 .bar nav { display: flex; gap: 18px; align-items: center; font-weight: 700; font-size: 14px; }
 .bar nav a { text-decoration: none; }
-.sound { background: none; border: 2px solid currentColor; border-radius: 999px; padding: 6px 14px; cursor: pointer; font-weight: 700; font-size: 13px; }
 .dots { position: fixed; z-index: 5; right: 18px; top: 50%; transform: translateY(-50%); display: grid; gap: 12px; mix-blend-mode: difference; }
 .dots button { width: 10px; height: 10px; padding: 0; border: 2px solid #fff; border-radius: 50%; background: none; cursor: pointer; transition: transform .2s, background .2s; }
 .dots button.on { background: #fff; transform: scale(1.3); }
@@ -101,7 +103,9 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
   :root { --say: clamp(36px, 11vw, 60px); }
   .say.bl, .say.br { bottom: 7vh; } .say.tr, .say.br { right: auto; left: 5vw; text-align: left; }
   .say.tl, .say.tr { top: 10vh; }
-  .prompt { top: auto; bottom: 30vh; right: 5vw; font-size: 15px; }
+  .prompt { top: 9vh; bottom: auto; right: 5vw; font-size: 15px; }
+  .say.bl, .say.br { bottom: 13vh; }
+  .hint.bl, .hint.br { left: 5vw; right: 5vw; bottom: 3vh; text-align: left; font-size: 13px; }
   .cmd { top: auto; bottom: 8vh; transform: none; right: 5vw; }
   .dots { right: 8px; }
   .still { width: 90vw; top: 58%; }
@@ -116,20 +120,20 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 
 <header class="bar">
   <a class="mark" href="#c0">Clayducation</a>
-  <nav><a href="https://github.com/jjietay/clayducation">GitHub</a><button class="sound" type="button" aria-pressed="false">Sound off</button></nav>
+  <nav><a href="https://github.com/jjietay/clayducation">GitHub</a></nav>
 </header>
 <nav class="dots" aria-label="Chapters"></nav>
 
 <main>
-<section class="ch dark" id="c0" data-bg="#14161f" data-name="Clay">
+<section class="ch dark" id="c0" data-bg="#14161f" style="background:#14161f" data-name="Clay">
   <div class="pin">
     <h1 class="say bl">Teaching videos, made of <b>clay and code</b>.</h1>
-    <p class="hint br"><span class="mouse">Move the pointer over the clay.</span><span class="touch">Scroll down.</span></p>
+    <p class="hint br"><span class="mouse">Press the clay. Hold the button down to leave a dent.</span><span class="touch">Scroll down.</span></p>
     <div class="cue" aria-hidden="true"></div>
   </div>
 </section>
 
-<section class="ch" id="c1" data-bg="#f0e7d6" data-name="One sentence">
+<section class="ch" id="c1" data-bg="#f0e7d6" style="background:#f0e7d6" data-name="One sentence">
   <div class="pin">
     <h2 class="say bl">It starts with <b>one sentence</b>.</h2>
     <div class="prompt" aria-label="A prompt in Claude Code">
@@ -140,21 +144,21 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
   </div>
 </section>
 
-<section class="ch" id="c2" data-bg="#e4d3b7" data-name="Three files">
+<section class="ch" id="c2" data-bg="#e4d3b7" style="background:#e4d3b7" data-name="Three files">
   <div class="pin">
     <h2 class="say tl">Claude writes <b>three files</b>.</h2>
     <p class="hint bl"><span class="mouse">Put the pointer on a page to read it.</span><span class="touch">An agent checks every fact.</span></p>
   </div>
 </section>
 
-<section class="ch" id="c3" data-bg="#b9b3cf" data-name="Every word">
+<section class="ch" id="c3" data-bg="#b9b3cf" style="background:#b9b3cf" data-name="Every word">
   <div class="pin">
     <h2 class="say tl">Whisper times <b>every word</b>.</h2>
-    <p class="hint bl"><span class="mouse">Turn the sound on, then move along the wave to hear each word.</span><span class="touch">Turn the sound on to hear the voice.</span></p>
+    <p class="hint bl"><span class="mouse">Put the pointer on the wave to find each word.</span><span class="touch">Each word gets its time in seconds.</span></p>
   </div>
 </section>
 
-<section class="ch" id="c4" data-bg="#a9c4cf" data-name="Every frame">
+<section class="ch" id="c4" data-bg="#a9c4cf" style="background:#a9c4cf" data-name="Every frame">
   <div class="pin">
     <h2 class="say tl">Code draws <b>every frame</b>.</h2>
     <div class="eqn" aria-label="tau equals M v plus beta; beta cancels, then M cancels; q double dot equals v"></div>
@@ -163,7 +167,7 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
   </div>
 </section>
 
-<section class="ch" id="c5" data-bg="#e6bfae" data-name="Checks">
+<section class="ch" id="c5" data-bg="#e6bfae" style="background:#e6bfae" data-name="Checks">
   <div class="pin">
     <h2 class="say tl">Nothing renders until the <b>checks pass</b>.</h2>
     <p class="msg" aria-live="polite"></p>
@@ -173,7 +177,7 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
   </div>
 </section>
 
-<section class="ch dark" id="c6" data-bg="#27324a" data-name="The MP4">
+<section class="ch dark" id="c6" data-bg="#27324a" style="background:#27324a" data-name="The MP4">
   <div class="pin">
     <h2 class="say tl">The result is a <b>real MP4</b>.</h2>
     <p class="hint bl"><span class="mouse">Put the pointer on a frame to play it.</span><span class="touch">Frames from six finished videos.</span></p>
@@ -181,7 +185,7 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
   </div>
 </section>
 
-<section class="ch" id="c7" data-bg="#c98f6b" data-name="Install">
+<section class="ch" id="c7" data-bg="#c98f6b" style="background:#c98f6b" data-name="Install">
   <div class="pin">
     <h2 class="say tl">Install it with <b>one command</b>.</h2>
     <div class="cmd">

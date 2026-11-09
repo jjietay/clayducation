@@ -1,39 +1,25 @@
 # Gallery
 
-`index.html` is the public gallery page: the pipeline figure, frames from a finished clay video, the
-music previews and the install steps. It uses only files in this folder, so the folder can be published
-as it is. `DESIGN-NOTES.md` says why the page looks the way it does, with sources. Read it before you
-change the page.
+The public page (GitHub Pages publishes this folder). `DESIGN.md` says what each chapter shows and why.
 
-| Picture | What it shows |
+| File | What it is |
 |---|---|
-| `png/clay-cancel.png`, `clay-formula.png`, `clay-servo.png` | frames from the computed torque video at 421.0, 175.6 and 259.5 s |
-| `png/ipcv/*.png` | frames from six example videos (`ipcv-*`): bayes-scale 43.5 s (video 1), ruler 154.5 s and boundary 398.5 s (video 2), knn 347 s (video 3), shadow 55.5 s, eigen 218 s and fisher 543 s (video 4), lever 259.5 s (video 5) |
-| `png/classic/*.png` | six of the classic 2D styles, from `styles/classic/png/` |
-| `png/check-strip.png` | one movement strip from that video's build (`build/review/moving/443.8-close2-52.jpg`) |
-| `png/mascot.png` | the nine expressions, from the `make clay` sheet `expressions.png` |
-| `png/clay-room.png` | the mascot and models in one room |
-| `png/pipeline.png` | the README figure, made from `pipeline.html` |
-| `clip/cancel.mp4` | the muted opening loop: 418.8 to 425.2 s of the same video, 1280 px, no sound |
+| `index.html` | the chapters, their statements and the styles |
+| `app.js` | the clay world: scroll model, camera, mascot and the eight sets |
+| `world/` | three.js, the clay kit and the packed shapes, made by `engine/gallery-export.mjs`; do not edit |
+| `world.json` | the models that the sets use |
+| `film/` | 3.2 s muted clips and their first frames, from six finished videos |
+| `voice/` | the waveform and the Whisper word times of one sentence of the computed torque video |
+| `png/`, `pipeline.html`, `music/`, `sfx/` | pictures and previews that the main README and SOUND.md use |
 
-Take a frame from a rendered video (no rebuild is needed):
-
-```bash
-ffmpeg -ss <seconds> -i out/<name>.mp4 -frames:v 1 -vf scale=1280:-2 gallery/png/<picture>.png
-```
-
-Cut the opening loop:
+Make `world/` again after `make bake`, a change to the clay kit, or a new model in `world.json`:
 
 ```bash
-ffmpeg -ss 418.8 -t 6.4 -i out/<name>.mp4 -an -vf scale=1280:-2 -c:v libx264 -crf 30 -pix_fmt yuv420p -movflags +faststart gallery/clip/cancel.mp4
+cd gallery && node ../engine/gallery-export.mjs world.json
 ```
 
-Render `pipeline.html` to `png/pipeline.png` with Chrome:
+To view the page on your computer (a page opened as a file cannot load modules):
 
 ```bash
-google-chrome --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1.5 \
-  --window-size=2000,1190 --screenshot="$PWD/gallery/png/pipeline.png" "file://$PWD/gallery/pipeline.html"
+cd gallery && python3 -m http.server 8000    # then open http://localhost:8000
 ```
-
-`music/` holds 30 s previews of the music tracks, and `sfx/` holds short previews of the sound effects
-(see `SOUND.md`).
