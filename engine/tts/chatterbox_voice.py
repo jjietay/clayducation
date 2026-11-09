@@ -56,7 +56,8 @@ def main(path):
         import torch
         turbo = p.get('model') == 'turbo'
         # An NVIDIA GPU, else Apple silicon (Metal), else the CPU (slow: Kokoro is faster there).
-        device = 'cuda' if torch.cuda.is_available() else 'mps' if getattr(torch.backends, 'mps', None) and torch.backends.mps.is_available() else 'cpu'
+        # make config --gpu off sets CLAYDUCATION_GPU=off: then the CPU, also when a GPU is there.
+        device = 'cpu' if os.environ.get('CLAYDUCATION_GPU') == 'off' else 'cuda' if torch.cuda.is_available() else 'mps' if getattr(torch.backends, 'mps', None) and torch.backends.mps.is_available() else 'cpu'
         print(f'chatterbox: {len(todo)} part(s) to speak on {device}', flush=True)
         # Chatterbox-Turbo (the user chose it by ear on 2026-11-09: it sounded best of 4, and makes audio about
         # twice as fast). It has no cfg or exaggeration: its pace comes from the reference clip alone.

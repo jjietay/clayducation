@@ -43,7 +43,9 @@ import { sayable, editDistance, extraWords, missingLetters, twoBars } from './vo
 
 const ENGINE = path.dirname(fileURLToPath(import.meta.url));
 const EXR = process.env.EXPLAINROO_HOME || path.join(os.homedir(), '.explainroo');
-const CHROME = process.env.CHROME || ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'].find((c) => spawnSync('which', [c]).status === 0);
+// On a Mac, Chrome is usually only the app, not a command on the PATH.
+const CHROME = process.env.CHROME || ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'].find((c) => spawnSync('which', [c]).status === 0)
+  || ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Chromium.app/Contents/MacOS/Chromium'].find((c) => process.platform === 'darwin' && fs.existsSync(c));
 // The settings of this machine, written by "make config", the installer or /setup-clayducation.
 // config.json is not in git. voice: chatterbox (natural, best on a GPU), kokoro (small, fast on a CPU)
 // or auto. gpu: auto or off. whisper: base (small, fast, explainroo's own) or large (large-v3-turbo,
@@ -53,6 +55,9 @@ const CONFIG_DEFAULT = { voice: 'auto', gpu: 'auto', whisper: 'base', kokoroVoic
 const CONFIG_CHOICES = { voice: ['auto', 'chatterbox-turbo', 'chatterbox', 'kokoro'], gpu: ['auto', 'off'], whisper: ['base', 'large'] };
 const readConfig = () => { try { return { ...CONFIG_DEFAULT, ...JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) }; } catch { return { ...CONFIG_DEFAULT }; } };
 const CONFIG = readConfig();
+// "gpu off" means the CPU for everything: Chrome and the encoder read CONFIG, and the Python voice
+// and Whisper (engine/tts) read this variable, which every child process gets.
+if (CONFIG.gpu === 'off') process.env.CLAYDUCATION_GPU = 'off';
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -74,11 +79,25 @@ function projectDir(arg) {
   if (!fs.existsSync(path.join(dir, 'video.json'))) die(`${dir} has no video.json. Make a project with: node ${path.join(ENGINE, 'make.mjs')} init <dir>`);
   return dir;
 }
+const tilde = (p) => (p.startsWith(os.homedir()) ? '~' + p.slice(os.homedir().length) : p);
+const readText = (f) => { try { return fs.readFileSync(f, 'utf8'); } catch { return null; } };
+// --scene a,b: every name must be a scene of the timeline. A typo crashed "look" after it had deleted the old images.
+function sceneOpt(tl) {
+  const v = opt('--scene');
+  if (v === undefined) return undefined;
+  const ids = v.split(',').map((x) => x.trim()).filter(Boolean), known = tl.scenes.map((x) => x.id);
+  const bad = ids.filter((x) => !known.includes(x));
+  if (!ids.length || bad.length) die(`no scene named ${bad.length ? bad.map((x) => `"${x}"`).join(', ') : '(empty)'}. The scenes are: ${known.join(', ')}`);
+  return ids;
+}
+const scriptHash = (dir) => createHash('sha1').update(fs.readFileSync(path.join(dir, 'script.md'))).digest('hex');
 function timeline(dir) {
   const f = path.join(dir, 'build', 'timeline.json');
   if (!fs.existsSync(f)) die('no build/timeline.json. Run "voice" first.');
   const script = path.join(dir, 'script.md');
-  if (fs.statSync(script).mtimeMs > fs.statSync(f).mtimeMs) die('script.md changed after the last voice run. Run "voice" again.');
+  // A newer file time alone is not a change: an editor can save the same text again. Compare the
+  // text with the one that was voiced (build/voice.script), when that record is there.
+  if (fs.statSync(script).mtimeMs > fs.statSync(f).mtimeMs && readText(path.join(dir, 'build', 'voice.script')) !== scriptHash(dir)) die('script.md changed after the last voice run. Run "voice" again.');
   return JSON.parse(fs.readFileSync(f, 'utf8'));
 }
 // musicVolume 0.37: the user raised the music by 3 dB on 2026-11-02 (it was 0.26).
@@ -191,14 +210,17 @@ function config() {
   let changed = false;
   for (const [k, choices] of Object.entries(CONFIG_CHOICES)) {
     const v = opt(`--${k}`);
-    if (v === undefined) continue;
+    if (v === undefined && !flag(`--${k}`)) continue;
+    if (v === undefined || v.startsWith('--')) die(`--${k} needs a value: one of ${choices.join(', ')}`);
     if (!choices.includes(v)) die(`--${k} must be one of: ${choices.join(', ')}`);
     cur[k] = v; changed = true;
   }
   const kv = opt('--kokoro-voice');
+  // Kokoro voice names are a language letter, f or m, then a name: af_heart, bm_george.
+  if ((kv !== undefined || flag('--kokoro-voice')) && (kv === undefined || kv.startsWith('--') ||!/^[abefhijpz][fm]_[a-z]+$/.test(kv))) die(`--kokoro-voice needs a Kokoro voice name, for example af_heart or bm_george (not "${kv}")`);
   if (kv !== undefined) { cur.kokoroVoice = kv; changed = true; }
   if (changed) fs.writeFileSync(CONFIG_FILE, JSON.stringify(cur, null, 2) + '\n');
-  console.log(`voice   ${cur.voice}${cur.voice === 'auto' ? ` (now: ${fs.existsSync(TTS_PY) ? 'chatterbox' : 'kokoro'})` : ''}${cur.voice !== 'chatterbox' ? `, Kokoro voice ${cur.kokoroVoice}` : ''}\ngpu     ${cur.gpu}\nwhisper ${cur.whisper}${cur.whisper === 'large' ? ' (large-v3-turbo)' : ' (base.en)'}\nfile    ${CONFIG_FILE}${fs.existsSync(CONFIG_FILE) ? '' : ' (not written yet: these are the defaults)'}`);
+  console.log(`voice   ${cur.voice}${cur.voice === 'auto' ? ` (now: ${fs.existsSync(TURBO_PY) ? 'chatterbox-turbo' : fs.existsSync(TTS_PY) ? 'chatterbox' : 'kokoro'})` : ''}${cur.voice !== 'chatterbox' ? `, Kokoro voice ${cur.kokoroVoice}` : ''}\ngpu     ${cur.gpu}\nwhisper ${cur.whisper}${cur.whisper === 'large' ? ' (large-v3-turbo)' : ' (base.en)'}\nfile    ${CONFIG_FILE}${fs.existsSync(CONFIG_FILE) ? '' : ' (not written yet: these are the defaults)'}`);
 }
 
 // ---------- doctor ----------
@@ -215,10 +237,15 @@ async function doctor() {
   try { await tex('\\lambda v = A v', true); line(true, 'mathjax', 'typesets'); } catch (e) { line(false, 'mathjax', e.message); }
   const mv = fs.existsSync(MANIM_PY) && spawnSync(MANIM_PY, ['-c', 'import manim; print(manim.__version__)'], { encoding: 'utf8' });
   line(!!mv && mv.status === 0, 'manim', mv && mv.status === 0 ? `Manim Community ${mv.stdout.trim()} (maths scenes)` : `not installed: needs sudo apt install libcairo2-dev libpango1.0-dev pkg-config texlive texlive-latex-extra dvisvgm, then: cd ${path.join(ENGINE, 'manim')} && uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python manim`, true);
-  const cb = fs.existsSync(TTS_PY) && spawnSync(TTS_PY, ['-c', 'import torch, chatterbox; print(torch.cuda.is_available())'], { encoding: 'utf8' });
-  const shared = fs.existsSync(path.join(ENGINE, 'tts', '.venv', 'shared-torch'));
-  const needCb = voiceEngine().startsWith('chatterbox');
-  line(!needCb || (!!cb && cb.status === 0), 'chatterbox', !needCb && !(cb && cb.status === 0) ? 'not used: the voice is Kokoro (make config)' : cb && cb.status === 0 ? `voice (GPU: ${cb.stdout.trim() === 'True' ? 'yes' : 'no, slow on CPU'}${shared ? "; PyTorch shared from another environment" : ''})` : shared ? "fails: it uses another environment's PyTorch (shared-torch), which changed or is gone. See INSTALL.md" : 'not installed: see README.md');
+  // Test the Python of the voice that will really speak: Turbo has its own environment.
+  const turbo = voiceEngine() === 'chatterbox-turbo', vpy = turbo ? TURBO_PY : TTS_PY, venv = path.dirname(path.dirname(vpy));
+  const cb = fs.existsSync(vpy) && spawnSync(vpy, ['-c', 'import torch, chatterbox; print(torch.cuda.is_available())'], { encoding: 'utf8' });
+  const shared = fs.existsSync(path.join(venv, 'shared-torch'));
+  const needCb = voiceEngine().startsWith('chatterbox'), cbName = turbo ? 'Chatterbox-Turbo' : 'Chatterbox';
+  line(!needCb || (!!cb && cb.status === 0), 'chatterbox', !needCb && !(cb && cb.status === 0) ? 'not used: the voice is Kokoro (make config)' : cb && cb.status === 0 ? `${cbName} voice (GPU: ${cb.stdout.trim() === 'True' ? process.env.CLAYDUCATION_GPU === 'off' ? 'off by the settings' : 'yes' : 'no, slow on CPU'}${shared ? "; PyTorch shared from another environment" : ''})` : shared ? `fails: ${tilde(venv)} uses another environment's PyTorch (shared-torch), which changed or is gone. See INSTALL.md` : `${cbName} is not installed (no ${tilde(vpy)}): see INSTALL.md`);
+  // The clay shapes are computed once by "make bake"; without them every clay scene fails.
+  const man = path.join(CLAY, 'cache', 'manifest.json');
+  line(fs.existsSync(man), 'clay', fs.existsSync(man) ? 'shapes baked' : `the shapes are not baked: run "node ${path.join(ENGINE, 'make.mjs')} bake"`);
   line(spawnSync('which', ['latex']).status === 0 && spawnSync('which', ['dvisvgm']).status === 0, 'latex', 'latex + dvisvgm, for Manim formulas', true);
   if (fs.existsSync(EXR)) {
     const r = spawnSync('node', [path.join(EXR, 'bin', 'explainroo.js'), 'doctor'], { encoding: 'utf8' });
@@ -310,7 +337,7 @@ async function takeReport(part) {
 
 async function chatterbox(dir, shadow, cfg, turbo = false) {
   const PY = turbo ? TURBO_PY : TTS_PY;
-  if (!fs.existsSync(PY)) die(`Chatterbox${turbo ? '-Turbo' : ''} is not installed. See README.md ("Voice").`);
+  if (!fs.existsSync(PY)) die(`Chatterbox${turbo ? '-Turbo' : ''} is not installed. See INSTALL.md, or run "npx clayducation" again.`);
   const { parseScript } = await import(pathToFileURL(path.join(EXR, 'src', 'script.js')).href);
   // The user chose these by ear: see the header of engine/tts/chatterbox_voice.py.
   const t = { exaggeration: 0.5, cfg_weight: 0.5, temperature: 0.8, seed: 7, stopGap: 0.6, commaMax: 0.3, paragraphGap: 1.0, retakes: 3, ...cfg._tts, ...(turbo ? { model: 'turbo' } : {}) };
@@ -558,7 +585,20 @@ async function voice() {
   const cfg = JSON.parse(fs.readFileSync(path.join(dir, 'video.json'), 'utf8'));
   // An unchanged script keeps its voice. A new run moves cue times by itself, so it would make a look wrong.
   const stampFile = path.join(dir, 'build', 'voice.stamp'), stampNow = createHash('sha1').update(fs.readFileSync(path.join(dir, 'script.md'))).update(JSON.stringify([cfg._tts || {}, cfg.fps, cfg.lead, cfg.hold, cfg.end, CONFIG.whisper])).digest('hex');
-  if (!flag('--again') && fs.existsSync(path.join(dir, 'build', 'timeline.json')) && fs.existsSync(stampFile) && fs.readFileSync(stampFile, 'utf8') === stampNow) return console.log('voice: script unchanged, so the voice stays. Use --again to make it again.');
+  // /setup-clayducation can change the voice engine or the Kokoro voice: a new one gives a new voice.
+  // It is kept beside the stamp, so a project voiced before this record existed keeps its voice.
+  // The script's own hash lets the later steps accept a saved but unchanged script.md.
+  const scriptRecord = path.join(dir, 'build', 'voice.script'), engineRecord = path.join(dir, 'build', 'voice.engine');
+  const engineNow = JSON.stringify([voiceEngine(cfg), voiceEngine(cfg) === 'kokoro' ? cfg._tts?.kokoroVoice || CONFIG.kokoroVoice : null]);
+  const engineOld = readText(engineRecord);
+  if (!flag('--again') && fs.existsSync(path.join(dir, 'build', 'timeline.json')) && fs.existsSync(stampFile) && fs.readFileSync(stampFile, 'utf8') === stampNow) {
+    if (engineOld === null || engineOld === engineNow) {
+      fs.writeFileSync(scriptRecord, scriptHash(dir));
+      if (engineOld === null) fs.writeFileSync(engineRecord, engineNow);
+      return console.log('voice: script unchanged, so the voice stays. Use --again to make it again.');
+    }
+    console.log(`voice: the voice setting changed (${JSON.parse(engineOld)[0]} to ${voiceEngine(cfg)}), so the voice is made again.`);
+  }
   fs.copyFileSync(path.join(dir, 'script.md'), path.join(shadow, 'script.md'));
   // explainroo keeps each scene's word times by the recording, not by the model: a new Whisper times again.
   const vdir = path.join(dir, 'build', 'voice'), mark = path.join(vdir, 'whisper.txt'), want = largeWhisper() ? LARGE_WHISPER : 'base.en';
@@ -592,6 +632,8 @@ async function voice() {
   pacing(tl, true);
   pauses(tl, true);
   fs.writeFileSync(stampFile, stampNow);
+  fs.writeFileSync(scriptRecord, scriptHash(dir));
+  fs.writeFileSync(engineRecord, engineNow);
 }
 
 // The gap after each full stop and each comma, as the viewer hears it, for the report.
@@ -929,7 +971,7 @@ async function still() {
 async function sheet() {
   const dir = projectDir(positional()[0]), tl = timeline(dir);
   requireManim(dir);
-  const only = opt('--scene'), every = opt('--every');
+  const only = sceneOpt(tl)?.[0], every = opt('--every');
   const times = [];
   for (const s of tl.scenes) {
     if (only && s.id !== only) continue;
@@ -1070,7 +1112,18 @@ async function render() {
   const silent = path.join(dir, 'build', 'video.mp4');
   // --remix: new audio (music track or level, voice) on the frames of the last full render.
   const remix = flag('--remix');
-  if (remix && (partial || draft || !fs.existsSync(silent))) die('--remix needs a full render first (no --draft, --from or --to)');
+  // build/video.mp4 holds the frames of the LAST render, also a draft or a part. --remix may use
+  // them only when that render was full and the scenes are the same as now (a remix once made a
+  // final video of 6 s of picture, and another at draft size).
+  const metaFile = path.join(dir, 'build', 'video.meta.json');
+  const frameKey = () => JSON.stringify({ scenes: sourceHashes(dir, tl).scenes, duration: tl.duration, fps });
+  if (remix) {
+    if (partial || draft) die('--remix uses the frames of the last full render: do not add --draft, --from or --to.');
+    const meta = readJson(metaFile);
+    if (!fs.existsSync(silent) || !meta) die('--remix needs a full render first. Run "make render" without --remix.');
+    if (!meta.full) die(`the last render was ${meta.draft ? 'a draft' : 'a part (--from or --to)'}, so its frames cannot make the final video. Run "make render" without --remix.`);
+    if (meta.key !== frameKey()) die('the scenes or the timeline changed after the last full render. Run "make render" without --remix.');
+  }
   if (!partial && !draft && !remix) renderGate(dir, tl);
   if (!remix) {
   fs.rmSync(partsDir, { recursive: true, force: true });
@@ -1179,6 +1232,7 @@ async function render() {
   const list = path.join(partsDir, 'list.txt');
   fs.writeFileSync(list, parts.map((p) => `file '${p}'`).join('\n'));
   execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', silent]);
+  fs.writeFileSync(metaFile, JSON.stringify({ full: !partial && !draft, draft, key: frameKey() }));
   fs.rmSync(partsDir, { recursive: true, force: true });
   }
 
@@ -1222,6 +1276,15 @@ async function verify() {
   const issues = [];
   if (Math.abs(dur - tl.duration) > 0.2) issues.push(`duration ${dur.toFixed(2)} s, timeline says ${tl.duration.toFixed(2)} s`);
   for (const k of ['video', 'audio', 'subtitle']) if (!kinds.includes(k)) issues.push(`no ${k} stream`);
+  // The picture itself: the file duration is the longest stream (the audio), so a video with
+  // seconds of picture missing, or a draft-size picture, passed before. These are errors.
+  const errors = [], vs = probe.streams.find((s) => s.codec_type === 'video');
+  if (vs) {
+    const [ew, eh] = /-draft\.mp4$/.test(file) ? [960, 540] : [1920, 1080];
+    if (+vs.width !== ew || +vs.height !== eh) errors.push(`the picture is ${vs.width} x ${vs.height}, not ${ew} x ${eh}${ew === 1920 && +vs.width === 960 ? ' (the frames of a draft)' : ''}. Render again.`);
+    const frames = +vs.nb_frames || Math.round(+vs.duration * tl.fps), want = Math.round(tl.duration * tl.fps);
+    if (Math.abs(frames - want) > Math.max(2, tl.fps * 0.2)) errors.push(`the picture has ${frames} frames (${(frames / tl.fps).toFixed(1)} s), and the timeline needs ${want} (${tl.duration.toFixed(1)} s). Render again.`);
+  }
   const srtOut = file.replace(/\.mp4$/, '.srt');
   if (fs.existsSync(srtOut)) issues.push(...subtitleIssues(srtOut).slice(0, 10));
   const au = probe.streams.find((s) => s.codec_type === 'audio');
@@ -1237,7 +1300,8 @@ async function verify() {
   // 3 % of pixels off by more than 40 of 255: on these dark frames the average hides it.
   const fps = tl.fps, W4 = 160, H4 = 90, PX = W4 * H4, wrong = [];
   const gray = (args, input) => execFileSync('ffmpeg', ['-v', 'error', ...args, '-vf', `scale=${W4}:${H4}`, '-f', 'rawvideo', '-pix_fmt', 'gray', '-'], { input, maxBuffer: 1 << 30 });   // 160 x 90 grey: 1 << 28 held only about 10 min
-  const differs = (x, xo, y, yo) => { let k = 0; for (let j = 0; j < PX; j++) if (Math.abs(x[xo + j] - y[yo + j]) > 40) k++; return k / PX > 0.03; };
+  // A pixel that is not there (past the end of a short video) counts as different, not as a match.
+  const differs = (x, xo, y, yo) => { let k = 0; for (let j = 0; j < PX; j++) { const a = x[xo + j], b = y[yo + j]; if (a === undefined || b === undefined || Math.abs(a - b) > 40) k++; } return k / PX > 0.03; };
   const vid = gray(['-i', file]);
   // Plain Manim scenes: every frame against its source frame. A Manim scene with an overlay
   // (manim({ setup, draw })), or a scene with stale Manim frames, is drawn again instead.
@@ -1262,9 +1326,10 @@ async function verify() {
   });
   if (wrong.length) issues.unshift(`the video does not show what the scenes draw: ${wrong.join('; ')}. Render again.`);
   console.log(`${file}\n${dur.toFixed(1)} s, streams: ${kinds.join(', ')}, loudness ${lufs} LUFS, picture checked`);
+  for (const e of errors) console.log(`ERROR ${e}`);
   for (const i of issues) console.log(`${i.startsWith('the video does not show') ? 'ERROR' : 'WARN'} ${i}`);
-  if (!issues.length) console.log('verify: no problems found');
-  if (wrong.length) process.exit(1);
+  if (!issues.length && !errors.length) console.log('verify: no problems found');
+  if (wrong.length || errors.length) process.exit(1);
 }
 
 // ---------- review ----------
@@ -1481,7 +1546,8 @@ function sourceHashes(dir, tl) {
   for (const line of fs.readFileSync(path.join(dir, 'scenes.js'), 'utf8').split('\n')) {
     const m = !cur && line.match(/^scene\('([\w-]+)'/);
     if (m) { cur = m[1]; blocks[cur] = ''; }
-    if (cur) { blocks[cur] += line + '\n'; if (/^\}\);?\s*$/.test(line) || (m && /\}\);?\s*$/.test(line))) cur = null; } else common += line + '\n';
+    // A scene ends on its "});" line, also with a comment after it ("}); // end of hook").
+    if (cur) { blocks[cur] += line + '\n'; if (/^\}\);?\s*(\/\/.*|\/\*.*\*\/\s*)?$/.test(line) || (m && /\}\);?\s*(\/\/.*|\/\*.*\*\/\s*)?$/.test(line))) cur = null; } else common += line + '\n';
   }
   // Anything that all scenes share: their helpers, the Manim code, the kit and the runtime.
   const shared = [path.join(dir, 'manim_scenes.py'), path.join(dir, 'video.json'), path.join(ENGINE, 'make.mjs'), path.join(ENGINE, 'runtime.js'), path.join(CLAY, '..', 'clay.js'), path.join(CLAY, '..', 'eqn.js'), ...['sdf.js', 'mascot.js', 'models.js'].map((f) => path.join(CLAY, f))];
@@ -1820,7 +1886,7 @@ async function look() {
     fs.writeFileSync(lookFile(dir, 'passed.json'), JSON.stringify({ hashes: cur, at: new Date().toISOString() }));
     return console.log('look: recorded. "make build" can run.');
   }
-  const ids = opt('--scene')?.split(',') || changedSince(cur, readJson(lookFile(dir, 'passed.json'))?.hashes);
+  const ids = sceneOpt(tl) || changedSince(cur, readJson(lookFile(dir, 'passed.json'))?.hashes);
   if (!ids.length) { fs.writeFileSync(lookFile(dir, 'pending.json'), JSON.stringify({ hashes: cur, scenes: [], faults: [], checks: [] })); return console.log('look: no scene changed since the last look.'); }
   for (const f of fs.readdirSync(base)) if (f.endsWith('.jpg')) fs.rmSync(path.join(base, f));
   const grids = [], list = [], checks = [], warns = [];
@@ -2068,7 +2134,7 @@ async function capbench() {
 // Each scene also gets an image: its middle frame with the 3D area shaded and the free areas outlined.
 async function zones() {
   const W = 1920, H = 1080, SAFE = { x: 96, y: 72, w: 1728, h: 936 };
-  const dir = projectDir(positional()[0]), tl = timeline(dir), only = opt('--scene')?.split(',');
+  const dir = projectDir(positional()[0]), tl = timeline(dir), only = sceneOpt(tl);
   const ids = tl.scenes.map((x) => x.id).filter((id) => !only || only.includes(id));
   const out = path.join(dir, 'build', 'zones'); fs.rmSync(out, { recursive: true, force: true }); fs.mkdirSync(out, { recursive: true });
   const C = 24, GW = Math.ceil(W / C), GH = Math.ceil(H / C), M = 16, TITLE = { x1: 960, y1: 190 }, MINW = 360, MINH = 72;
@@ -2142,7 +2208,7 @@ async function zones() {
 
 // The collision measures alone, fast, for one scene or all: run it after each edit, before any build.
 async function collide() {
-  const dir = projectDir(positional()[0]), tl = timeline(dir), ids = opt('--scene')?.split(',') || tl.scenes.map((x) => x.id);
+  const dir = projectDir(positional()[0]), tl = timeline(dir), ids = sceneOpt(tl) || tl.scenes.map((x) => x.id);
   let warns = [];
   const m = await measureParallel(dir, tl, ids); warns = m.warns; const faults = [...m.faults, ...voiceWithoutMotion(dir, tl, m.frames, ids)];
   for (const w of warns) console.log(`WARN ${w}`);

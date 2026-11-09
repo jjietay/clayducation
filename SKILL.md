@@ -363,7 +363,7 @@ every other check does, and formulas must act out the voice in both looks.
   `check` or `preview` in these projects: `scenes.js` here is for this engine.
 - **The voice env can use another environment's PyTorch** (linked through `engine/tts/.venv/shared-torch`)
   to save 7 GB of disk. If `make doctor` shows Chatterbox
-  failing after a change to that environment, see README.md ("Optional, to save about 7 GB").
+  failing after a change to that environment, see INSTALL.md ("Optional, to save about 7 GB").
 - To change only the music track or level (`_render.music`, `musicVolume`): `make render <dir> --remix` (no new frames), then `make verify`.
 - The render uses the NVIDIA GPU (Chrome drawing and WebGL, NVENC encode) when the engine finds one; the probe
   result is cached in `/tmp/xv-gpu-<chrome version>.json` (delete it after a driver change). If frames look wrong or
