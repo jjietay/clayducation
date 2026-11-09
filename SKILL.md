@@ -96,7 +96,7 @@ If a storyboard breaks one of these, change the storyboard before you write code
 - **Parallel by default (the user asked, 2026-11-09).** Whatever can run at the same time does: a 13-minute
   video took 3 hours when every frame was measured in one Chrome page (one core busy, GPU at 10 %).
   The engine now measures `look`, `collide`, `review` and `stable` in several pages at once (the render's
-  `workers`: half the cores, at most 8, and only as many as free memory allows; 8 on this laptop), and `build` runs sheet, stable and review together. When you add a step that
+  `workers`: half the cores, at most 8, and only as many as free memory allows;), and `build` runs sheet, stable and review together. When you add a step that
   visits frames, split it over pages too (`measureParallel`, `traceParallel`, `idParallel` in `make.mjs`).
   In your own work: start independent jobs together (a look and a selftest, a Manim render and a check),
   and never wait on one job while another could run.
@@ -361,8 +361,8 @@ every other check does, and formulas must act out the voice in both looks.
   Chatterbox (in `engine/tts/.venv`, GPU), Three.js, MathJax, Manim (in `engine/manim/.venv`) and LaTeX.
 - explainroo is used **only** for word timing inside `voice`. Never run `explainroo render`,
   `check` or `preview` in these projects: `scenes.js` here is for this engine.
-- **On this laptop the voice uses another environment's PyTorch** (`/path/to/other/.venv`, linked through
-  `engine/tts/.venv/shared-torch`) to save 7 GB of disk. If `make doctor` shows Chatterbox
+- **The voice env can use another environment's PyTorch** (linked through `engine/tts/.venv/shared-torch`)
+  to save 7 GB of disk. If `make doctor` shows Chatterbox
   failing after a change to that environment, see README.md ("Optional, to save about 7 GB").
 - To change only the music track or level (`_render.music`, `musicVolume`): `make render <dir> --remix` (no new frames), then `make verify`.
 - The render uses the NVIDIA GPU (Chrome drawing and WebGL, NVENC encode) when the engine finds one; the probe

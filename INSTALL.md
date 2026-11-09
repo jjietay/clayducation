@@ -39,8 +39,8 @@ git clone --depth 1 https://github.com/vincentsch/explainroo ~/.explainroo
   --override torch-overrides.txt --index https://download.pytorch.org/whl/cu128 --index-strategy unsafe-best-match \
   chatterbox-tts "setuptools<81")
 
-# Optional, to save about 7 GB: use the PyTorch of another environment instead (on the user's
-# laptop: /path/to/other/.venv, torch 2.11.0+cu128). Remove the voice env's own copy, link only
+# Optional, to save about 7 GB: use the PyTorch of another environment you already have
+# (torch 2.9 or newer, built for CUDA 12.8). Remove the voice env's own copy, link only
 # torch and its CUDA libraries in, and add the matching torchaudio:
 #   V=engine/tts/.venv; L=/path/to/other/.venv/lib/python3.12/site-packages
 #   uv pip uninstall --python $V/bin/python torch torchaudio triton $(ls $V/lib/python3.12/site-packages | grep -oE '^nvidia_[a-z0-9_]+' | sed 's/_/-/g' | sort -u)

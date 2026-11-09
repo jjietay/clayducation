@@ -1,4 +1,4 @@
-// Models for the the course computed torque video. Same rules as models.js: each part is a distance field,
+// Models for the computed torque video. Same rules as models.js: each part is a distance field,
 // it stands on y = 0, +z is its front, and JOINS lists what each connector must touch.
 import { smin, ell, cone, rbox, rcyl } from '../sdf.js';
 import { def, PAL } from '../models.js';

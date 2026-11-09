@@ -218,7 +218,7 @@ async function doctor() {
   const cb = fs.existsSync(TTS_PY) && spawnSync(TTS_PY, ['-c', 'import torch, chatterbox; print(torch.cuda.is_available())'], { encoding: 'utf8' });
   const shared = fs.existsSync(path.join(ENGINE, 'tts', '.venv', 'shared-torch'));
   const needCb = voiceEngine().startsWith('chatterbox');
-  line(!needCb || (!!cb && cb.status === 0), 'chatterbox', !needCb && !(cb && cb.status === 0) ? 'not used: the voice is Kokoro (make config)' : cb && cb.status === 0 ? `voice (GPU: ${cb.stdout.trim() === 'True' ? 'yes' : 'no, slow on CPU'}${shared ? "; PyTorch from /path/to/other/.venv" : ''})` : shared ? "fails: it uses /path/to/other/.venv's PyTorch, which changed or is gone. See README.md" : 'not installed: see README.md');
+  line(!needCb || (!!cb && cb.status === 0), 'chatterbox', !needCb && !(cb && cb.status === 0) ? 'not used: the voice is Kokoro (make config)' : cb && cb.status === 0 ? `voice (GPU: ${cb.stdout.trim() === 'True' ? 'yes' : 'no, slow on CPU'}${shared ? "; PyTorch shared from another environment" : ''})` : shared ? "fails: it uses another environment's PyTorch (shared-torch), which changed or is gone. See INSTALL.md" : 'not installed: see README.md');
   line(spawnSync('which', ['latex']).status === 0 && spawnSync('which', ['dvisvgm']).status === 0, 'latex', 'latex + dvisvgm, for Manim formulas', true);
   if (fs.existsSync(EXR)) {
     const r = spawnSync('node', [path.join(EXR, 'bin', 'explainroo.js'), 'doctor'], { encoding: 'utf8' });
@@ -255,7 +255,7 @@ function init() {
 // Whisper, as for a recording. A part = the words between two [pause] marks, read in
 // one call, so the tone carries across sentences; the pause is silence we add.
 const TTS_PY = path.join(ENGINE, 'tts', '.venv', 'bin', 'python');
-// Chatterbox-Turbo has its own environment: the main one shares PyTorch with ~/another environment (see README.md).
+// Chatterbox-Turbo has its own environment: the main one may share PyTorch with another environment (see INSTALL.md).
 const TURBO_PY = path.join(ENGINE, 'tts', '.venv-turbo', 'bin', 'python');
 // What Whisper hears in a spoken part (cached next to it).
 const LARGE_WHISPER = 'large-v3-turbo', HEAR = path.join(ENGINE, 'tts', 'hear.py');
@@ -1755,7 +1755,7 @@ function groupErrors(list) {
   return [...seen.values()].map((g) => (g.id && g.n > 1 ? `scene ${g.id} at ${g.from.toFixed(2)} to ${g.to.toFixed(2)} s (${g.n} frames): ${g.msg}` : g.line));
 }
 // The measures of each frame run in one page at a time, so one page used one core and the GPU idled (the
-// user found a 13-minute look that took 15 minutes on a 24-core laptop). Split the scenes over several pages
+// user found a 13-minute look that took 15 minutes on a 24-core machine). Split the scenes over several pages
 // that run at the same time, balanced by length, and join the results in time order.
 async function measureParallel(dir, tl, ids) {
   const K = Math.max(1, Math.min(renderCfg(dir).workers, ids.length));
