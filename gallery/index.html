@@ -25,6 +25,8 @@ button { font: inherit; color: inherit; }
 /* Layers, from the back: the chapter colour and its wipe, the words, the clay world, the controls. */
 #bg, #wipe { position: fixed; inset: 0; z-index: -2; }
 #wipe { z-index: -1; display: none; }
+/* The pen's blue: over everything, so the cut from the book to the files happens behind it. */
+#cover { position: fixed; inset: 0; z-index: 4; background: #4f86c6; opacity: 0; pointer-events: none; }
 /* Without scripts each chapter keeps its own colour. */
 .js .ch { background: none !important; }
 canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 1; pointer-events: none; }
@@ -75,6 +77,7 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 .prompt .top { display: flex; gap: 6px; margin-bottom: 14px; }
 .prompt .top i { width: 10px; height: 10px; border-radius: 50%; background: #4a4752; }
 .prompt .gt { color: var(--pink); font-weight: 600; }
+.prompt .say-it { display: block; max-height: calc(1.55em * 3); overflow: hidden; }   /* at most 3 rows */
 .prompt .topic { outline: none; border-bottom: 2px dashed rgba(233, 228, 218, .35); cursor: text; }
 .prompt .topic:focus { border-bottom-color: var(--pink); }
 .fly { position: fixed; z-index: 3; pointer-events: none; font: 400 17px/1.55 'JetBrains Mono', monospace; color: #1f1e24; white-space: pre; will-change: transform; }
@@ -120,7 +123,7 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 <script>document.documentElement.classList.add('js');</script>
 </head>
 <body>
-<div id="bg"></div><div id="wipe"></div>
+<div id="bg"></div><div id="wipe"></div><div id="cover"></div>
 
 <header class="bar">
   <a class="mark" href="#c0">Clayducation</a>
@@ -143,7 +146,7 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
     <h2 class="say bl">It starts with <b>one sentence</b>.</h2>
     <div class="prompt" aria-label="A prompt in Claude Code">
       <div class="top" aria-hidden="true"><i></i><i></i><i></i></div>
-      <span class="gt">&gt;</span> <span class="ask">Make a video on </span><span class="topic" contenteditable="plaintext-only" spellcheck="false" role="textbox" aria-label="Topic of the video">why computed torque control works</span>
+      <span class="say-it"><span class="gt">&gt;</span> <span class="ask">Make a video on </span><span class="topic" contenteditable="plaintext-only" spellcheck="false" role="textbox" aria-label="Topic of the video">why computed torque control works</span></span>
     </div>
     <p class="hint br">Select the topic to change it.</p>
   </div>
