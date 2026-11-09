@@ -322,7 +322,8 @@ export function createMascot(THREE, opts = {}) {
   const pose = {
     rest() { for (const a of arms) { a.shoulder.rotation.set(0, 0, a.sx * 0.2); a.elbow.rotation.set(-0.12, 0, 0); a.wrist.rotation.set(0, 0, 0); } for (const l of legs) { l.hip.rotation.set(0, 0, 0); l.ankle.rotation.set(0, 0, 0); } },
     wave() { pose.rest(); const a = arms[1]; a.shoulder.rotation.set(0, 0, 1.9); a.elbow.rotation.set(-0.15, 0, 1.3); },
-    point() { pose.rest(); const a = arms[1]; a.shoulder.rotation.set(-0.15, 0, 1.45); a.elbow.rotation.set(-0.4, 0, 0.12); },
+    // A bent arm below the shoulder, the hand open to the side: a straight raised arm can read as a salute.
+    point() { pose.rest(); const a = arms[1]; a.shoulder.rotation.set(-0.35, 0, 1.0); a.elbow.rotation.set(-0.95, 0, 0.1); },
     think() { pose.rest(); const a = arms[1]; a.shoulder.rotation.set(-1.35, -0.75, 0); a.elbow.rotation.set(-1.95, 0, 0); a.wrist.rotation.set(-0.15, 0, 0); },
   };
   function setExpression(e) {

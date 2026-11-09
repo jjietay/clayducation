@@ -148,6 +148,27 @@ for (const [i, s] of steps.entries()) {
       fs.rmSync(a);
       fs.symlinkSync(path.join(dir, path.relative(s.move, target)), a);
     }
+    // The Python environments keep absolute paths: the shared-torch .pth file and the script
+    // first lines. Write the new folder into them, or the voice cannot find PyTorch.
+    const oldPath = s.move + path.sep, newPath = dir + path.sep;
+    for (const venv of ['tts/.venv', 'tts/.venv-turbo', 'manim/.venv'].map((v) => path.join(dir, 'engine', v))) {
+      if (!fs.existsSync(venv)) continue;
+      const files = [];
+      const bin = path.join(venv, 'bin');
+      if (fs.existsSync(bin)) for (const f of fs.readdirSync(bin)) files.push(path.join(bin, f));
+      const lib = path.join(venv, 'lib');
+      for (const py of fs.existsSync(lib) ? fs.readdirSync(lib) : []) {
+        const site = path.join(lib, py, 'site-packages');
+        if (fs.existsSync(site)) for (const f of fs.readdirSync(site)) if (f.endsWith('.pth')) files.push(path.join(site, f));
+      }
+      files.push(path.join(venv, 'pyvenv.cfg'));
+      for (const f of files) {
+        const st = fs.lstatSync(f, { throwIfNoEntry: false });
+        if (!st?.isFile() || st.size > 1e6) continue;
+        const text = fs.readFileSync(f, 'latin1');
+        if (text.includes(oldPath)) fs.writeFileSync(f, text.replaceAll(oldPath, newPath), 'latin1');
+      }
+    }
     continue;
   }
   if (s.link === 'agents') {
