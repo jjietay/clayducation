@@ -7,7 +7,7 @@
 // The mascot is the one thing that stays: he is sculpted out of the clay and goes through the whole pipeline.
 
 import * as THREE from 'three';
-import { createMascot, studio, CACHE } from './world/clay/mascot.js';
+import { createMascot, studio, CACHE, EXPRESSIONS } from './world/clay/mascot.js';
 import { buildModel } from './world/clay/models.js';
 
 const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -26,7 +26,7 @@ let dt = 1 / 60, lastT = now();
 const damp = (a, b, rate) => a + (b - a) * (1 - Math.exp(-rate * dt));
 
 // ---------- the world layout: where each set stands ----------
-const S1 = [10, 0], S2 = [45.5, 2.4], WX0 = 50, WX1 = 72, WZ = 1.2, CX = 82, KK = 2.4, FX = 92, S7 = [116, 0];
+const S1 = [10, 0], S2 = [34, 2.4], WX0 = 50, WX1 = 72, WZ = 1.2, CX = 82, KK = 2.4, FX = 92, S7 = [116, 0];
 const FACE = CX + (0.3 + 0.82) * KK + 0.04;   // the +x face of the cart body at rest
 
 // ---------- the timeline ----------
@@ -40,9 +40,8 @@ function plan() {
   for (let j = 0; j < chs.length; j++) {
     segs.push({ j, kind: 'act', y, len: ACT[j] }); y += ACT[j];
     if (j === chs.length - 1) break;
-    const tr = C[j].next || 'walk';
-    const len = tr === 'pen' ? 2.4 : Math.max(1.3, route(j).total / WALK);
-    segs.push({ j, kind: tr, y, len }); y += len;
+    const len = Math.max(1.3, route(j).total / WALK);
+    segs.push({ j, kind: 'walk', y, len }); y += len;
   }
   total = y;
   $('#track').style.height = `${(total + 1) * innerHeight}px`;
@@ -56,6 +55,8 @@ function where(y) {
   }
 }
 // For the page's own checks: the scroll position of chapter j at t, or of the transition after it at u.
+window.__claySets = C;   // for the page's own checks
+window.__clayCam = () => cam && { p: cam.position.toArray().map((v) => +v.toFixed(3)), o: [cam.view?.offsetX, cam.view?.offsetY] };
 window.__clayAt = (j, f, tr) => { const s = segs.find((x) => x.j === j && (tr ? x.kind !== 'act' : x.kind === 'act')); return (s.y + f * s.len) * innerHeight; };
 const yOf = (j, t = 0) => { const s = segs.find((x) => x.kind === 'act' && x.j === j); return (s.y + t * s.len) * innerHeight; };
 
@@ -99,7 +100,8 @@ function words(s) {
     if (j === 0) q = Math.min(q, (now() - born) / 1500 - 0.2);
     // Shown while it plays; fades out in the first 12 % of the transition out, in during the last 15 % of the one in.
     const vis = q >= 0 && q <= 1 ? 1 : q > 1 ? 1 - sm(1, 1.12, q) : sm(-0.15, 0, q);
-    c.style.opacity = vis; c.style.visibility = vis > 0.002 ? 'visible' : 'hidden';
+    const shown = vis * (focus.obj ? 1 - clamp(focus.k * 1.6) : 1);
+    c.style.opacity = shown; c.style.visibility = shown > 0.002 ? 'visible' : 'hidden';
     c.querySelectorAll('.say .w').forEach((w, k) => w.style.setProperty('--in', still ? 1 : sm(-0.15 + k * 0.03, 0.08 + k * 0.03, q)));
     const b = $('.say b', c); if (b) b.style.setProperty('--k', still ? 1 : sm(0.06, 0.18, q));
   });
@@ -173,18 +175,40 @@ async function load(name) {
 // ---------- the mascot ----------
 const clip = new THREE.Plane(new THREE.Vector3(0, 1, 0), 1000);   // cuts him below a height, for the sculpting
 function place(x, z, face, o = {}) { H.place(x, z, { face, ...o }); }
-// His head turns to a point (or to the pointer) through a damped spring, never in steps.
-const gaze = { yaw: 0, pitch: 0, k: 0 };
-function lookAt(point, k) {
+// Smooth: the chapters only say what they want (an expression, where to look, a pose); at the end of each frame
+// the mascot eases from where he was towards it. So nothing on him changes in one frame: not his face when a
+// chapter ends, not his head when it turns, not his arms when he lets go.
+const mixVal = (a, b, k) => typeof a === 'number' ? a + ((b ?? a) - a) * k : Array.isArray(a) ? a.map((v, i) => mixVal(v, b?.[i], k))
+  : Object.fromEntries([...new Set([...Object.keys(a), ...Object.keys(b || {})])].map((key) => [key, a[key] === undefined ? b[key] : mixVal(a[key], b?.[key], k)]));
+const want = { face: null, look: null };
+const gaze = { yaw: 0, pitch: 0, k: 0 }, ease = { face: null, q: new Map() };
+let realSetExpression = null;
+// A chain of blends (a to b, then b to c) works as before: a later blend at 0 leaves the earlier one.
+function blendFace(a, b, k) { if (want.face && k <= 0.001) return; want.face = mixVal(EXPRESSIONS[a] || a, EXPRESSIONS[b] || b, clamp(k)); }
+function lookAt(point, k) { if (H) want.look = { point: point ? point.clone() : null, k }; }
+function settle() {
   if (!H) return;
-  const head = H.headPivot, at = head.getWorldPosition(new THREE.Vector3());
-  let target = point;
+  const f = want.face || EXPRESSIONS.neutral;
+  ease.face = ease.face ? mixVal(ease.face, f, 1 - Math.exp(-6 * dt)) : mixVal(f, f, 0);
+  realSetExpression(ease.face);
+  // The head: towards the point or the pointer, through a damped spring.
+  const L = want.look || { point: null, k: 0 }, head = H.headPivot, at = head.getWorldPosition(new THREE.Vector3());
+  let target = L.point;
   if (!target) { ray.setFromCamera(new THREE.Vector2(pn.sx, pn.sy), cam); target = cam.position.clone().addScaledVector(ray.ray.direction, cam.position.distanceTo(at)); }
   const d = head.parent.worldToLocal(target.clone()).sub(head.position);
-  gaze.yaw = damp(gaze.yaw, clamp(Math.atan2(d.x, d.z), -0.7, 0.7), 7); gaze.pitch = damp(gaze.pitch, clamp(Math.atan2(d.y, Math.hypot(d.x, d.z)), -0.4, 0.4), 7);
-  gaze.k = damp(gaze.k, k, 4);
-  if (gaze.k > 0.01) { head.rotation.y += gaze.yaw * gaze.k; head.rotation.x -= gaze.pitch * gaze.k; }
+  gaze.yaw = damp(gaze.yaw, clamp(Math.atan2(d.x, d.z), -0.7, 0.7), 5); gaze.pitch = damp(gaze.pitch, clamp(Math.atan2(d.y, Math.hypot(d.x, d.z)), -0.4, 0.4), 5);
+  gaze.k = damp(gaze.k, L.k, 3);
+  head.rotation.y += gaze.yaw * gaze.k; head.rotation.x -= gaze.pitch * gaze.k;
   const b = (now() / 1000) % 4.1; if (b < 0.16) H.blink(Math.sin(b / 0.16 * Math.PI));
+  // Arms, legs and the body's turn: each eases from its last angle to the new one.
+  const parts = [...H.arms.flatMap((a) => [a.shoulder, a.elbow, a.wrist]), ...H.legs.flatMap((l) => [l.hip, l.ankle]), H.root];
+  const k = 1 - Math.exp(-14 * dt);
+  for (const o of parts) { const q = o.quaternion.clone(), was = ease.q.get(o); if (was) o.quaternion.copy(was).slerp(q, o === H.root ? 1 - Math.exp(-9 * dt) : k); ease.q.set(o, o.quaternion.clone()); }
+  // His body's place too (a lean moves it): eased, except a real jump of the scene, which it follows at once.
+  const p = H.root.position.clone();
+  if (ease.p && ease.p.distanceTo(p) < 2) H.root.position.copy(ease.p.lerp(p, 1 - Math.exp(-16 * dt)));
+  ease.p = H.root.position.clone();
+  want.face = null; want.look = null;
 }
 let happyAt = -1e9;
 const happy = () => clamp(1 - Math.abs((now() - happyAt) / 1000 - 0.9) / 0.9);
@@ -277,6 +301,7 @@ C[0] = {
     for (const list of key.values()) if (list.length > 1) this.twins.push(list);
     this.mat = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.86, sheen: 0.22, sheenRoughness: 0.7, sheenColor: new THREE.Color('#ffd9bf'), specularIntensity: 0.12, normalMap: clayNormals(), normalScale: new THREE.Vector2(0.95, 0.95) });
     this.lump = new THREE.Mesh(g, this.mat); this.lump.position.set(0, 0, 0.6); put(this.lump);
+    this.lump.frustumCulled = false;   // its shape changes every frame; its first bounds would be wrong
     this.sh = shadow(5.5, 4.5, 0, 0.6, 0.55);
     // Crumbs: bits of clay that fall from the cut line while he comes out, and stay on the floor.
     const cg = new THREE.IcosahedronGeometry(0.2, 2), cm = new THREE.MeshPhysicalMaterial({ color: '#b97e5e', roughness: 0.9, sheen: 0.2 });
@@ -317,6 +342,9 @@ C[0] = {
       this.temp[i] = tp;
     }
     if (hard) moved = true;
+    // Upload the shape on every frame while the lump shows: with a still buffer, the headless GPU path
+    // sometimes drew a frame without the lump.
+    if (L.visible) moved = true;
     if (moved) {
       const P = L.geometry.attributes.position, col = L.geometry.attributes.color;
       for (let i = 0; i < n; i++) {
@@ -331,7 +359,7 @@ C[0] = {
       P.needsUpdate = true; col.needsUpdate = true; L.geometry.computeVertexNormals();
       const N = L.geometry.attributes.normal, a = new THREE.Vector3();
       for (const list of this.twins) { a.set(0, 0, 0); for (const i of list) a.add(v.fromBufferAttribute(N, i)); a.normalize(); for (const i of list) N.setXYZ(i, a.x, a.y, a.z); }
-      N.needsUpdate = true; this.dirty = false;
+      N.needsUpdate = true; L.geometry.computeBoundingSphere(); this.dirty = false;
     }
     // Crumbs fall from the cut line at the moment it passes them, and stay on the floor.
     this.crumbs.forEach((m) => {
@@ -364,7 +392,7 @@ topicEl.addEventListener('input', () => { topic = topicEl.textContent.trim() || 
 const askEl = $('.prompt .ask'), fullAsk = askEl.textContent, PEN = '#4f86c6';
 let pen = null;   // the pen: it writes in chapter 1, flies through the camera, and writes the files in chapter 2
 C[1] = {
-  start: [S1[0], S1[1] - 1.9, 0], end: [S1[0], S1[1] - 1.9, 0], next: 'pen',
+  start: [S1[0], S1[1] - 1.9, 0], end: [S1[0], S1[1] - 1.9, 0], via: [[S1[0] + 3.5, 3.4], [S2[0] - 4, 3.4]],
   build() {
     this.table = model('table', { x: S1[0], z: S1[1], k: 1.15 });
     const top = 2.76 * 1.15;
@@ -431,6 +459,7 @@ const FILES = [
   ['scenes.js', ["scene('cancel', {", '  bg: BG.sand,', '  async setup(s) {', "    s.j = await s.g.model('joint');", '    s.hero = await s.g.mascot();', '  },', '  draw(s) {', '    s.hero.hold(0, massAt(a));', '    s.e.draw(); s.g.render();', '  },', '});'], 'mono'],
 ];
 const PW = 4.0, PH = 5.2;
+const PEN_AXIS = new THREE.Vector3(Math.cos(0.28), 0, -Math.sin(0.28)), PEN_TIP = 0.66;   // the pen's axis and its nib tip, in its own units
 const WRITE = [[0.1, 0.32], [0.34, 0.56], [0.58, 0.76]], CHECK = [0.8, 0.94];
 const lineY = (j) => 0.19 + j * 0.072;
 C[2] = {
@@ -467,21 +496,48 @@ C[2] = {
     return m.localToWorld(new THREE.Vector3((xf - 0.5) * PW, (0.5 - lineY(j)) * PH + 0.1, 0.18));
   },
   onLine(i, j, f) { const m = this.pages[i]; m.updateMatrixWorld(true); return m.localToWorld(new THREE.Vector3((0.08 + 0.8 * f - 0.5) * PW, (0.5 - lineY(j)) * PH + 0.1, 0.18)); },
+  // The pen's pose with its nib tip on page i at (x, y) in the page's own units, lifted by `lift` off the page:
+  // the nib points into the page and down, as in a hand that writes.
+  nib(i, x, y, lift = 0) {
+    const m = this.pages[i]; m.updateMatrixWorld(true);
+    const q0 = m.getWorldQuaternion(new THREE.Quaternion()), n = new THREE.Vector3(0, 0, 1).applyQuaternion(q0);
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(q0), right = new THREE.Vector3(1, 0, 0).applyQuaternion(q0);
+    const dir = n.clone().multiplyScalar(-0.62).addScaledVector(up, -0.62).addScaledVector(right, 0.3).normalize();
+    const q = new THREE.Quaternion().setFromUnitVectors(PEN_AXIS, dir), sc = 1.25;
+    const tip = m.localToWorld(new THREE.Vector3(x, y, 0.015)).addScaledVector(n, lift);
+    return { p: tip.addScaledVector(dir, -PEN_TIP * sc), q, s: new THREE.Vector3(sc, sc, sc) };
+  },
+  // The point of the text where the writing on page i is at f (0 to 1), in the page's own units.
+  at(i, f) {
+    const m = this.pages[i]; let left = f * m.chars, j = 0;
+    while (j < m.lines.length - 1 && left > m.lines[j].length + 1) { left -= m.lines[j].length + 1; j++; }
+    const g = this.measure(i, j), xf = 0.08 + g * Math.min(1, left / Math.max(1, m.lines[j].length));
+    return [(xf - 0.5) * PW, (0.5 - lineY(j) + 0.012) * PH];
+  },
+  // How wide line j of page i is, as a part of the page's width (measured once with the page's own font).
+  measure(i, j) {
+    const m = this.pages[i]; m.widths ??= [];
+    if (m.widths[j] === undefined) { const g = document.createElement('canvas').getContext('2d'), w = 1024; g.font = m.kind === 'serif' ? `${w * 0.064}px "Instrument Serif"` : `${w * 0.043}px "JetBrains Mono"`; m.widths[j] = g.measureText(m.lines[j]).width / w; }
+    return m.widths[j];
+  },
+  blend(a, b, f, arc) { const p = a.p.clone().lerp(b.p, f); p.y += Math.sin(f * Math.PI) * arc; return { p, q: a.q.clone().slerp(b.q, f), s: a.s.clone().lerp(b.s, f) }; },
   penAt(t) {
-    // The pen writes each page in turn, hops between them, makes the check, then goes into his hand.
-    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.5, -0.3, -2.2));
-    let p;
+    // The pen writes each page in turn with its nib on the line, hops between pages, makes the check, then
+    // goes into his hand.
     const k = WRITE.findIndex(([a, b]) => t >= a && t < b);
-    if (k >= 0) { const [a, b] = WRITE[k], f = (t - a) / (b - a); p = this.tip(k, f); p.y += Math.abs(Math.sin(f * 120)) * 0.06; }
-    else if (t < WRITE[0][0]) p = this.tip(0, 0);
-    else if (t >= CHECK[0] && t < CHECK[1]) { const f = (t - CHECK[0]) / (CHECK[1] - CHECK[0]); p = f < 0.5 ? this.onLine(1, 6, f * 2) : this.onLine(1, 7, (f - 0.5) * 2); }
-    else if (t >= CHECK[1]) { const f = sm(CHECK[1], 1, t), hand = H ? H.arms[1].wrist.getWorldPosition(new THREE.Vector3()) : this.onLine(1, 7, 1); p = this.onLine(1, 7, 1).lerp(hand, f); p.y += Math.sin(f * Math.PI) * 1.2; }
-    else { // a hop between two pages, or to the check
-      const g = WRITE.findIndex(([a]) => t < a), a = g > 0 ? WRITE[g - 1][1] : WRITE[2][1], b = g >= 0 ? WRITE[g][0] : CHECK[0], f = sm(a, b, t);
-      const from = this.tip(g > 0 ? g - 1 : 2, 1), to = g >= 0 ? this.tip(g, 0) : this.onLine(1, 6, 0);
-      p = from.lerp(to, f); p.y += Math.sin(f * Math.PI) * 1.4;
+    if (k >= 0) { const [a, b] = WRITE[k], f = (t - a) / (b - a), [x, y] = this.at(k, f); return this.nib(k, x, y, Math.abs(Math.sin(f * 140)) * 0.05); }
+    if (t < WRITE[0][0]) { const [x, y] = this.at(0, 0); return this.nib(0, x, y, 0.6 * (1 - sm(0, WRITE[0][0], t))); }
+    const g6 = this.measure(1, 6), g7 = this.measure(1, 7), lx = (f, g) => (0.08 + g * f - 0.5) * PW, ly = (j) => (0.5 - lineY(j) + 0.012) * PH;
+    if (t >= CHECK[0] && t < CHECK[1]) { const f = (t - CHECK[0]) / (CHECK[1] - CHECK[0]); return f < 0.5 ? this.nib(1, lx(f * 2, g6), ly(6) + 0.08) : this.nib(1, lx((f - 0.5) * 2, g7), ly(7)); }
+    if (t >= CHECK[1]) {
+      const a = this.nib(1, lx(1, g7), ly(7)), hand = H ? H.arms[1].wrist.getWorldPosition(new THREE.Vector3()) : a.p, f = sm(CHECK[1], 1, t);
+      const b = { p: hand, q: a.q, s: a.s.clone().multiplyScalar(0.01) }; return this.blend(a, b, f, 1.2);
     }
-    return { p, q, s: new THREE.Vector3(1.25, 1.25, 1.25).multiplyScalar(Math.max(0.01, 1 - sm(0.97, 1, t))) };
+    // A hop between two pages, or to the check.
+    const g = WRITE.findIndex(([a]) => t < a), a0 = g > 0 ? WRITE[g - 1][1] : WRITE[2][1], b0 = g >= 0 ? WRITE[g][0] : CHECK[0], f = inOut(sm(a0, b0, t));
+    const from = (() => { const i = g > 0 ? g - 1 : 2, [x, y] = this.at(i, 1); return this.nib(i, x, y); })();
+    const to = g >= 0 ? (() => { const [x, y] = this.at(g, 0); return this.nib(g, x, y); })() : this.nib(1, lx(0, g6), ly(6) + 0.08);
+    return this.blend(from, to, f, 1.4);
   },
   act(t) {
     this.pages.forEach((m, i) => {
@@ -498,7 +554,7 @@ C[2] = {
     H.blendExpression('neutral', 'thinking', sm(0.1, 0.2, t)); H.blendExpression('thinking', 'surprised', sm(0.8, 0.84, t)); H.blendExpression('surprised', 'understanding', sm(0.92, 0.97, t));
     lookAt(pen.position, 1);
   },
-  shot(t) { return { at: [S2[0] - 6.5, 4.6, 0], dist: 27, az: -4 + 3 * pn.x, el: 7 - 2 * pn.y, sx: 0.1, sy: 0.1 }; },
+  shot(t) { return { at: [S2[0] - 5.6, 4.6, 0], dist: 28, az: -4 + 3 * pn.x, el: 7 - 2 * pn.y, sx: 0.05, sy: 0.1 }; },
 };
 
 // 3. Whisper times every word: the real waveform of one sentence; each word drops in at its Whisper time.
@@ -637,7 +693,8 @@ C[5] = {
     this.target.x = damp(this.target.x, want.x, 12); this.target.y = damp(this.target.y, want.y, 12); this.target.z = 0.62;
     if (!H) return;
     H.pose.rest(); place(F + 1.75, 0, -PI2, { lean: 0.1 });
-    H.hold(0, [F + 0.02, 2.6, -0.62], 1); H.hold(1, this.target.toArray(), 1);
+    const grip = sm(0, 0.06, t);   // his hands come onto the cart, not in one frame
+    H.hold(0, [F + 0.02, 2.6, -0.62], grip); H.hold(1, this.target.toArray(), grip);
     const reach = (H.grips || []).filter((g) => g.i === 1).reduce((a, g) => Math.max(a, g.gap), 0);
     const l = C[4].c.root.worldToLocal(this.target.clone()), gap = Math.max(0, this.body(l.x, l.y, l.z) * KK - 0.25);
     let text, ok = false;
@@ -645,7 +702,7 @@ C[5] = {
     else if (gap > 0.8) text = 'hand 1 holds nothing';
     else if (gap > 0.04) text = `hand 1 does not touch the cart body that it holds (gap ${gap.toFixed(2)})`;
     else { text = 'no faults: both hands touch the cart'; ok = true; }
-    if (msgEl.textContent !== text) msgEl.textContent = text;
+    if (msgEl.textContent !== text) { msgEl.textContent = text; msgEl.animate([{ opacity: 0.15 }, { opacity: 1 }], { duration: 240, easing: 'ease-out' }); }   // a new message fades in
     if (ok !== this.ok) { this.ok = ok; consoleEl.classList.toggle('ok', ok); ringEl.classList.toggle('ok', ok); }
     const [sx, sy] = toScreen(this.target);
     this.ring ??= [sx, sy]; this.ring[0] = damp(this.ring[0], sx, 14); this.ring[1] = damp(this.ring[1], sy, 14);
@@ -754,48 +811,53 @@ function shotAt(s) {
   const a = C[s.i].shot(s.t);
   if (!s.u) return a;
   const b = C[s.i + 1].shot(0);
-  if (s.kind === 'pen') return s.u < 0.5 ? a : b;   // the pen's blue hides the cut
   const u = pace(s.u), lift = still ? 0 : Math.sin(Math.PI * s.u), mid = (k) => lerp(a[k], b[k], u);
   return { at: a.at.map((v, i) => lerp(v, b.at[i], u)), dist: mid('dist') * (1 + 0.35 * lift), az: mid('az') - 18 * lift, el: mid('el') + 16 * lift, sx: mid('sx'), sy: mid('sy') };
 }
-// The pen from the book to the files: it flies into the camera (its blue fills the screen), then out of the
-// camera into the next set, to the first page.
-function penFlight(s) {
-  const u = s.u;
-  if (u < 0.5) {
-    const a = C[1].penAt(1), f = inOut(sm(0, 0.48, u)) ** 1.6;
-    const dirTo = cam.position.clone().sub(a.p).normalize(), near = cam.position.clone().addScaledVector(dirTo, -1.2);
-    pen.position.lerpVectors(a.p, near, f);
-    const axis = new THREE.Vector3(Math.cos(0.28), 0, -Math.sin(0.28)), qn = new THREE.Quaternion().setFromUnitVectors(axis, dirTo);
-    pen.quaternion.slerpQuaternions(a.q, qn, sm(0, 0.3, u)); pen.scale.copy(a.s).multiplyScalar(1 + 2 * f);
-  } else {
-    const b = C[2].penAt(0), f = inOut(sm(0.55, 1, u));
-    const dirFrom = cam.position.clone().sub(b.p).normalize(), near = cam.position.clone().addScaledVector(dirFrom, -1.2);
-    pen.position.lerpVectors(near, b.p, f); pen.quaternion.copy(b.q); pen.scale.copy(b.s).multiplyScalar(3 - 2 * f);
-  }
+// From the book to the files, the pen flies in a smooth arc to the first page while he walks there.
+function penBetween(s) {
+  const a = C[1].penAt(1), b = C[2].penAt(0), f = inOut(sm(0.05, 0.9, s.u));
+  const p = a.p.clone().lerp(b.p, f); p.y += Math.sin(f * Math.PI) * 3;
+  pen.position.copy(p); pen.quaternion.copy(a.q).slerp(b.q, f); pen.scale.copy(a.s).lerp(b.s, f);
 }
 
-// ---------- the colour of each chapter: a round, soft-edged circle of the next colour grows out of the mascot;
-// for the pen, the circle is the pen's blue, and it closes onto the pen in the next set ----------
+// ---------- the colour of each chapter: a soft bloom of the next colour grows out of the mascot ----------
 const bgEl = $('#bg'), wipeEl = $('#wipe');
-function circle(colour, cx, cy, r) {
-  const m = `radial-gradient(circle ${Math.max(0, r).toFixed(1)}px at ${cx.toFixed(1)}px ${cy.toFixed(1)}px, #000 ${Math.max(0, r - 1.2).toFixed(1)}px, transparent ${(r + 1.2).toFixed(1)}px)`;
+function circle(colour, cx, cy, r, soft = 1.2) {
+  const m = `radial-gradient(circle ${Math.max(0, r).toFixed(1)}px at ${cx.toFixed(1)}px ${cy.toFixed(1)}px, #000 ${Math.max(0, r - soft).toFixed(1)}px, transparent ${(r + 0.5).toFixed(1)}px)`;
   wipeEl.style.display = 'block'; wipeEl.style.background = colour; wipeEl.style.webkitMaskImage = m; wipeEl.style.maskImage = m;
 }
 const farFrom = (cx, cy) => Math.hypot(Math.max(cx, innerWidth - cx), Math.max(cy, innerHeight - cy)) * 1.02;
 function colours(s) {
   wipeEl.style.display = 'none';
   if (!(s.u > 0) || !chs[s.i + 1]) { bgEl.style.background = chs[s.i].dataset.bg; return; }
-  if (s.kind === 'pen' && cam && pen) {
-    bgEl.style.background = chs[s.u < 0.5 ? s.i : s.i + 1].dataset.bg;
-    const [cx, cy] = toScreen(pen.position), r = farFrom(cx, cy);
-    if (s.u < 0.5) circle(PEN, cx, cy, r * sm(0.3, 0.47, s.u)); else circle(PEN, cx, cy, r * (1 - sm(0.53, 0.72, s.u)));
-    return;
-  }
   bgEl.style.background = chs[s.i].dataset.bg;
   let cx = innerWidth / 2, cy = innerHeight / 2;
   if (H && cam) { [cx, cy] = toScreen(H.root.getWorldPosition(new THREE.Vector3())); cx = clamp(cx, 0, innerWidth); cy = clamp(cy, 0, innerHeight); }
-  circle(chs[s.i + 1].dataset.bg, cx, cy, farFrom(cx, cy) * (still ? (s.u > 0.5 ? 1 : 0) : inOut(sm(0.15, 0.85, s.u))));
+  // A soft bloom: its edge fades over 45 % of its radius, so the colour flows in.
+  const R0 = farFrom(cx, cy) / 0.55, r = R0 * (still ? (s.u > 0.5 ? 1 : 0) : Math.sqrt(sm(0.08, 0.92, s.u)));   // an even rate of area
+  circle(chs[s.i + 1].dataset.bg, cx, cy, r, r * 0.45);
+}
+
+// ---------- the morph: a set that the camera leaves sinks into the floor like soft clay, and the next one grows
+// out of it. Each set shrinks and grows about its own middle on the floor; nothing appears or goes in one frame.
+const MIDDLE = () => [[0, 0.6], S1, [S2[0] - 10.7, -0.8], [(WX0 + WX1) / 2, WZ], [CX, 0], [CX, 0], [FX, 0], S7];
+const setOf = (j) => (j === 5 ? 4 : j);
+function morph(g, k, [cx, cz]) {
+  if (!g) return;
+  g.visible = k > 0.002; g.scale.setScalar(Math.max(k, 0.002)); g.position.set(cx * (1 - k), 0, cz * (1 - k));
+}
+function morphs(s) {
+  const mid = MIDDLE(), k = {};
+  if (!(s.u > 0)) k[setOf(s.i)] = 1;
+  else {
+    const a = setOf(s.i), b = setOf(s.i + 1);
+    if (a === b) k[a] = 1;
+    else { k[a] = still ? (s.u < 0.5 ? 1 : 0) : 1 - inOut(sm(0.04, 0.5, s.u)); k[b] = still ? (s.u < 0.5 ? 0 : 1) : back(sm(0.48, 0.96, s.u)); }
+  }
+  for (let j = 0; j < C.length; j++) morph(C[j].g, k[j] || 0, mid[j]);
+  // The pen lies on the book, so it grows with the table.
+  if (pen && s.i === 0 && s.u > 0) { const kk = k[1] || 0, [cx, cz] = mid[1]; pen.position.set(cx + (pen.position.x - cx) * kk, pen.position.y * kk, cz + (pen.position.z - cz) * kk); pen.scale.multiplyScalar(Math.max(kk, 0.002)); pen.visible = kk > 0.002; }
 }
 
 // ---------- the camera ----------
@@ -856,22 +918,19 @@ function frame() {
   aim(shotAt(state));
   hover();
   if (H) { H.root.visible = true; clip.constant = 1000; }
-  if (pen) pen.visible = state.i === 1 || state.i === 2;
+  if (pen) pen.visible = state.i === 1 || state.i === 2 || (state.i === 0 && state.u > 0);
   for (let j = 0; j < C.length; j++) {
-    const live = j === state.i || (state.u > 0 && j === state.i + 1) || (j === 4 && state.i === 5);
-    if (C[j].g) C[j].g.visible = live;
     if (!C[j].ready || !(j === state.i || (state.u > 0 && j === state.i + 1))) continue;
     const keep = H; if (!(state.u === 0 && j === state.i)) H = null;
     C[j].act(j === state.i ? state.t : 0);
     H = keep;
   }
   if (state.u > 0 && C[state.i + 1]?.ready) {
-    if (state.kind === 'pen') {
-      penFlight(state);
-      // Behind the blue, he is already at the next set.
-      if (H) { if (state.u < 0.5) C[1].act(1); else C[2].act(0); }
-    } else walkBetween(state);
+    walkBetween(state);
+    if (state.i === 1 && pen) penBetween(state);
   } else walkFace = null;
+  morphs(state);
+  settle();
   aim(shotAt(state));
   stepFocus();
   colours(state);
@@ -904,6 +963,7 @@ async function boot() {
     const m = createMascot(THREE, {}); m.root.position.set(0, 6.82, 0.6); scene.add(m.root);
     m.root.traverse((o) => { if (o.isMesh) o.material.clippingPlanes = [clip]; });
     m.shadow = shadow(3.8, 2.4, 0, 0.6, 0.45); H = m; heroReady = true;
+    realSetExpression = m.setExpression; m.blendExpression = blendFace;
     for (const name of ['table', 'book', 'cart']) await load(name);
     for (let j = 1; j < C.length; j++) { group(j); C[j].build(); C[j].ready = true; }
     plan();
