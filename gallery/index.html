@@ -54,7 +54,7 @@ figcaption b { color: var(--ink); font-weight: 700; }
 .top nav a:hover, .top nav a:focus-visible { text-decoration-color: var(--strike); }
 .hero { display: grid; grid-template-columns: 5fr 7fr; gap: 0 clamp(32px, 5vw, 64px); align-items: start; padding: clamp(36px, 6vw, 80px) var(--gutter) clamp(72px, 9vw, 120px); }
 .hero h1 { grid-column: 1 / -1; }
-.hero h1 { font-size: clamp(52px, 12.5vw, 172px); line-height: .88; font-weight: 800; letter-spacing: -.05em; margin: 0 0 clamp(24px, 3vw, 40px); }
+.hero h1 { font-size: clamp(52px, 12.5vw, 172px); line-height: .88; font-weight: 800; letter-spacing: -.05em; margin: 0 0 clamp(24px, 3vw, 40px); padding-bottom: .14em; /* room for the descender of the y */ }
 .hero .lede { font-size: clamp(20px, 2vw, 25px); line-height: 1.4; font-weight: 500; margin: 0 0 18px; max-width: 26ch; }
 .hero p { max-width: 46ch; margin: 0 0 16px; }
 .ask { margin: 28px 0 30px; padding: 18px 22px; background: var(--cream); border-radius: var(--plate-sm); max-width: 46ch; }
