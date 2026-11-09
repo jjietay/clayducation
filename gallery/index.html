@@ -30,9 +30,14 @@ button { font: inherit; color: inherit; }
 canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 1; pointer-events: none; }
 
 /* A chapter: a tall stretch of scroll, with a pinned screen. The scroll plays the chapter. */
-.ch { position: relative; height: 300vh; }
-.ch:first-of-type { height: 260vh; }
-.pin { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; }
+.ch { position: relative; height: 100vh; }
+.pin { position: relative; height: 100vh; height: 100svh; overflow: hidden; }
+/* With scripts, each chapter's words stay in place on the screen, and app.js fades them in and out;
+   the page height is the length of the whole scroll (#track). */
+.js .ch { position: fixed; inset: 0; z-index: 2; height: auto; visibility: hidden; opacity: 0; pointer-events: none; }
+.js .ch .pin { position: absolute; inset: 0; height: auto; }
+.js .ch .prompt, .js .ch .cmd, .js .ch .graph, .js .ch a, .js .ch button { pointer-events: auto; }
+#track { position: relative; }
 #c0 .pin { user-select: none; }
 .dark { color: var(--paper); }
 
@@ -65,7 +70,7 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 @keyframes cue { to { top: 100%; } }
 
 /* 1: the prompt. */
-.prompt { position: absolute; z-index: 2; right: 6vw; top: 22vh; width: min(520px, 88vw); background: #1f1e24; color: #e9e4da; border-radius: 16px; padding: 18px 20px 20px;
+.prompt { position: absolute; z-index: 2; right: 4vw; top: 16vh; width: min(520px, 88vw); background: #1f1e24; color: #e9e4da; border-radius: 16px; padding: 18px 20px 20px;
   font: 400 17px/1.55 'JetBrains Mono', monospace; box-shadow: 0 30px 60px -30px rgba(20, 20, 30, .55); opacity: var(--in, 1); transform: translateY(calc((1 - var(--in, 1)) * 30px)); }
 .prompt .top { display: flex; gap: 6px; margin-bottom: 14px; }
 .prompt .top i { width: 10px; height: 10px; border-radius: 50%; background: #4a4752; }
@@ -74,18 +79,18 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 .prompt .topic:focus { border-bottom-color: var(--pink); }
 .fly { position: fixed; z-index: 3; pointer-events: none; font: 400 17px/1.55 'JetBrains Mono', monospace; color: #1f1e24; white-space: pre; will-change: transform; }
 
-/* 4: the formula, as flat text over the 3D, like eqn.js in the videos. */
-.eqn { position: absolute; z-index: 2; right: 22vw; top: 20vh; font: 400 clamp(34px, 3.6vw, 60px)/1 'Instrument Serif', serif; color: var(--ink); white-space: nowrap; }
-.eqn .row { position: absolute; left: 0; top: 0; display: flex; align-items: baseline; gap: .18em; transform: translateX(-50%); }
-.eqn .p { display: inline-block; position: relative; }
-.eqn .M { color: #1f5fbf; } .eqn .b { color: var(--plum); } .eqn .v { font-style: italic; }
-.eqn .p.s::after { content: ""; position: absolute; left: -10%; right: -10%; top: 52%; height: .08em; background: var(--pink); transform-origin: left; transform: scaleX(var(--s, 0)) rotate(-12deg); }
+/* 4: the graph of the cart, drawn frame by frame. */
+.graph { position: absolute; right: 6vw; top: 16vh; width: min(40vw, 560px); height: min(24vw, 330px); cursor: crosshair; }
 
-/* 5: the check message and the ring round hand 1. */
-.msg { position: absolute; z-index: 2; left: 0; top: 0; max-width: min(460px, 80vw); margin: 0; padding: 10px 14px; border-radius: 10px; font: 600 14px/1.4 'JetBrains Mono', monospace; color: #fff; background: var(--pink);
-  box-shadow: 0 10px 22px -12px rgba(20, 20, 30, .6); transition: background .2s; }
-.msg.ok { background: var(--pass); }
-.ring { position: absolute; z-index: 2; left: -34px; top: -34px; width: 68px; height: 68px; border: 4px solid var(--pink); border-radius: 50%; pointer-events: none; transition: border-color .2s; }
+/* 5: the console of "make look", and the ring round hand 1. */
+.console { position: absolute; left: 5vw; top: 52vh; width: min(470px, 40vw); padding: 14px 16px 16px; border-radius: 14px; background: #1f1e24; color: #e9e4da;
+  font: 500 14px/1.45 'JetBrains Mono', monospace; box-shadow: 0 24px 50px -28px rgba(20, 20, 30, .6); }
+.console .cmdname { display: block; color: #9a96a6; margin-bottom: 8px; }
+.console .cmdname::before { content: "$ "; color: var(--pink); }
+.console .line { display: flex; gap: 10px; align-items: baseline; }
+.console .line i { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--pink); transition: background .2s; }
+.console.ok .line i { background: #5fc27a; }
+.ring { position: fixed; z-index: 3; left: -30px; top: -30px; width: 60px; height: 60px; border: 3px solid var(--pink); border-radius: 50%; pointer-events: none; opacity: 0; transition: border-color .25s; }
 .ring.ok { border-color: var(--pass); }
 
 /* 7: the command. */
@@ -109,7 +114,6 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
   .cmd { top: auto; bottom: 8vh; transform: none; right: 5vw; }
   .dots { right: 8px; }
   .still { width: 90vw; top: 58%; }
-  .eqn { right: 50vw; top: 34vh; }
 }
 @media (prefers-reduced-motion: reduce) { .cue::after { animation: none; } }
 </style>
@@ -125,6 +129,7 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 <nav class="dots" aria-label="Chapters"></nav>
 
 <main>
+<div id="track" aria-hidden="true"></div>
 <section class="ch dark" id="c0" data-bg="#14161f" style="background:#14161f" data-name="Clay">
   <div class="pin">
     <h1 class="say bl">Teaching videos, made of <b>clay and code</b>.</h1>
@@ -147,7 +152,7 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 <section class="ch" id="c2" data-bg="#e4d3b7" style="background:#e4d3b7" data-name="Three files">
   <div class="pin">
     <h2 class="say tl">Claude writes <b>three files</b>.</h2>
-    <p class="hint bl"><span class="mouse">Put the pointer on a page to read it.</span><span class="touch">An agent checks every fact.</span></p>
+    <p class="hint bl">Select a page to read it. Select outside it to go back.</p>
   </div>
 </section>
 
@@ -161,18 +166,17 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 <section class="ch" id="c4" data-bg="#a9c4cf" style="background:#a9c4cf" data-name="Every frame">
   <div class="pin">
     <h2 class="say tl">Code draws <b>every frame</b>.</h2>
-    <div class="eqn" aria-label="tau equals M v plus beta; beta cancels, then M cancels; q double dot equals v"></div>
-    <p class="hint bl"><span class="mouse">Drag to turn the camera.</span><span class="touch">Scroll back, and it plays backwards.</span></p>
-    <img class="still" src="png/clay-cancel.png" alt="The mascot holds a link on a motor while beta cancels in the formula.">
+    <canvas class="graph" aria-label="A graph of the cart's position x against time t, drawn frame by frame"></canvas>
+    <p class="hint bl"><span class="mouse">Put the pointer on the graph: a ghost cart shows where the cart was at that time.</span><span class="touch">Scroll back, and it plays backwards.</span></p>
   </div>
 </section>
 
 <section class="ch" id="c5" data-bg="#e6bfae" style="background:#e6bfae" data-name="Checks">
   <div class="pin">
     <h2 class="say tl">Nothing renders until the <b>checks pass</b>.</h2>
-    <p class="msg" aria-live="polite"></p>
+    <div class="console" aria-live="polite"><span class="cmdname">make look</span><span class="line"><i></i><span class="msg"></span></span></div>
     <div class="ring" aria-hidden="true"></div>
-    <p class="hint bl"><span class="mouse">Move the pointer: his hand follows it, and the engine's real hold check runs.</span><span class="touch">Scroll, and his hand moves onto the cart.</span></p>
+    <p class="hint bl"><span class="mouse">Move the pointer: his hand follows it, and the hold check of the clay kit runs on every frame.</span><span class="touch">Scroll, and his hand moves onto the cart.</span></p>
     <img class="still" src="png/check-strip.png" alt="A movement strip from a build, with its check digit.">
   </div>
 </section>
@@ -180,7 +184,7 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 <section class="ch dark" id="c6" data-bg="#27324a" style="background:#27324a" data-name="The MP4">
   <div class="pin">
     <h2 class="say tl">The result is a <b>real MP4</b>.</h2>
-    <p class="hint bl"><span class="mouse">Put the pointer on a frame to play it.</span><span class="touch">Frames from six finished videos.</span></p>
+    <p class="hint bl">Select a frame to play it. Select outside it to go back.</p>
     <img class="still" src="png/ipcv/shadow.png" alt="A frame from a finished video: the mascot holds up a screen with a shadow on it.">
   </div>
 </section>

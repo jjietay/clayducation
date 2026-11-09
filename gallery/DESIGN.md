@@ -17,14 +17,19 @@ cancel in `eqn.js`. The demos keep the words that are part of them. There is no 
 
 | # | Statement | Scroll | Pointer |
 |---|---|---|---|
-| 0 | Teaching videos, made of clay and code. | the lump squashes and stretches; he pops out in a burst of crumbs and waves | a press dents the clay; with the button down the dent stays |
-| 1 | It starts with one sentence. | the prompt types itself; its words fly into the book he holds | the topic can be typed; it becomes the title card in chapter 6 |
-| 2 | Claude writes three files. | three pages fan out; the script agent strikes a wrong fact and writes the fix | a page lifts to be read |
-| 3 | Whisper times every word. | he walks along the real waveform of one sentence; each word drops in at its Whisper time | the word under the pointer lifts and its bars light |
-| 4 | Code draws every frame. | he holds the link; the β ring grows; he lets go and the link stays; β cancels, then M | a drag turns the camera |
-| 5 | Nothing renders until the checks pass. | hand 1 moves onto the cart; the message goes from red to green | hand 1 follows the pointer; the hold checks of the clay kit run with their real messages |
-| 6 | The result is a real MP4. | a film strip rolls out of his hands: the title card, then frames of six finished videos | a frame plays its clip |
+| 0 | Teaching videos, made of clay and code. | the lump squashes, rises into a column his size, and the clay falls away from the top: he is sculpted out of it, with crumbs | a press dents the clay; with the button down the dent stays |
+| 1 | It starts with one sentence. | the prompt types itself; its words fly into the book on the table; the pen taps, vibrates faster and faster, and flies into the camera: its blue is the cut to chapter 2 | the topic can be typed; it becomes the title card in chapter 6 |
+| 2 | Claude writes three files. | the pen comes out of the camera and writes the pages line by line; the script agent strikes a wrong fact and writes the fix; he watches the pen | a click brings a page to the camera; a click outside sends it back |
+| 3 | Whisper times every word. | he walks along the real waveform of one sentence; each word drops in at its Whisper time | the word under the pointer lifts and its bars turn green |
+| 4 | Code draws every frame. | he pushes the cart against its spring and lets go; the graph of x(t) draws itself with a frame counter | on the graph, a ghost cart shows where the cart was at that time |
+| 5 | Nothing renders until the checks pass. | the same cart, closer: hand 1 moves onto it; the console goes from red to green | hand 1 follows the pointer; the hold checks of the clay kit run with their real messages |
+| 6 | The result is a real MP4. | a film strip rolls out of his hands: the title card, then frames of six finished videos | a click brings a frame to the camera and plays its clip |
 | 7 | Install it with one command. | he points at the command | Copy makes him wave |
+
+The scroll is a timeline (`plan()` in `app.js`): each chapter has its own length, and each walk between two
+sets has a length that matches its distance, so he always walks at the same pace. The wheel scroll is
+smoothed. Each statement stays in place on the screen: it fades out before a transition and rises in after
+it, so no text moves between chapters. A colour change is a round circle that grows out of the mascot.
 
 Motion rules: the head and the camera follow the pointer through damped springs, never in steps. With
 reduced motion, nothing moves by itself; the scroll still plays each chapter. On a narrow screen the set

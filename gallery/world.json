@@ -1,4 +1,4 @@
 {
   "out": "world",
-  "models": ["joint", "book", "cart"]
+  "models": ["book", "table", "cart"]
 }
