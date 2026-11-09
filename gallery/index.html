@@ -4,355 +4,195 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Clayducation</title>
-<meta name="description" content="A Claude Code skill that makes narrated teaching videos. Every picture is soft 3D clay, with one silent mascot who does the work. Code draws and measures every frame.">
+<meta name="description" content="A Claude Code skill that makes narrated teaching videos in clay. Scroll through the pipeline: one sentence in, a checked MP4 out.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
-<!-- Design notes: DESIGN-NOTES.md in this folder. -->
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+<script type="importmap">{ "imports": { "three": "./world/three.module.min.js" } }</script>
+<!-- How the page works and why: DESIGN.md in this folder. -->
 <style>
-/* The page is built like one of the videos: each section is a part with its own plain clay
-   background (the BG colours in styles/library/clay.js), and two parts next to each other never
-   share a colour. Text is dark ink on every background except navy. */
 :root {
-  --sky: #a9c4cf; --sand: #e4d3b7; --navy: #27324a; --lilac: #b9b3cf; --blush: #e6bfae; --clay: #c98f6b; --cream: #f0e7d6;
-  --ink: #26262a; --ink-2: #3d3a44; --paper-ink: #f3ede2; --paper-ink-2: #c9c6d6;
-  --strike: #d6336c;            /* the pink of a cancel strike in eqn.js */
-  --plate: 22px; --plate-sm: 14px;
-  --wrap: 1180px; --gutter: clamp(16px, 4vw, 40px);
+  --ink: #26262a; --paper: #f3ede2; --pink: #d6336c; --pass: #2f7d45; --plum: #8e3f8f;
+  --say: clamp(40px, 6.6vw, 112px);
 }
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
-body { margin: 0; background: var(--sky); color: var(--ink); font: 400 17px/1.6 'Plus Jakarta Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
-img, video { display: block; max-width: 100%; height: auto; }
-a { color: inherit; text-decoration: underline; text-decoration-color: var(--strike); text-decoration-thickness: 3px; text-underline-offset: 4px; }
-a:hover { text-decoration-thickness: 5px; }
-:focus-visible { outline: 3px solid var(--strike); outline-offset: 3px; border-radius: 4px; }
-code, pre { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: .86em; }
-code { background: rgba(38, 38, 42, .08); padding: .08em .35em; border-radius: 6px; }
-.wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 var(--gutter); }
-.part { padding: clamp(64px, 9vw, 120px) 0; }
-.part h2 { font-size: clamp(34px, 4.6vw, 54px); line-height: 1.04; font-weight: 800; letter-spacing: -.02em; margin: 0 0 18px; max-width: 16ch; }
-.part .intro { font-size: clamp(18px, 1.6vw, 21px); line-height: 1.55; max-width: 60ch; margin: 0 0 40px; color: var(--ink-2); }
-.part .intro a { white-space: nowrap; }
+html { background: #14161f; }
+body { margin: 0; color: var(--ink); font: 500 16px/1.5 'Plus Jakarta Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; overflow-x: clip; }
+a { color: inherit; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--pink); outline-offset: 3px; border-radius: 6px; }
 
-/* A picture sits on a soft contact shadow, like a model in the clay studio. */
-.sits { margin: 0 0 40px; }
-.sits > a, .sits > .screen { position: relative; display: block; }
-.sits > a::after, .sits > .screen::after { content: ""; position: absolute; left: 7%; right: 7%; bottom: -26px; height: 30px; border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(20, 20, 30, .32), rgba(20, 20, 30, 0)); z-index: 0; pointer-events: none; }
-.sits img, .sits video { position: relative; z-index: 1; border-radius: var(--plate); }
-.sits.small img { border-radius: var(--plate-sm); }
-figcaption { font-size: 15px; line-height: 1.5; color: var(--ink-2); margin-top: 36px; max-width: 62ch; }
-figcaption b { color: var(--ink); font-weight: 700; }
+/* Layers, from the back: the chapter colour and its wipe, the words, the clay world, the controls. */
+#bg, #wipe { position: fixed; inset: 0; z-index: -2; }
+#wipe { z-index: -1; transform: translateX(100%); }
+canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 1; pointer-events: none; }
 
-/* ---------- part 1: sky ---------- */
-.top { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; align-items: center; padding-top: 22px; }
-.top .repo { font-weight: 700; text-decoration: none; }
-.top nav { display: flex; flex-wrap: wrap; gap: 4px 22px; font-weight: 500; }
-.top nav a { text-decoration-color: transparent; }
-.top nav a:hover, .top nav a:focus-visible { text-decoration-color: var(--strike); }
-.hero { display: grid; grid-template-columns: 5fr 7fr; gap: 0 clamp(32px, 5vw, 64px); align-items: start; padding: clamp(36px, 6vw, 80px) var(--gutter) clamp(72px, 9vw, 120px); }
-.hero h1 { grid-column: 1 / -1; }
-.hero h1 { font-size: clamp(52px, 12.5vw, 172px); line-height: .88; font-weight: 800; letter-spacing: -.05em; margin: 0 0 clamp(24px, 3vw, 40px); padding-bottom: .14em; /* room for the descender of the y */ }
-.hero .lede { font-size: clamp(20px, 2vw, 25px); line-height: 1.4; font-weight: 500; margin: 0 0 18px; max-width: 26ch; }
-.hero p { max-width: 46ch; margin: 0 0 16px; }
-.ask { margin: 28px 0 30px; padding: 18px 22px; background: var(--cream); border-radius: var(--plate-sm); max-width: 46ch; }
-.ask p { margin: 0 0 6px; font-size: 15px; color: var(--ink-2); }
-.ask q { display: block; font-weight: 700; font-size: 18px; quotes: none; }
-.actions { display: flex; flex-wrap: wrap; gap: 14px 26px; align-items: center; }
-.button { display: inline-block; background: var(--ink); color: var(--paper-ink); text-decoration: none; font-weight: 700; padding: 13px 24px; border-radius: 999px; }
-.button:hover { background: #000; }
-.screen { position: relative; }
-.screen video { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--sand); }
-.screen button { z-index: 2; position: absolute; right: 14px; bottom: 14px; font: 700 14px/1 'Plus Jakarta Sans', sans-serif; color: var(--ink);
-  background: rgba(240, 231, 214, .92); border: 0; border-radius: 999px; padding: 9px 15px; cursor: pointer; }
+/* A chapter: a tall stretch of scroll, with a pinned screen. The scroll plays the chapter. */
+.ch { position: relative; height: 300vh; }
+.ch:first-of-type { height: 260vh; }
+.pin { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; }
+.dark { color: var(--paper); }
 
-/* The badge for the new clay look: one sticker, tilted like a label stuck on by hand. */
-.new { display: inline-block; background: var(--strike); color: #fff; font-weight: 800; font-size: 15px; letter-spacing: .02em;
-  padding: 6px 12px 5px; border-radius: 8px; transform: rotate(-4deg); box-shadow: 0 6px 10px -6px rgba(20, 20, 30, .45); vertical-align: middle; }
-.hero .new { margin: 0 0 14px; }
-.p-navy .new { margin-left: 12px; transform: rotate(-4deg) translateY(-6px); }
-/* ---------- classic: cream ---------- */
-.p-cream { background: var(--cream); }
-.classic { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px 28px; }
-.classic figure { margin: 0; }
-@media (max-width: 900px) { .classic { grid-template-columns: 1fr 1fr; } }
-@media (max-width: 560px) { .classic { grid-template-columns: 1fr; } }
+/* The one statement of each chapter. Its words rise in; the key word gets the pink strike under it. */
+.say { position: absolute; margin: 0; font-size: var(--say); line-height: .98; font-weight: 800; letter-spacing: -.035em; max-width: 11ch; }
+.say .w { display: inline-block; transform: translateY(calc((1 - var(--in, 1)) * 0.9em)) rotate(calc((1 - var(--in, 1)) * 4deg)); opacity: var(--in, 1); }
+.say b { font-weight: 800; position: relative; white-space: nowrap; }
+.say b::after { content: ""; position: absolute; left: -.04em; right: -.04em; bottom: .06em; height: .13em; background: var(--pink); border-radius: .1em;
+  transform-origin: left; transform: scaleX(var(--k, 1)); }
+.say.bl { left: 5vw; bottom: 9vh; } .say.tl { left: 5vw; top: 12vh; } .say.tr { right: 5vw; top: 12vh; text-align: right; } .say.br { right: 5vw; bottom: 9vh; text-align: right; }
+.hint { position: absolute; z-index: 2; margin: 0; font-size: 14px; font-weight: 700; letter-spacing: .02em; opacity: .7; }
+.hint.bl { left: 5vw; bottom: 4vh; } .hint.br { right: 5vw; bottom: 4vh; } .hint.tl { left: 5vw; top: 6.5vh; }
+@media (pointer: coarse) { .mouse { display: none; } }
+@media (pointer: fine) { .touch { display: none; } }
 
-/* ---------- part 2: sand ---------- */
-.p-sand { background: var(--sand); }
-.steps { list-style: none; counter-reset: step; padding: 0; margin: 64px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 34px 56px; }
-.steps li { counter-increment: step; display: grid; grid-template-columns: 46px 1fr; gap: 0 14px; align-content: start; }
-.steps li::before { content: counter(step); grid-row: span 2; width: 38px; height: 38px; border-radius: 50%; background: var(--cream);
-  display: grid; place-items: center; font-weight: 800; font-size: 16px; box-shadow: 0 6px 10px -6px rgba(20, 20, 30, .35); }
-.steps h3 { margin: 4px 0 4px; font-size: 18px; font-weight: 800; }
-.steps p { margin: 0; color: var(--ink-2); max-width: 52ch; }
+/* The top bar and the chapter dots. */
+.bar { position: fixed; z-index: 5; left: 0; right: 0; top: 0; display: flex; align-items: center; justify-content: space-between; padding: 18px 5vw; pointer-events: none; mix-blend-mode: difference; color: #fff; }
+.bar > * { pointer-events: auto; }
+.mark { font-weight: 800; font-size: 19px; letter-spacing: -.02em; text-decoration: none; }
+.bar nav { display: flex; gap: 18px; align-items: center; font-weight: 700; font-size: 14px; }
+.bar nav a { text-decoration: none; }
+.sound { background: none; border: 2px solid currentColor; border-radius: 999px; padding: 6px 14px; cursor: pointer; font-weight: 700; font-size: 13px; }
+.dots { position: fixed; z-index: 5; right: 18px; top: 50%; transform: translateY(-50%); display: grid; gap: 12px; mix-blend-mode: difference; }
+.dots button { width: 10px; height: 10px; padding: 0; border: 2px solid #fff; border-radius: 50%; background: none; cursor: pointer; transition: transform .2s, background .2s; }
+.dots button.on { background: #fff; transform: scale(1.3); }
+.dots button span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
-/* ---------- part 3: navy ---------- */
-.p-navy { background: var(--navy); color: var(--paper-ink); }
-.p-navy .intro, .p-navy figcaption { color: var(--paper-ink-2); }
-.p-navy figcaption b { color: var(--paper-ink); }
-.p-navy .sits > a::after { background: radial-gradient(closest-side, rgba(0, 0, 0, .55), rgba(0, 0, 0, 0)); }
-.mosaic { display: grid; grid-template-columns: repeat(12, 1fr); gap: 20px 32px; align-items: start; }
-.mosaic figure { margin: 0; }
-.mosaic .a { grid-column: 1 / span 7; }
-.mosaic .b { grid-column: 8 / span 5; margin-top: 80px; }
-.mosaic .c { grid-column: 1 / span 4; }
-.mosaic .d { grid-column: 5 / span 4; margin-top: 48px; }
-.mosaic .e { grid-column: 9 / span 4; }
-.mosaic .s { grid-column: span 4; }
+/* 0: the scroll cue. */
+.cue { position: absolute; left: 50%; bottom: 3.5vh; width: 2px; height: 46px; background: rgba(243, 237, 226, .25); overflow: hidden; }
+.cue::after { content: ""; position: absolute; left: 0; top: -40%; width: 100%; height: 40%; background: var(--paper); animation: cue 1.6s ease-in-out infinite; }
+@keyframes cue { to { top: 100%; } }
 
-/* ---------- part 4: lilac ---------- */
-.p-lilac { background: var(--lilac); }
-.split { display: grid; grid-template-columns: 4fr 8fr; gap: clamp(28px, 5vw, 64px); align-items: start; }
-.part .intro.narrow { font-size: 17px; margin-bottom: 0; }
-.agent { margin-top: 26px; padding: 18px 22px; background: rgba(240, 231, 214, .55); border-radius: var(--plate-sm); }
-.agent h3 { margin: 0 0 4px; font-size: 17px; font-weight: 800; }
-.agent p { margin: 0; color: var(--ink-2); }
+/* 1: the prompt. */
+.prompt { position: absolute; z-index: 2; right: 6vw; top: 22vh; width: min(520px, 88vw); background: #1f1e24; color: #e9e4da; border-radius: 16px; padding: 18px 20px 20px;
+  font: 400 17px/1.55 'JetBrains Mono', monospace; box-shadow: 0 30px 60px -30px rgba(20, 20, 30, .55); opacity: var(--in, 1); transform: translateY(calc((1 - var(--in, 1)) * 30px)); }
+.prompt .top { display: flex; gap: 6px; margin-bottom: 14px; }
+.prompt .top i { width: 10px; height: 10px; border-radius: 50%; background: #4a4752; }
+.prompt .gt { color: var(--pink); font-weight: 600; }
+.prompt .topic { outline: none; border-bottom: 2px dashed rgba(233, 228, 218, .35); cursor: text; }
+.prompt .topic:focus { border-bottom-color: var(--pink); }
+.fly { position: fixed; z-index: 3; pointer-events: none; font: 400 17px/1.55 'JetBrains Mono', monospace; color: #1f1e24; white-space: pre; will-change: transform; }
 
-/* ---------- part 5: blush ---------- */
-.p-blush { background: var(--blush); }
-.tracks { list-style: none; padding: 0; margin: 0; display: grid; gap: 18px; }
-.tracks li { display: grid; grid-template-columns: 200px 1fr minmax(240px, 300px); gap: 10px 28px; align-items: center; padding: 22px 24px;
-  background: rgba(240, 231, 214, .6); border-radius: var(--plate-sm); }
-.tracks h3 { margin: 0; font-size: 22px; font-weight: 800; }
-.tracks h3 small { display: block; font-size: 14px; font-weight: 500; color: var(--ink-2); margin-top: 2px; }
-.tracks p { margin: 0; color: var(--ink-2); }
-.tracks audio { width: 100%; }
+/* 4: the formula, as flat text over the 3D, like eqn.js in the videos. */
+.eqn { position: absolute; z-index: 2; right: 22vw; top: 20vh; font: 400 clamp(34px, 3.6vw, 60px)/1 'Instrument Serif', serif; color: var(--ink); white-space: nowrap; }
+.eqn .row { position: absolute; left: 0; top: 0; display: flex; align-items: baseline; gap: .18em; transform: translateX(-50%); }
+.eqn .p { display: inline-block; position: relative; }
+.eqn .M { color: #1f5fbf; } .eqn .b { color: var(--plum); } .eqn .v { font-style: italic; }
+.eqn .p.s::after { content: ""; position: absolute; left: -10%; right: -10%; top: 52%; height: .08em; background: var(--pink); transform-origin: left; transform: scaleX(var(--s, 0)) rotate(-12deg); }
 
-/* ---------- part 6: clay ---------- */
-.p-clay { background: var(--clay); }
-.p-clay pre { margin: 0 0 28px; background: var(--ink); color: var(--paper-ink); padding: 22px 26px; border-radius: var(--plate-sm); font-size: 18px; overflow-x: auto; }
-.p-clay pre code { background: none; padding: 0; }
-.p-clay .intro { color: var(--ink); }
-.settings { list-style: none; padding: 0; margin: 0 0 32px; display: grid; gap: 10px; }
-.settings li { display: grid; grid-template-columns: 90px 1fr; gap: 16px; }
-.settings b { font-weight: 800; }
-.prompts { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 10px; }
-.prompts li { background: var(--cream); border-radius: var(--plate-sm); padding: 14px 18px; font-weight: 700; max-width: 56ch; }
+/* 5: the check message and the ring round hand 1. */
+.msg { position: absolute; z-index: 2; left: 0; top: 0; max-width: min(460px, 80vw); margin: 0; padding: 10px 14px; border-radius: 10px; font: 600 14px/1.4 'JetBrains Mono', monospace; color: #fff; background: var(--pink);
+  box-shadow: 0 10px 22px -12px rgba(20, 20, 30, .6); transition: background .2s; }
+.msg.ok { background: var(--pass); }
+.ring { position: absolute; z-index: 2; left: -34px; top: -34px; width: 68px; height: 68px; border: 4px solid var(--pink); border-radius: 50%; pointer-events: none; transition: border-color .2s; }
+.ring.ok { border-color: var(--pass); }
 
-/* ---------- footer: navy ---------- */
-footer { background: var(--navy); color: var(--paper-ink-2); padding: 44px 0 56px; font-size: 15px; }
-footer p { margin: 0 0 8px; max-width: 80ch; }
-footer a { color: var(--paper-ink); }
+/* 7: the command. */
+.cmd { position: absolute; z-index: 2; right: 6vw; top: 50%; transform: translateY(-50%); width: min(520px, 88vw); display: grid; gap: 14px; }
+.term { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--ink); color: var(--paper); border-radius: 16px; padding: 20px 22px; font: 600 clamp(18px, 2vw, 24px)/1 'JetBrains Mono', monospace; }
+.term .copy { border: 0; border-radius: 999px; padding: 9px 16px; background: var(--paper); color: var(--ink); font: 700 14px/1 'Plus Jakarta Sans', sans-serif; cursor: pointer; }
+.cmd p { margin: 0; font-weight: 700; }
+.cmd .links { display: flex; gap: 22px; font-weight: 700; }
 
-@media (max-width: 900px) {
-  .hero, .split { grid-template-columns: 1fr; }
-  .hero { row-gap: 48px; }
-  .hero h1 { margin-bottom: 0; }
-  .steps { grid-template-columns: 1fr; }
-  .mosaic { grid-template-columns: 1fr 1fr; }
-  .mosaic .a, .mosaic .b { grid-column: span 2; margin-top: 0; }
-  .mosaic .c, .mosaic .d, .mosaic .e, .mosaic .s { grid-column: span 1; margin-top: 0; }
-  .mosaic .e { grid-column: span 2; }
-  .tracks li { grid-template-columns: 1fr; }
+/* Without WebGL: a still frame on each screen that has one. */
+.still { display: none; position: absolute; right: 5vw; top: 50%; transform: translateY(-50%); width: min(46vw, 640px); border-radius: 18px; }
+.no3d .still { display: block; }
+
+@media (max-width: 760px) {
+  :root { --say: clamp(36px, 11vw, 60px); }
+  .say.bl, .say.br { bottom: 7vh; } .say.tr, .say.br { right: auto; left: 5vw; text-align: left; }
+  .say.tl, .say.tr { top: 10vh; }
+  .prompt { top: auto; bottom: 30vh; right: 5vw; font-size: 15px; }
+  .cmd { top: auto; bottom: 8vh; transform: none; right: 5vw; }
+  .dots { right: 8px; }
+  .still { width: 90vw; top: 58%; }
+  .eqn { right: 50vw; top: 34vh; }
 }
-@media (max-width: 560px) {
-  body { font-size: 16px; }
-  .mosaic { grid-template-columns: 1fr; }
-  .mosaic .a, .mosaic .b, .mosaic .c, .mosaic .d, .mosaic .e, .mosaic .s { grid-column: 1; }
-  .settings li { grid-template-columns: 70px 1fr; }
-}
+@media (prefers-reduced-motion: reduce) { .cue::after { animation: none; } }
 </style>
+<script>document.documentElement.classList.add('js');</script>
 </head>
 <body>
+<div id="bg"></div><div id="wipe"></div>
 
-<header class="wrap top">
-  <a class="repo" href="https://github.com/jjietay/clayducation">jjietay/clayducation</a>
-  <nav aria-label="Sections">
-    <a href="#how">How it works</a>
-    <a href="#frames">Clay</a>
-    <a href="#classic">Classic</a>
-    <a href="#checks">Checks</a>
-    <a href="#sound">Sound</a>
-    <a href="#install">Install</a>
-  </nav>
+<header class="bar">
+  <a class="mark" href="#c0">Clayducation</a>
+  <nav><a href="https://github.com/jjietay/clayducation">GitHub</a><button class="sound" type="button" aria-pressed="false">Sound off</button></nav>
 </header>
+<nav class="dots" aria-label="Chapters"></nav>
 
 <main>
-<section class="wrap hero" aria-label="Introduction">
-  <h1>Clayducation</h1>
-  <div>
-    <p><span class="new">New: the clay look and its mascot</span></p>
-    <p class="lede">Narrated teaching videos, made in clay by code, or in the classic 2D styles.</p>
-    <p>Claude writes the script, the storyboard and the scenes from your conversation and your project. The engine speaks the script on your computer, times each word and draws every frame. A silent mascot does the physical work, and each formula acts out what the voice says.</p>
-    <div class="ask">
-      <p>In Claude Code, in the conversation where the topic came up, ask:</p>
-      <q>Make a video on why computed torque control works.</q>
-    </div>
-    <div class="actions">
-      <a class="button" href="#install">Install</a>
-      <a href="https://github.com/jjietay/clayducation">Read the source on GitHub</a>
-    </div>
-  </div>
-  <figure class="sits" style="margin-bottom:0">
-    <div class="screen">
-      <video id="clip" muted loop playsinline preload="metadata" poster="png/clay-cancel.png" width="1280" height="720"
-        aria-label="The mascot pushes a cart on a spring. Above, the friction and spring terms of the formula are struck out and burst.">
-        <source src="clip/cancel.mp4" type="video/mp4">
-      </video>
-      <button type="button" id="clipToggle" aria-controls="clip">Play</button>
-    </div>
-    <figcaption><b>From “Why computed torque works.”</b> The mascot holds the cart while β cancels the friction and the spring terms, one strike at a time.</figcaption>
-  </figure>
-</section>
-
-<section class="part p-sand" id="how">
-  <div class="wrap">
-    <h2>How a video is made</h2>
-    <p class="intro">Claude plans and builds. The engine speaks, times and draws. The checks send faults back to Claude before any long step. The full workflow is in <a href="https://github.com/jjietay/clayducation/blob/main/SKILL.md">SKILL.md</a>.</p>
-    <figure class="sits small">
-      <a href="png/pipeline.png"><img src="png/pipeline.png" width="3000" height="1785" loading="lazy" alt="Pipeline figure. Panel a, plan and build: the main session writes script.md, storyboard.md and scenes.js from the clay kit; Chatterbox speaks; Whisper times each word; headless Chrome draws the frames; make check tests them. Panel b, look, build and render: make look measures collisions, text on 3D, joins, walks, voice and motion, and stable frames; Claude reads each image and gives its check digit; make final renders, and verify checks the MP4."></a>
-      <figcaption><b>(a) Plan and build, (b) look, build and render.</b> A look after each edit, then the gates. Select the figure to see it at full size.</figcaption>
-    </figure>
-    <ol class="steps">
-      <li><h3>Claude writes three files</h3><p><code>script.md</code>, <code>storyboard.md</code> and <code>scenes.js</code>: one part for each idea and one scene for each part. One agent checks every fact and every formula first.</p></li>
-      <li><h3>The voice speaks</h3><p>Chatterbox on a GPU, or Kokoro, small and fast on a CPU.</p></li>
-      <li><h3>Whisper times each word</h3><p>Each word and each <code>[#cue]</code> gets a time in seconds. If a sentence does not match the script, the engine speaks it again.</p></li>
-      <li><h3>Chrome draws each frame</h3><p>The clay world in Three.js, the text in HTML, and Manim for a formula that changes step by step.</p></li>
-      <li><h3><code>make look</code> after each edit</h3><p>It measures each changed scene on every frame and draws its near frames and moving parts. Claude reads each image before any build.</p></li>
-      <li><h3><code>make final</code> renders</h3><p>The GPU draws and NVENC encodes, or the CPU does both. <code>verify</code> checks the duration, the loudness and black frames. The result is an MP4 with soft subtitles.</p></li>
-    </ol>
+<section class="ch dark" id="c0" data-bg="#14161f" data-name="Clay">
+  <div class="pin">
+    <h1 class="say bl">Teaching videos, made of <b>clay and code</b>.</h1>
+    <p class="hint br"><span class="mouse">Move the pointer over the clay.</span><span class="touch">Scroll down.</span></p>
+    <div class="cue" aria-hidden="true"></div>
   </div>
 </section>
 
-<section class="part p-navy" id="frames">
-  <div class="wrap">
-    <h2>The clay look <span class="new">New</span></h2>
-    <p class="intro">The new default: one soft clay look, 28 models that we made in code, and a silent mascot who does the physical work. These frames come from six finished videos. Select a picture to see it at full size.</p>
-    <div class="mosaic">
-      <figure class="sits a"><a href="png/ipcv/ruler.png"><img src="png/ipcv/ruler.png" width="1280" height="720" loading="lazy" alt="The mascot slides a long ruler along a row of tables past a row of apples."></a>
-        <figcaption><b>A ruler in units of σ.</b> Mahalanobis distance: he measures how far a fruit is from the class mean.</figcaption></figure>
-      <figure class="sits b"><a href="png/ipcv/shadow.png"><img src="png/ipcv/shadow.png" width="1280" height="720" loading="lazy" alt="The mascot holds up a screen; a light panel casts the shadow of a cloud of beads onto it."></a>
-        <figcaption><b>A shadow is a projection.</b> PCA: he tilts the screen to find the widest shadow.</figcaption></figure>
-      <figure class="sits small s"><a href="png/ipcv/bayes-scale.png"><img src="png/ipcv/bayes-scale.png" width="1280" height="720" loading="lazy" alt="The mascot beside a balance scale loaded with small figures."></a>
-        <figcaption><b>Priors on a scale.</b> Bayes decision: 70 male, 30 female.</figcaption></figure>
-      <figure class="sits small s"><a href="png/ipcv/knn.png"><img src="png/ipcv/knn.png" width="1280" height="720" loading="lazy" alt="The mascot holds a hoop over a field of blue and plum beads."></a>
-        <figcaption><b>A vote in one hoop.</b> The k nearest neighbours decide.</figcaption></figure>
-      <figure class="sits small s"><a href="png/ipcv/boundary.png"><img src="png/ipcv/boundary.png" width="1280" height="720" loading="lazy" alt="The mascot pushes a crate toward a fence between apples and pears."></a>
-        <figcaption><b>The boundary is a tie.</b> Where both class scores are equal.</figcaption></figure>
-      <figure class="sits small s"><a href="png/ipcv/fisher.png"><img src="png/ipcv/fisher.png" width="1280" height="720" loading="lazy" alt="The mascot turns a screen next to a pressure gauge."></a>
-        <figcaption><b>The Fisher ratio.</b> LDA: the gauge scores each direction.</figcaption></figure>
-      <figure class="sits small s"><a href="png/ipcv/lever.png"><img src="png/ipcv/lever.png" width="1280" height="720" loading="lazy" alt="The mascot pushes down on a seesaw with a small blue ball on it."></a>
-        <figcaption><b>A tiny λ, a huge lever.</b> Why small eigenvalues mislead a classifier.</figcaption></figure>
-      <figure class="sits small s"><a href="png/ipcv/eigen.png"><img src="png/ipcv/eigen.png" width="1280" height="720" loading="lazy" alt="A Manim plot: data points, the best line through them and a curve of variance against angle."></a>
-        <figcaption><b>A Manim part.</b> For curves and plots, the video changes to Manim and back.</figcaption></figure>
-      <figure class="sits small s"><a href="png/clay-servo.png"><img src="png/clay-servo.png" width="1280" height="720" loading="lazy" alt="A robot drives toward a flag that the mascot holds, with arrows for the gap and the push."></a>
-        <figcaption><b>Follow the target.</b> From the computed torque video.</figcaption></figure>
-      <figure class="sits small s"><a href="png/clay-room.png"><img src="png/clay-room.png" width="900" height="506" loading="lazy" alt="A clay room with the mascot and several models."></a>
-        <figcaption><b>Our own models.</b> Made in code, so every video looks the same.</figcaption></figure>
-      <figure class="sits small s"><a href="png/mascot.png"><img src="png/mascot.png" width="1280" height="720" loading="lazy" alt="Nine faces of the mascot."></a>
-        <figcaption><b>He never speaks.</b> Nine expressions react for the viewer.</figcaption></figure>
+<section class="ch" id="c1" data-bg="#f0e7d6" data-name="One sentence">
+  <div class="pin">
+    <h2 class="say bl">It starts with <b>one sentence</b>.</h2>
+    <div class="prompt" aria-label="A prompt in Claude Code">
+      <div class="top" aria-hidden="true"><i></i><i></i><i></i></div>
+      <span class="gt">&gt;</span> <span class="ask">Make a video on </span><span class="topic" contenteditable="plaintext-only" spellcheck="false" role="textbox" aria-label="Topic of the video">why computed torque control works</span>
     </div>
+    <p class="hint br">Select the topic to change it.</p>
   </div>
 </section>
 
-<section class="part p-cream" id="classic">
-  <div class="wrap">
-    <h2>The classic 2D styles</h2>
-    <p class="intro">The first version of Clayducation drew in 29 flat styles, and they are still here. Ask for them by name, for example "tell its history as a newsreel", and Claude picks a style for each part. They use the same workflow and the same checks as clay. The guides are in <a href="https://github.com/jjietay/clayducation/tree/main/styles/classic">styles/classic</a>.</p>
-    <div class="classic">
-      <figure class="sits small"><a href="png/classic/newsreel.png"><img src="png/classic/newsreel.png" width="1280" height="720" loading="lazy" alt="A 1920s newspaper in a dark film gate, with a grease-pencil ring around the headline."></a>
-        <figcaption><b>Newsreel.</b> A 1920s film gate, for the history of an idea.</figcaption></figure>
-      <figure class="sits small"><a href="png/classic/flat.png"><img src="png/classic/flat.png" width="1280" height="720" loading="lazy" alt="Flat props with faces: a drone, barrels, a laptop and a tank."></a>
-        <figcaption><b>Flat vector.</b> Objects with faces that act out a process.</figcaption></figure>
-      <figure class="sits small"><a href="png/classic/boil.png"><img src="png/classic/boil.png" width="1280" height="720" loading="lazy" alt="Hand-drawn ink jars, a folder, a pencil and envelopes."></a>
-        <figcaption><b>Line boil.</b> Ink that boils like a hand-drawn cartoon.</figcaption></figure>
-      <figure class="sits small"><a href="png/classic/pixel.png"><img src="png/classic/pixel.png" width="1280" height="720" loading="lazy" alt="Pixel art: a shelf, a crate, a GPU and two small workers with a dialogue box."></a>
-        <figcaption><b>Pixel art.</b> A small world with typed dialogue.</figcaption></figure>
-      <figure class="sits small"><a href="png/classic/riso.png"><img src="png/classic/riso.png" width="1280" height="720" loading="lazy" alt="Three overlapping ink discs and a halftone tint."></a>
-        <figcaption><b>Risograph.</b> Inks that multiply, like a printed poster.</figcaption></figure>
-      <figure class="sits small"><a href="png/classic/blueprint.png"><img src="png/classic/blueprint.png" width="1280" height="720" loading="lazy" alt="Blue drafting lines with an arrowhead and part balloons."></a>
-        <figcaption><b>Blueprint.</b> A mechanism drawn in drafting order.</figcaption></figure>
-    </div>
+<section class="ch" id="c2" data-bg="#e4d3b7" data-name="Three files">
+  <div class="pin">
+    <h2 class="say tl">Claude writes <b>three files</b>.</h2>
+    <p class="hint bl"><span class="mouse">Put the pointer on a page to read it.</span><span class="touch">An agent checks every fact.</span></p>
   </div>
 </section>
 
-<section class="part p-lilac" id="checks">
-  <div class="wrap split">
-    <div>
-      <h2>Checked before render</h2>
-      <p class="intro narrow">The engine measures every frame: hands that miss what they hold, objects that pass through each other, text under a 3D thing, a formula that sits still while the voice says it moves. An exact mask of every text, drawing and model shows the tightest gaps, text on a drawing, low contrast and drawings that move. Claude reads the near frames of each edited part and a strip of each thing that moves. <code>make build</code> and <code>make final</code> stop until that is done.</p>
-      <div class="agent">
-        <h3>Five questions first</h3>
-        <p>When the skill starts, you choose with a click: clay or the classic 2D styles, who the video is for, the length, when Claude checks with you, and the music.</p>
-      </div>
-      <div class="agent">
-        <h3>One script agent</h3>
-        <p>Before the voice is made, it works out every fact again and checks that every formula is explained. It is in <a href="https://github.com/jjietay/clayducation/tree/main/agents">agents/</a>.</p>
-      </div>
-    </div>
-    <figure class="sits small">
-      <a href="png/check-strip.png"><img src="png/check-strip.png" width="1280" height="638" loading="lazy" alt="A movement strip: twelve frames of the mascot as he holds a cart, walks to a robot and pushes it, each labelled with its time, and a CHECK digit at the top right."></a>
-      <figcaption><b>A movement strip from a build.</b> Its CHECK digit, with the digits of every other strip, opens <code>make final</code>. <code>make selftest</code> plants each fault that a video has had and confirms that the engine catches it.</figcaption>
-    </figure>
+<section class="ch" id="c3" data-bg="#b9b3cf" data-name="Every word">
+  <div class="pin">
+    <h2 class="say tl">Whisper times <b>every word</b>.</h2>
+    <p class="hint bl"><span class="mouse">Turn the sound on, then move along the wave to hear each word.</span><span class="touch">Turn the sound on to hear the voice.</span></p>
   </div>
 </section>
 
-<section class="part p-blush" id="sound">
-  <div class="wrap">
-    <h2>Music and sound made from code</h2>
-    <p class="intro">The engine makes its music in <code>engine/music.mjs</code> and its sound effects in <code>engine/sfx.mjs</code>, with no samples and no recordings, so there is no licence to clear. The music plays about 13 dB under the voice. These are 30 s previews. The rules are in <a href="https://github.com/jjietay/clayducation/blob/main/SOUND.md">SOUND.md</a>.</p>
-    <ul class="tracks">
-      <li><h3>current<small>72 BPM, C Am F G</small></h3>
-        <p>A calm pad and a slow arpeggio, with no beat. The default track, for any video.</p>
-        <audio controls preload="none" src="music/current-30s.flac" aria-label="current, 30 second preview"></audio></li>
-      <li><h3>lofi<small>76 BPM, swing</small></h3>
-        <p>Electric piano, bass, soft drums and vinyl hiss, for a calm video that needs more energy.</p>
-        <audio controls preload="none" src="music/lofi-30s.flac" aria-label="lofi, 30 second preview"></audio></li>
-      <li><h3>sound effects<small>12 sounds</small></h3>
-        <p>Pop, click, tick, whoosh, swish, thud, stamp, paper, marker, pencil, chime and typing. A scene adds one at a cue with <code>s.sfx('pop', '#cue')</code>. This demo plays all 12 over the music.</p>
-        <audio controls preload="none" src="sfx/demo-music-30s.flac" aria-label="sound effects, 30 second demo"></audio></li>
-    </ul>
+<section class="ch" id="c4" data-bg="#a9c4cf" data-name="Every frame">
+  <div class="pin">
+    <h2 class="say tl">Code draws <b>every frame</b>.</h2>
+    <div class="eqn" aria-label="tau equals M v plus beta; beta cancels, then M cancels; q double dot equals v"></div>
+    <p class="hint bl"><span class="mouse">Drag to turn the camera.</span><span class="touch">Scroll back, and it plays backwards.</span></p>
+    <img class="still" src="png/clay-cancel.png" alt="The mascot holds a link on a motor while beta cancels in the formula.">
   </div>
 </section>
 
-<section class="part p-clay" id="install">
-  <div class="wrap split">
-    <div>
-      <h2>Install</h2>
-      <p class="intro">One command checks your computer, asks 4 questions, shows the plan and installs only what you choose. A GPU is not necessary. Disk space: about 12 GB for everything on an NVIDIA GPU, 7 GB on a Mac, and 1.5 GB for the smallest install (Kokoro voice, no Manim). The manual setup is in <a href="https://github.com/jjietay/clayducation/blob/main/INSTALL.md">INSTALL.md</a>.</p>
-    </div>
-    <div>
-<pre><code>npx clayducation</code></pre>
-      <p>Later, <code>/setup-clayducation</code> in Claude Code changes these:</p>
-      <ul class="settings">
-        <li><b>voice</b><span>Chatterbox on a GPU, or Kokoro on a CPU.</span></li>
-        <li><b>gpu</b><span>Auto, or off. NVIDIA on Linux; Metal and VideoToolbox on a Mac (new, not yet tested on a Mac).</span></li>
-        <li><b>whisper</b><span>Base, or large: large-v3-turbo times the words more exactly.</span></li>
-      </ul>
-      <p style="margin:0">Then ask for a video in the conversation where the topic came up:</p>
-      <ul class="prompts">
-        <li>Make a video explaining how the EKF fuses wheel odometry and the IMU.</li>
-        <li>Make a video on why computed torque control works.</li>
-      </ul>
+<section class="ch" id="c5" data-bg="#e6bfae" data-name="Checks">
+  <div class="pin">
+    <h2 class="say tl">Nothing renders until the <b>checks pass</b>.</h2>
+    <p class="msg" aria-live="polite"></p>
+    <div class="ring" aria-hidden="true"></div>
+    <p class="hint bl"><span class="mouse">Move the pointer: his hand follows it, and the engine's real hold check runs.</span><span class="touch">Scroll, and his hand moves onto the cart.</span></p>
+    <img class="still" src="png/check-strip.png" alt="A movement strip from a build, with its check digit.">
+  </div>
+</section>
+
+<section class="ch dark" id="c6" data-bg="#27324a" data-name="The MP4">
+  <div class="pin">
+    <h2 class="say tl">The result is a <b>real MP4</b>.</h2>
+    <p class="hint bl"><span class="mouse">Put the pointer on a frame to play it.</span><span class="touch">Frames from six finished videos.</span></p>
+    <img class="still" src="png/ipcv/shadow.png" alt="A frame from a finished video: the mascot holds up a screen with a shadow on it.">
+  </div>
+</section>
+
+<section class="ch" id="c7" data-bg="#c98f6b" data-name="Install">
+  <div class="pin">
+    <h2 class="say tl">Install it with <b>one command</b>.</h2>
+    <div class="cmd">
+      <div class="term"><code>npx clayducation</code><button class="copy" type="button">Copy</button></div>
+      <p>Then ask Claude Code for a video, in the conversation where the topic came up.</p>
+      <div class="links"><a href="https://github.com/jjietay/clayducation">Source on GitHub</a><a href="https://github.com/jjietay/clayducation/blob/main/INSTALL.md">Manual setup</a></div>
     </div>
   </div>
 </section>
 </main>
 
-<footer>
-  <div class="wrap">
-    <p>Clayducation is under the <a href="https://github.com/jjietay/clayducation/blob/main/LICENSE">MIT licence</a>.
-    <a href="https://github.com/vincentsch/explainroo">explainroo</a> times the words, <a href="https://github.com/resemble-ai/chatterbox">Chatterbox</a> speaks the narration,
-    and <a href="https://www.manim.community/">Manim Community</a> draws the maths scenes.</p>
-    <p><a href="https://github.com/jjietay/clayducation">github.com/jjietay/clayducation</a></p>
-  </div>
-</footer>
-
-<script>
-// The hero clip plays by itself only when the viewer allows motion. The button pauses or plays it.
-(function () {
-  var v = document.getElementById('clip'), b = document.getElementById('clipToggle');
-  if (!v || !b) return;
-  var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  function label() { b.textContent = v.paused ? 'Play' : 'Pause'; }
-  b.addEventListener('click', function () { if (v.paused) v.play(); else v.pause(); });
-  v.addEventListener('play', label); v.addEventListener('pause', label);
-  if (!still) { var p = v.play(); if (p && p.catch) p.catch(label); }
-  label();
-})();
-</script>
+<script type="module" src="app.js"></script>
 </body>
 </html>

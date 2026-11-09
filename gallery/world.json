@@ -1,0 +1,4 @@
+{
+  "out": "world",
+  "models": ["joint", "book", "cart"]
+}
