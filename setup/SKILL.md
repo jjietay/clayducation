@@ -1,13 +1,13 @@
 ---
-name: setup-kaleidoscope
-description: Set up or change the Kaleidoscope video skill on this machine - the voice (Chatterbox or Kokoro), GPU use and the Whisper model. Use for /setup-kaleidoscope, "switch the video voice", or "make videos without a GPU".
+name: setup-clayducation
+description: Set up or change the Clayducation video skill on this machine - the voice (Chatterbox or Kokoro), GPU use and the Whisper model. Use for /setup-clayducation, "switch the video voice", or "make videos without a GPU".
 ---
 
-# Set up Kaleidoscope
+# Set up Clayducation
 
-The settings are in `~/.claude/skills/kaleidoscope/config.json`. Change them only with the
+The settings are in `~/.claude/skills/clayducation/config.json`. Change them only with the
 `config` command, so the values stay valid. In this file, `make` means
-`node ~/.claude/skills/kaleidoscope/engine/make.mjs`.
+`node ~/.claude/skills/clayducation/engine/make.mjs`.
 
 1. Run `make config` and `make doctor`. Note the current voice and GPU, and what
    `doctor` says is missing.
@@ -23,6 +23,6 @@ The settings are in `~/.claude/skills/kaleidoscope/config.json`. Change them onl
 
 3. Run `make config --voice <v> --gpu <g> --whisper <w>`, then `make bake` if `styles/library/clay/cache` is empty.
 4. If the voice is `chatterbox` and `doctor` says Chatterbox is not installed, tell the user
-   to run `npx kaleidoscope-video` in a terminal and choose `chatterbox`. It
+   to run `npx clayducation` in a terminal and choose `chatterbox`. It
    installs only what is missing. Do not install it yourself: it is a large download.
 5. Run `make doctor` again and report the new settings in two or three lines.

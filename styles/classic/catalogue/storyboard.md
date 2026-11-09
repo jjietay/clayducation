@@ -13,4 +13,4 @@ A catalogue, not a teaching video, in two parts.
 none
 
 ## Viewer
-The main session of the Kaleidoscope skill, at step 6, choosing a style and reusable visuals.
+The main session of the Clayducation skill, at step 6, choosing a style and reusable visuals.

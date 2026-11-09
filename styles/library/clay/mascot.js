@@ -1,4 +1,4 @@
-// The Kaleidoscope mascot: built from distance fields, baked soft shading, and a small rig.
+// The Clayducation mascot: built from distance fields, baked soft shading, and a small rig.
 // Units: head half-width = 1. The head's centre is y = 0; the feet are near y = -6.75.
 import { smin, smax, ell, cone, mesh, normalAt, ao, thin, mix, sstep, clamp } from './sdf.js';
 

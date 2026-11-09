@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Kaleidoscope setup: installs the Claude Code skill and what it needs, after a few questions.
-//   npx kaleidoscope-video            ask the questions, show the plan, then install
-//   npx kaleidoscope-video --yes      take every default
-//   npx kaleidoscope-video --dry-run  show the plan and the commands, change nothing
+// Clayducation setup: installs the Claude Code skill and what it needs, after a few questions.
+//   npx clayducation            ask the questions, show the plan, then install
+//   npx clayducation --yes      take every default
+//   npx clayducation --dry-run  show the plan and the commands, change nothing
 // Other flags: --dir <path>, --voice chatterbox|kokoro, --no-manim, --no-agents.
 // Run it again at any time: it updates the skill and installs only what is missing.
 import { spawnSync } from 'node:child_process';
@@ -11,8 +11,8 @@ import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 
-// KALEIDOSCOPE_REPO: clone from another place, for example a local copy when you test this file.
-const REPO = process.env.KALEIDOSCOPE_REPO || 'https://github.com/jjietay/kaleidoscope.git';
+// CLAYDUCATION_REPO: clone from another place, for example a local copy when you test this file.
+const REPO = process.env.CLAYDUCATION_REPO || 'https://github.com/jjietay/clayducation.git';
 const EXPLAINROO = 'https://github.com/vincentsch/explainroo';
 const argv = process.argv.slice(2);
 const flag = (k) => argv.includes(k);
@@ -57,7 +57,7 @@ async function ask(q, def, choices, show) {
 }
 const yesNo = async (q, def) => (await ask(q, def ? 'y' : 'n', ['y', 'n', 'yes', 'no'], 'y/n')).startsWith('y');
 
-console.log(`\n${bold('Kaleidoscope setup')}\nThis installs the Kaleidoscope skill for Claude Code. It asks 4 questions,\nthen shows the plan before it changes anything.\n`);
+console.log(`\n${bold('Clayducation setup')}\nThis installs the Clayducation skill for Claude Code. It asks 4 questions,\nthen shows the plan before it changes anything.\n`);
 for (const [name, ok, note, needed] of checks) console.log(`  ${ok ? 'ok  ' : needed ? 'MISS' : 'miss'}  ${name.padEnd(7)} ${note}`);
 console.log(`  info  ${'gpu'.padEnd(7)} ${gpuNote}\n`);
 if (checks.some(([, ok, , needed]) => needed && !ok)) {
@@ -65,7 +65,7 @@ if (checks.some(([, ok, , needed]) => needed && !ok)) {
   process.exit(1);
 }
 
-const dir = untilde(opt('--dir') || await ask(`1. Install folder`, '~/.claude/skills/kaleidoscope'));
+const dir = untilde(opt('--dir') || await ask(`1. Install folder`, '~/.claude/skills/clayducation'));
 const defVoice = gpuName || appleSilicon ? 'chatterbox' : 'kokoro';
 console.log(`\n   chatterbox  natural voice; a 3 to 6 GB download; fast on a GPU, slow on a CPU
    kokoro      small voice model; fast on a CPU; comes with the word-timing tool`);
@@ -78,7 +78,15 @@ const agents = flag('--no-agents') ? false : await yesNo(`4. Link the script age
 const exr = process.env.EXPLAINROO_HOME || path.join(HOME, '.explainroo');
 const steps = [];
 const run = (title, cmd, args, opts = {}) => steps.push({ title, cmd, args, ...opts });
-const isRepo = fs.existsSync(path.join(dir, '.git'));
+// Before the rename, the skill was "Kaleidoscope" in ~/.claude/skills/kaleidoscope. Move that copy
+// to the new folder, so its voice and Manim environments stay, and point it at the renamed repository.
+const oldDir = path.join(HOME, '.claude', 'skills', 'kaleidoscope');
+const moveOld = !fs.existsSync(dir) && fs.existsSync(path.join(oldDir, '.git'));
+if (moveOld) {
+  steps.push({ title: `Move the old Kaleidoscope install from ${tilde(oldDir)}`, move: oldDir });
+  run('Point the skill at the renamed repository', 'git', ['-C', dir, 'remote', 'set-url', 'origin', REPO]);
+}
+const isRepo = moveOld || fs.existsSync(path.join(dir, '.git'));
 if (isRepo) run('Update the skill', 'git', ['-C', dir, 'pull', '--ff-only']);
 else run('Download the skill', 'git', ['clone', '--depth', '1', REPO, dir]);
 if (fs.existsSync(path.join(exr, 'bin', 'explainroo.js'))) run('Word timing (explainroo) is installed', null);
@@ -109,7 +117,7 @@ if (manim) {
   run('Install Manim', uv, ['pip', 'install', '--python', path.join(m, '.venv', 'bin', 'python'), 'manim']);
 }
 if (agents) steps.push({ title: `Link the script agent into ${tilde(agentsDir)}`, link: 'agents' });
-steps.push({ title: 'Add the /setup-kaleidoscope command', link: 'setup' });
+steps.push({ title: 'Add the /setup-clayducation command', link: 'setup' });
 // The large Whisper is the default on an NVIDIA GPU; on a Mac or a CPU it is slower, so the small one stays.
 run('Save the settings', 'node', [path.join(dir, 'engine', 'make.mjs'), 'config', '--voice', voice, '--gpu', 'auto', '--whisper', voice === 'chatterbox' && gpuName ? 'large' : 'base']);
 run('Compute the clay shapes', 'node', [path.join(dir, 'engine', 'make.mjs'), 'bake'], { mayFail: true });
@@ -126,6 +134,22 @@ rl.close();
 // ---------- do it ----------
 for (const [i, s] of steps.entries()) {
   console.log(`\n${bold(`[${i + 1}/${steps.length}] ${s.title}`)}`);
+  if (s.move) {
+    fs.mkdirSync(path.dirname(dir), { recursive: true });
+    fs.renameSync(s.move, dir);
+    // The old /setup-kaleidoscope link and the agent links point into the old folder.
+    const oldSetup = path.join(HOME, '.claude', 'skills', 'setup-kaleidoscope');
+    if (fs.lstatSync(oldSetup, { throwIfNoEntry: false })?.isSymbolicLink()) fs.rmSync(oldSetup);
+    for (const f of fs.existsSync(agentsDir) ? fs.readdirSync(agentsDir) : []) {
+      const a = path.join(agentsDir, f);
+      if (!fs.lstatSync(a).isSymbolicLink()) continue;
+      const target = fs.readlinkSync(a);
+      if (!target.startsWith(s.move + path.sep)) continue;
+      fs.rmSync(a);
+      fs.symlinkSync(path.join(dir, path.relative(s.move, target)), a);
+    }
+    continue;
+  }
   if (s.link === 'agents') {
     fs.mkdirSync(agentsDir, { recursive: true });
     for (const f of fs.readdirSync(path.join(dir, 'agents')).filter((f) => /^video-.*\.md$/.test(f))) {
@@ -136,7 +160,7 @@ for (const [i, s] of steps.entries()) {
     continue;
   }
   if (s.link === 'setup') {
-    const to = path.join(HOME, '.claude', 'skills', 'setup-kaleidoscope');
+    const to = path.join(HOME, '.claude', 'skills', 'setup-clayducation');
     fs.mkdirSync(path.dirname(to), { recursive: true });
     fs.rmSync(to, { force: true, recursive: false });
     fs.symlinkSync(path.join(dir, 'setup'), to);
@@ -151,4 +175,4 @@ for (const [i, s] of steps.entries()) {
 }
 console.log(`\n${bold('Done.')} In Claude Code, ask for a video, for example:
   "Make a video explaining how a Kalman filter works."
-Change the voice later with /setup-kaleidoscope.`);
+Change the voice later with /setup-clayducation.`);
