@@ -158,6 +158,8 @@ try {
     const sc = (id, start) => ({ id, index: 0, start, dur: 1, lead: 0, text: 'x', transition: 'none', marks: {}, attrs: {}, words: [{ text: 'Test', start: 0.05, end: 0.3 }] });
     const FIT = {
       offEdge: "{ bg: '#f0e7d6', setup(s) { s.a = s.text('Edge label', { x: 1880, y: 500, anchor: 'l', size: 48, color: '#222' }); }, draw(s) {} }",
+      offColumn: "{ bg: '#f0e7d6', setup(s) { s.a = s.text('First line', { x: 600, y: 400, anchor: 'tl', size: 40, color: '#222' }); s.b = s.text('Second line', { x: 618, y: 470, anchor: 'tl', size: 40, color: '#222' }); }, draw(s) {} }",
+      inColumn: "{ bg: '#f0e7d6', setup(s) { s.a = s.text('First line', { x: 600, y: 400, anchor: 'tl', size: 40, color: '#222' }); s.b = s.text('Second line', { x: 600, y: 470, anchor: 'tl', size: 40, color: '#222' }); }, draw(s) {} }",
       tooWide: "{ bg: '#f0e7d6', setup(s) { s.a = s.text('W'.repeat(60), { x: 960, y: 500, size: 60, color: '#222' }); }, draw(s) {} }",
     };
     fs.writeFileSync(path.join(dir, 'video.json'), JSON.stringify({ title: 'selftest', _look: 'classic' }));
@@ -165,6 +167,8 @@ try {
     writeTimeline(Object.keys(FIT).map((id, i) => sc(id, i)));
     const c = make('check', dir);
     report('auto-fit pushes a text that leaves the frame back inside', /offEdge: auto-fit moved "Edge label"/.test(c.out) && !/Edge label" leaves the safe area/.test(c.out), c.out.slice(-600));
+    report('two texts 18 px out of column are reported', /offColumn: "First line" and "Second line" are 18 px out of column/.test(c.out), c.out.slice(-600));
+    report('two texts in one column are not reported', !/inColumn: .* out of column/.test(c.out), c.out.slice(-600));
     report('auto-fit shrinks a text wider than the safe area', /tooWide: auto-fit shrank "W+" to \d+ %/.test(c.out) && !/WWW.*leaves the safe area/.test(c.out), c.out.slice(-600));
     fs.writeFileSync(path.join(dir, 'video.json'), vjNow); fs.writeFileSync(path.join(dir, 'scenes.js'), srcNow); writeTimeline(one);
   }

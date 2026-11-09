@@ -71,6 +71,12 @@ them only when that still shows a reason.
 | distance to a rail or a base | stand 1.6 or more from its edge, measured to his centre. Closer, his shoes go into it while he walks |
 | label on a moving object | above it or below it, never on it; hide a label when its arrow is shorter than the label |
 
+**Text keeps to a grid (the user asked, 2026-11-09).** Words scattered "all over the page" lose the harmony of
+the frame. Stack the formulas and labels of one zone on one column: the same left edge (or the same centre for a
+centred block), with even row gaps. Texts side by side share a top or a middle. Exact or clearly apart, never a
+few pixels off: `make check` WARNs for nearby texts 4 to 40 px out of column or row. A label pinned to a 3D object
+follows the object and is judged only against its neighbours.
+
 ## Backgrounds
 
 `BG` holds one plain colour for each part: `sage`, `cream`, `sand`, `sky`, `blush`, `clay`, `lilac`,

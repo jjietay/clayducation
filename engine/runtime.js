@@ -521,6 +521,47 @@ function fitText(s) {
   }
 }
 window.__fits = () => [...FIT_LOG.values()];
+// Alignment (the user asked, 2026-11-09: labels and formulas sat "all over the page", with no harmony).
+// The visible text blocks of the frame: each eqn() row as one block, every other text and formula as one.
+// Two blocks are near-aligned when a left, centre or right edge (x), or a top or middle (y), differ by
+// 4 to 40 px: close enough to look meant, far enough to look wrong. Exact (under 4 px) or clearly apart
+// (over 40 px) is fine. A text in flight (data-pass) is not judged.
+window.__alignBlocks = () => {
+  if (!current) return [];
+  const groups = new Map();
+  for (const n of current.root.querySelectorAll('[data-text="1"], [data-tex]')) {
+    if (n.parentElement?.closest('[data-tex]') || n.dataset.pass === '1') continue;
+    if (seenOpacity(n, current.root) < 0.5) continue;
+    const r = n.getBoundingClientRect(); if (r.width < 2) continue;
+    const key = n.dataset.eqn || n, g = groups.get(key);
+    const label = (n.dataset.tex || n.textContent).trim().slice(0, 30);
+    if (!g) groups.set(key, { label: n.dataset.eqn ? `formula "${label}…"` : `"${label}"`, l: r.left, t: r.top, r: r.right, b: r.bottom });
+    else { g.l = Math.min(g.l, r.left); g.t = Math.min(g.t, r.top); g.r = Math.max(g.r, r.right); g.b = Math.max(g.b, r.bottom); }
+  }
+  return [...groups.values()];
+};
+window.alignIssues = () => {
+  const B = window.__alignBlocks(), out = [];
+  const near = (a, b) => { const d = Math.abs(a - b); return d >= 4 && d <= 40 ? Math.round(d) : 0; };
+  for (let i = 0; i < B.length; i++) for (let j = i + 1; j < B.length; j++) {
+    const a = B[i], b = B[j];
+    // Only blocks one above the other share a column, and only blocks side by side share a row.
+    // Only neighbours are judged: a column within 250 px up or down, a row within 400 px across. A label on a
+    // 3D object far from the title is not in the title's column.
+    const gapY = Math.max(a.t, b.t) - Math.min(a.b, b.b), gapX = Math.max(a.l, b.l) - Math.min(a.r, b.r);
+    const stacked = Math.min(a.r, b.r) - Math.max(a.l, b.l) > -60 && gapY < 250, sideBy = Math.min(a.b, b.b) - Math.max(a.t, b.t) > 0 && gapX < 400;
+    if (stacked && !sideBy) {
+      const exact = [Math.abs(a.l - b.l), Math.abs((a.l + a.r) / 2 - (b.l + b.r) / 2), Math.abs(a.r - b.r)].some((d) => d < 4);
+      const d = Math.min(...[near(a.l, b.l), near((a.l + a.r) / 2, (b.l + b.r) / 2), near(a.r, b.r)].filter(Boolean));
+      if (!exact && isFinite(d)) out.push({ a: a.label, b: b.label, axis: 'x', d });
+    } else if (sideBy && !stacked) {
+      const exact = [Math.abs(a.t - b.t), Math.abs((a.t + a.b) / 2 - (b.t + b.b) / 2)].some((d) => d < 4);
+      const d = Math.min(...[near(a.t, b.t), near((a.t + a.b) / 2, (b.t + b.b) / 2)].filter(Boolean));
+      if (!exact && isFinite(d)) out.push({ a: a.label, b: b.label, axis: 'y', d });
+    }
+  }
+  return out;
+};
 // Screen boxes of the 3D things now (clay scenes only), for "make zones".
 window.__zoneBoxes = () => current?._zoneBoxes?.() || null;
 
