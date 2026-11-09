@@ -36,9 +36,40 @@ scene('stay', {
 Draw only from `s.t`, because a render seeks to any frame. Use `s.trace('name', x, y)` with
 `g.screen()` for a thing that moves, so `make review` measures its motion.
 
+**Push, pull or hold a model: use the stance helper, never tune it by hand.** `g.pushOn(hero, model, part,
+{ side: '-z' })` (after `blendPose`) stands him off that face of the part, facing it, with his feet clear of every
+floor-level part (rails, bases), and puts both hands on the face at a height he reaches. Where a rail runs along
+that line, he stands beside it and reaches with the near hand. `g.stance(...)` gives the same numbers without
+moving him: `{ x, z, face, hands, low }`, for `route()` keys. Call it every frame for a model that moves. The
+computed torque video lost 4 look rounds to hands that missed a cart and shoes in its rail before this existed.
+
 Three simple props: `g.arrow(color)` returns an arrow for a force or a gap (`a.set(from, to)` each frame),
 `g.post(color, h)` marks a place on the floor, and `g.ball(color, r)` is a pulse or a signal. Use these, and do
 not add your own meshes: the collision measures see only what the kit made.
+
+## Fixed layout (start every clay scene from it)
+
+The user asked for a fixed frame for each scene on 2026-11-09, after the first look of the computed
+torque video found 115 faults: every camera was too close, so the mascot's head and the models lay
+under the formulas. Start from these values, take one still of each scene (SKILL.md, step 8b), and change
+them only when that still shows a reason.
+
+| Zone (stage px, 1920 x 1080) | What goes there |
+|---|---|
+| top left, x 110 to 900, y 70 to 180 | the kicker and the title (`head()`) |
+| top band, y 230 to 420, on the side away from the mascot | formulas: two rows at most, about 90 px apart (a fraction needs 100) |
+| right column, x 1150 to 1800, y 230 to 700 | formulas and labels when the 3D sits at the left |
+| bottom band, y 900 to 1000 | lists and labels, only when the floor ends above y 880 in the still |
+| the rest, mostly lower left and centre | the 3D: mascot and models |
+
+| Setting | Start value |
+|---|---|
+| camera | `orbit(az -14 to 4, el 10 to 22, dist 46 to 52, look)` |
+| look point | y 4.6 to 4.8 (above his waist), and x 5 to 8 units to the right of the middle of the 3D, so the 3D sits left of centre and the right column stays free |
+| scale at dist 46 | about 27 px a unit, so the mascot is about 230 px tall and his head stays below y 380 |
+| hold heights | `hold` points at y 3.0 or more: below about 2.5 his hands do not reach, even with a lean |
+| distance to a rail or a base | stand 1.6 or more from its edge, measured to his centre. Closer, his shoes go into it while he walks |
+| label on a moving object | above it or below it, never on it; hide a label when its arrow is shorter than the label |
 
 ## Backgrounds
 

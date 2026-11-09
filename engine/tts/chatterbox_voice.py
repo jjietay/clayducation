@@ -54,12 +54,20 @@ def main(path):
     model = None
     if todo:
         import torch
-        from chatterbox.tts import ChatterboxTTS
+        turbo = p.get('model') == 'turbo'
         # An NVIDIA GPU, else Apple silicon (Metal), else the CPU (slow: Kokoro is faster there).
         device = 'cuda' if torch.cuda.is_available() else 'mps' if getattr(torch.backends, 'mps', None) and torch.backends.mps.is_available() else 'cpu'
         print(f'chatterbox: {len(todo)} part(s) to speak on {device}', flush=True)
-        model = ChatterboxTTS.from_pretrained(device=device)
-        model.prepare_conditionals(REFERENCE, exaggeration=p['exaggeration'])
+        # Chatterbox-Turbo (the user chose it by ear on 2026-11-09: it sounded best of 4, and makes audio about
+        # twice as fast). It has no cfg or exaggeration: its pace comes from the reference clip alone.
+        if turbo:
+            from chatterbox.tts_turbo import ChatterboxTurboTTS
+            model = ChatterboxTurboTTS.from_pretrained(device=device)
+            model.prepare_conditionals(REFERENCE)
+        else:
+            from chatterbox.tts import ChatterboxTTS
+            model = ChatterboxTTS.from_pretrained(device=device)
+            model.prepare_conditionals(REFERENCE, exaggeration=p['exaggeration'])
     done = []
     for s in jobs['scenes']:
         for part in s['parts']:
@@ -67,8 +75,9 @@ def main(path):
             if not os.path.exists(f):
                 import torch
                 torch.manual_seed(part.get('seed', p.get('seed', 7)))
-                wav = model.generate(part['text'], exaggeration=p['exaggeration'], cfg_weight=p['cfg_weight'],
-                                     temperature=p['temperature']).squeeze(0).cpu().numpy()
+                if turbo: wav = model.generate(part['text'], temperature=p['temperature']).squeeze(0).cpu().numpy()
+                else: wav = model.generate(part['text'], exaggeration=p['exaggeration'], cfg_weight=p['cfg_weight'],
+                                          temperature=p['temperature']).squeeze(0).cpu().numpy()
                 sf.write(f, trim(wav, model.sr), model.sr)
             part['raw'] = f
         done.append(s)

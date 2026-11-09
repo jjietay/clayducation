@@ -229,6 +229,8 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
     if (s._hero) {
       // The feet, not the body: he must be able to lean and straighten up in place.
       const p = new THREE.Vector3(s._hero.feet[0], 0, s._hero.feet[1]), d = s._walk ? p.clone().sub(s._walk) : null, h = s._hero; s._walk = p;
+      // Standing still with the legs apart reads as a frozen walk (the user saw it at 12:41 of the computed torque video).
+      if (d && d.length() < 0.002 && Math.max(...h.legs.map((l) => Math.abs(l.hip.rotation.x))) > 0.15) out.push('mascot stands still with his legs apart, frozen mid-step');
       const f = new THREE.Vector3(0, 0, 1).applyQuaternion(h.root.quaternion); f.y = 0;
       // Holding something, he may walk backwards: he pulls it.
       const side = d && d.length() > 0.012 && !(h.held?.[0] > 0.05 || h.held?.[1] > 0.05) && (d.y = 0, f.angleTo(d) > 1.05);
@@ -262,6 +264,31 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
     return [...out, ...objectHits(models), ...(s._heroModel ? selfHits(s._heroModel) : []), ...(third ? textHits(scene, camera, items, s.W, s.H) : [])];
   };
   s._movers = () => moved(s._hero, models, camera, s.W, s.H);
+  // Screen boxes of the mascot and each model, for "make zones": where the 3D is, so formulas go elsewhere.
+  s._zoneBoxes = () => {
+    const out = [], b = new THREE.Box3(), v = new THREE.Vector3();
+    camera.updateMatrixWorld();
+    for (const m of models) {
+      if (m.name === 'arrow') continue;
+      m.root.updateMatrixWorld(true);
+      const sc = m.root.getWorldScale(v); if (Math.min(sc.x, sc.y, sc.z) < 0.01) continue;   // hidden with a tiny scale
+      // One box for each mesh (part), not one for the whole model: a long rail would cover the frame.
+      m.root.traverse((o) => {
+        if (!o.isMesh || !o.geometry) return;
+        const ws = o.getWorldScale(v); if (Math.min(ws.x, ws.y, ws.z) < 0.01) return;
+        o.geometry.boundingBox ?? o.geometry.computeBoundingBox();
+        b.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld);
+        let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+        for (let i = 0; i < 8; i++) {
+          v.set(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y : b.min.y, i & 4 ? b.max.z : b.min.z).project(camera);
+          const x = (v.x + 1) / 2 * s.W, y = (1 - v.y) / 2 * s.H;
+          x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+        }
+        out.push({ name: m.hero ? 'mascot' : m.name, x0, y0, x1, y1 });
+      });
+    }
+    return out;
+  };
   // The ID pass (engine/runtime.js): each model drawn in its own flat colour, and each model alone for
   // its full outline. Shadows and anything that is not a model stay out. The frame on screen does not change.
   s._idPass = (w, h) => idPass(R, scene, camera, models, w, h);
@@ -272,7 +299,8 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
       shadowMap ??= shadowTexture();
       const b = new THREE.Box3().setFromObject(obj), size = new THREE.Vector3(), c = new THREE.Vector3(); b.getSize(size); b.getCenter(c);
       const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: shadowMap, transparent: true, depthWrite: false }));
-      m.rotation.x = -Math.PI / 2; m.position.set(c.x, 0.005, c.z); m.scale.set(size.x * k, size.z * k, 1); scene.add(m); return m;
+      m.rotation.x = -Math.PI / 2; m.position.set(c.x, 0.005, c.z); m.scale.set(size.x * k, size.z * k, 1); scene.add(m);
+      m.userData.of = obj; m.userData.base = [size.x * k, size.z * k, obj.scale.x || 1]; return m;
     },
     // Each call makes a new one. x, z place it on the floor; shadow: false for something held or on a table.
     async mascot({ x = 0, z = 0, shadow = true } = {}) {
@@ -334,6 +362,56 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
       models.push({ name: 'ball', root: m, groups: { ball: m } });
       return m;
     },
+    // Where the mascot stands to push, pull or hold one part of a model from one side (the user asked, 2026-11-09:
+    // 4 look rounds went to hands that missed a cart and shoes inside its rail). side is the face he touches:
+    // '-x', '+x', '-z' or '+z'. He stands standOff (1.85) out from that face and faces it; if a floor-level part
+    // of any model (a rail, a base) is under his feet, he steps further out. The hands go on the face, spread
+    // apart, at y (default: 0.35 below the top of the part, kept between 2.6 and 3.4, where his hands reach).
+    // Returns { x, z, face, hands: [right, left], low } (a hand is null when only the other one reaches; low: the
+    // face is too low to reach well).
+    stance(model, part, { side = '-z', y, spread, standOff = 1.85, footR = 1.0 } = {}) {
+      const grp = model.groups[part]; if (!grp) throw new Error(`stance: ${model.name} has no part "${part}"`);
+      model.root.updateMatrixWorld(true);
+      const b = boxOf(grp, new THREE.Box3()), ax = side[1], sg = side[0] === '-' ? -1 : 1;
+      const n = ax === 'x' ? [sg, 0] : [0, sg], d = [-n[0], -n[1]], r = [-d[1], d[0]];
+      const cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2;
+      const fx = ax === 'x' ? (sg < 0 ? b.min.x : b.max.x) : cx, fz = ax === 'z' ? (sg < 0 ? b.min.z : b.max.z) : cz;
+      const top = b.max.y, hy = y ?? Math.min(Math.max(top - 0.35, 2.6, b.min.y + 0.2), 3.4, top - 0.05);
+      const half = ax === 'x' ? (b.max.z - b.min.z) / 2 : (b.max.x - b.min.x) / 2, w = spread ?? Math.min(0.6, half * 0.6);
+      // Floor-level parts of every model but the mascot and this part: his feet keep footR clear of them.
+      const floor = [], tb = new THREE.Box3();
+      for (const m of models) { if (m.hero || m.name === 'arrow') continue; for (const g2 of Object.values(m.groups || {})) { if (g2 === grp || !meshOf(g2)) continue; boxOf(g2, tb); if (tb.min.y < 0.6 && tb.max.y > 0.02) floor.push(tb.clone()); } }
+      const hits = (x, z) => floor.some((fb) => x > fb.min.x - footR && x < fb.max.x + footR && z > fb.min.z - footR && z < fb.max.z + footR);
+      // Straight out first (up to 1 more). If a floor part runs along that line (he would stand on a rail), step
+      // sideways instead, to the side away from the camera so he does not hide the object, and reach sideways.
+      let at = null;
+      for (let so = standOff; so <= standOff + 1 && !at; so += 0.1) if (!hits(fx + n[0] * so, fz + n[1] * so)) at = [fx + n[0] * so, fz + n[1] * so];
+      if (!at) {
+        const away = (camera.position.x - fx) * r[0] + (camera.position.z - fz) * r[1] > 0 ? -1 : 1;
+        for (let lat = 0.2; lat <= 3.5 && !at; lat += 0.1) for (const sgn of [away, -away]) {
+          for (const so of [standOff - 0.35, standOff, standOff + 0.35]) {
+            const x = fx + n[0] * so + r[0] * lat * sgn, z = fz + n[1] * so + r[1] * lat * sgn;
+            if (!hits(x, z)) { at = [x, z]; break; }
+          }
+          if (at) break;
+        }
+      }
+      at ??= [fx + n[0] * standOff, fz + n[1] * standOff];
+      // Beside the face (he stepped sideways): the hands go on the edge of the face nearest to him.
+      const latNow = (at[0] - fx) * r[0] + (at[1] - fz) * r[1], shift = Math.abs(latNow) > half ? Math.sign(latNow) * Math.max(0, half - w - 0.15) : 0;
+      const p = (k) => [fx + r[0] * (w * k + shift), hy, fz + r[1] * (w * k + shift)];
+      // Beside the face he reaches with the near hand only; the far hand would cross his body.
+      const hands = shift ? (latNow > 0 ? [null, p(0)] : [p(0), null]) : [p(1), p(-1)];
+      return { x: at[0], z: at[1], face: Math.atan2(d[0], d[1]), hands, low: top < 2.7 };
+    },
+    // Stand at the stance and put both hands on the face (k from 0 to 1). Call it after blendPose. For a model that
+    // moves, call it every frame: he follows it. For walking legs while it moves, use route() or stride() as well.
+    pushOn(hero, model, part, opts = {}) {
+      const st = g.stance(model, part, opts), k = opts.k ?? 1;
+      hero.place(st.x, st.z, { face: st.face, lean: opts.lean ?? 0.1 });
+      if (k > 0) st.hands.forEach((h, i) => { if (h) hero.hold(i, h, k); });
+      return st;
+    },
     // A plain rounded post, to mark a place on the floor.
     post(color, h = 3, r = 0.12) {
       const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, h - 2 * r, 8, 24), new THREE.MeshPhysicalMaterial({ color, roughness: 0.56, sheen: 0.28, sheenRoughness: 0.6 }));
@@ -356,7 +434,14 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
       v.project(camera); return [(v.x + 1) / 2 * W, (1 - v.y) / 2 * H];
     },
     // The renderer moves into the scene that draws now. All scenes share it.
-    render() { if (R.domElement.parentElement !== s.root) s.root.prepend(R.domElement); R.render(scene, camera); },
+    render() {
+      if (R.domElement.parentElement !== s.root) s.root.prepend(R.domElement);
+      // A floor shadow follows its object's size: a model hidden with a tiny scale lost its body but kept its
+      // shadow (the computed torque video showed the gauge's shadow before the gauge appeared, 2026-11-09).
+      for (const m of models) { const sh = m.shadow, u = sh?.userData; if (!u?.base) continue; const r = (u.of.scale.x || 0) / u.base[2];
+        sh.visible = r > 0.02; sh.scale.set(u.base[0] * Math.max(r, 1e-4), u.base[1] * Math.max(r, 1e-4), 1); }
+      R.render(scene, camera);
+    },
     // Call at the end of setup, so every material is ready before the first frame.
     async ready() { R.compile(scene, camera); g.render(); },
   };

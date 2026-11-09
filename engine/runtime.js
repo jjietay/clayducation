@@ -254,6 +254,7 @@ export function manim(extra = {}) {
     manimOnly: !extra.setup && !extra.draw,
     // threeD: true marks a Manim scene whose picture is really 3D, for the rule in "make check".
     threeD: !!extra.threeD,
+    isManim: true,
     async setup(s) {
       const r = await fetch(`/build/manim/${s.id}/info.json`);
       if (!r.ok) throw new Error(`scene ${s.id}: no Manim frames. Run "make manim".`);
@@ -267,7 +268,9 @@ export function manim(extra = {}) {
       const i = Math.min(s.manim.frames - 1, Math.floor(s.t * s.manim.fps + 1e-6));
       const src = `/build/manim/${s.id}/f_${String(i + 1).padStart(5, '0')}.jpg`;
       // a failed decode must not stop the overlay draw below (it would keep an old overlay on screen)
-      if (s.frame.getAttribute('src') !== src) { s.frame.src = src; try { await s.frame.decode(); } catch (e) { /* keep the old frame */ } }
+      // The fast render (make.mjs) draws only the overlay here and puts Manim's own frame under it with ffmpeg.
+      s.frame.style.visibility = window.__overlayOnly ? 'hidden' : '';
+      if (!window.__overlayOnly && s.frame.getAttribute('src') !== src) { s.frame.src = src; try { await s.frame.decode(); } catch (e) { /* keep the old frame */ } }
       await extra.draw?.(s);
     },
   };
@@ -276,6 +279,28 @@ export function manim(extra = {}) {
 // ---------- scenes ----------
 const defs = new Map();
 window.manimOnly = () => [...defs].filter(([, d]) => d.manimOnly).map(([id]) => id);
+window.manimScenes = () => [...defs].filter(([, d]) => d.isManim).map(([id]) => id);
+// The overlay of the scene now, as a hash of its HTML (the Manim frame left out). Two frames with the same
+// hash look the same, so the fast render screenshots the overlay only when the hash changes. A canvas has
+// pixels that no HTML shows, so a scene with one gives null and renders the normal way.
+window.__overlaySig = () => {
+  if (!current) return null;
+  let h = 0;
+  for (const c of current.root.children) {
+    if (c === current.frame) continue;
+    if (c.tagName === 'CANVAS' || c.querySelector?.('canvas')) return null;
+    const str = c.outerHTML + getComputedStyle(c).opacity;
+    for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
+  }
+  return String(h);
+};
+// Transparent page, for the overlay screenshots of the fast render.
+const bgSaved = [];
+window.__overlayMode = (on) => {
+  const els = [document.documentElement, document.body, stage, ...(current ? [current.root] : [])];
+  if (on) { bgSaved.length = 0; for (const e of els) { bgSaved.push([e, e.style.background]); e.style.background = 'transparent'; } }
+  else { for (const [e, b] of bgSaved) e.style.background = b; bgSaved.length = 0; }
+};
 window.scene = (id, def) => {
   if (typeof def === 'function') def = { draw: def };
   defs.set(id, def);
@@ -357,6 +382,7 @@ class Scene {
     d.style.cssText = `position:absolute;left:${x}px;top:${y}px;translate:${ax}% ${ay}%;font:${weight} ${size}px/${1.2} '${font}';color:${color};z-index:${z};white-space:${width ? 'normal' : 'nowrap'};${width ? `width:${width}px;` : ''}text-align:${align || (anchor.includes('c') ? 'center' : 'left')}`;
     if (html) d.innerHTML = str; else d.textContent = str;
     d.dataset.text = '1';
+    d.dataset.l0 = x; d.dataset.t0 = y;
     this.root.appendChild(d);
     return d;
   }
@@ -451,10 +477,53 @@ window.seek = async function (T) {
     s._T = T;
     s._trace = {}; s._cancelNow = false;
     await s.def.draw?.(s);
+    fitText(s);
   } catch (e) {
     report(`scene ${s.id} at ${(T - s.start).toFixed(2)} s: ${e.stack || e}`);
   }
 };
+// Auto-fit (the user asked for it on 2026-11-09): every text and formula stays inside the safe area.
+// A text that is wider or taller than the safe area shrinks, then the whole is pushed back inside.
+// The pieces of one eqn() row (same data-eqn) move and shrink together, so the row keeps its spacing.
+// A node with data-fit="off" is left alone. Each fit is logged, and "make check" WARNs about it, so the
+// author still moves the thing to a better place: auto-fit is a guard, not a layout.
+const FIT_LOG = new Map();
+function fitText(s) {
+  const nodes = [...s.root.querySelectorAll('[data-text="1"], [data-tex]')].filter((n) => n.dataset.fit !== 'off' && n.dataset.l0 !== undefined);
+  for (const n of nodes) { n.style.left = n.dataset.l0 + 'px'; n.style.top = n.dataset.t0 + 'px'; n.style.scale = ''; }
+  const groups = new Map();
+  for (const n of nodes) {
+    if (n.closest('[data-tex]') !== n && n.dataset.text !== '1') continue;
+    const cs = getComputedStyle(n);
+    if (cs.display === 'none' || +cs.opacity === 0) continue;
+    const key = n.dataset.eqn || n;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(n);
+  }
+  for (const [key, list] of groups) {
+    const rs = list.map((n) => n.getBoundingClientRect()).filter((r) => r.width > 0);
+    if (!rs.length) continue;
+    const L = Math.min(...rs.map((r) => r.left)), T = Math.min(...rs.map((r) => r.top)), R = Math.max(...rs.map((r) => r.right)), B = Math.max(...rs.map((r) => r.bottom));
+    const k = Math.min(1, SAFE.w / (R - L), SAFE.h / (B - T));
+    const cx = (L + R) / 2, cy = (T + B) / 2, w = (R - L) * k, h = (B - T) * k;
+    const nx = clamp(cx, SAFE.x + w / 2, SAFE.x + SAFE.w - w / 2), ny = clamp(cy, SAFE.y + h / 2, SAFE.y + SAFE.h - h / 2);
+    if (k > 0.999 && Math.abs(nx - cx) < 0.5 && Math.abs(ny - cy) < 0.5) continue;
+    list.forEach((n, i) => {
+      const r = rs[i] || n.getBoundingClientRect(), ncx = (r.left + r.right) / 2, ncy = (r.top + r.bottom) / 2;
+      const dx = nx - cx + (ncx - cx) * (k - 1), dy = ny - cy + (ncy - cy) * (k - 1);
+      n.style.left = (+n.dataset.l0 + dx) + 'px'; n.style.top = (+n.dataset.t0 + dy) + 'px';
+      if (k < 0.999) n.style.scale = k;
+    });
+    const label = typeof key === 'string' ? `formula ${key}` : (list[0].dataset.tex || list[0].textContent).trim().slice(0, 40);
+    const f = FIT_LOG.get(`${s.id}|${label}`) || { scene: s.id, label, from: s._t, to: s._t, k: 1, d: 0 };
+    f.from = Math.min(f.from, s._t); f.to = Math.max(f.to, s._t); f.k = Math.min(f.k, k); f.d = Math.max(f.d, Math.hypot(nx - cx, ny - cy));
+    FIT_LOG.set(`${s.id}|${label}`, f);
+  }
+}
+window.__fits = () => [...FIT_LOG.values()];
+// Screen boxes of the 3D things now (clay scenes only), for "make zones".
+window.__zoneBoxes = () => current?._zoneBoxes?.() || null;
+
 // What "make check" needs for the look rules. Each scene must have been drawn once before this.
 window.__looks = () => list.map((s) => ({
   id: s.id, has3d: !!s.has3d || !!s.def.threeD, mascot: !!s.hasMascot, manim: !!s.manim, heroTravel: s._hero ? s._hero.travel || 0 : null,

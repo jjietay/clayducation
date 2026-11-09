@@ -384,7 +384,8 @@ export function createMascot(THREE, opts = {}) {
       if (t >= B[0]) { dist += L; cur = B; continue; }
       if (t <= A[0]) { cur = A; break; }
       const u = (t - A[0]) / (B[0] - A[0]), e = u * u * (3 - 2 * u);
-      dist += L * e; move = Math.sin(Math.PI * u);
+      // A key pair at one spot is a wait: no stride, or the legs froze mid-step (computed torque recap, 2026-11-09).
+      dist += L * e; move = L > 0.01 ? Math.sin(Math.PI * u) : 0;
       tooSlow = !keep && L >= 1.5 && L / (B[0] - A[0]) < 1;   // a long, slow walk looks wrong: wait, then walk
       let face = turnTo(A[3] ?? 0, B[3] ?? 0, e);
       // He looks where he walks. A short step (under 1.5) may go back or to the side, and keep is for

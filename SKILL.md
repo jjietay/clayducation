@@ -93,6 +93,14 @@ If a storyboard breaks one of these, change the storyboard before you write code
 
 ## Hard rules
 
+- **Parallel by default (the user asked, 2026-11-09).** Whatever can run at the same time does: a 13-minute
+  video took 3 hours when every frame was measured in one Chrome page (one core busy, GPU at 10 %).
+  The engine now measures `look`, `collide`, `review` and `stable` in several pages at once (the render's
+  `workers`: half the cores, at most 8, and only as many as free memory allows; 8 on this laptop), and `build` runs sheet, stable and review together. When you add a step that
+  visits frames, split it over pages too (`measureParallel`, `traceParallel`, `idParallel` in `make.mjs`).
+  In your own work: start independent jobs together (a look and a selftest, a Manim render and a check),
+  and never wait on one job while another could run.
+
 - **Do the thinking here, in the main conversation.** You write the script, the storyboard
   and the scenes yourself, because the context is here. Never give those steps to a
   subagent: a subagent starts with no context. The script agent in step 7 is the one
@@ -122,6 +130,8 @@ If a storyboard breaks one of these, change the storyboard before you write code
      `manim_scenes.py` or the voice, run `make manim`: `make look` draws the Manim frames, it does not make them.
   2. `make look <dir>`: it measures each changed scene on every frame, and draws its near frames and its
      moving parts. Read them all. Then `make look <dir> --ok <digits>`. `make build` stops without this.
+     An image with the same frames and labels as one already read and confirmed shows READ BEFORE and needs no
+     digit (`--ok -` when every image is read before). Read every new image; the same rule holds for the strips.
   3. `make build <dir>`. It stops on any collision.
   4. Read every strip in `build/review/moving.md`. Then `make look <dir> --moving-ok <digits>`.
   5. `make final <dir>`. It stops if the source changed after the look or the build, or if a collision or
@@ -203,6 +213,10 @@ every other check does, and formulas must act out the voice in both looks.
 5. **Write `script.md`.** Read `reference/script.md` first: learning order, how the voice
    reads, pacing, **formulas**, writing rules, markup, voice traps. Compute each number with
    code where you can, and do not type it from memory.
+   Then run `make pace <dir>` (instant): it estimates each scene's pace from the text and lists clauses made
+   mostly of symbol words. Fix them before any voice exists; `make voice` runs the same check first and stops
+   on a scene clearly over the limit. A voice run costs 10 to 25 min, a pace fix in the text costs nothing.
+   A part that used all its retakes is not retaken again while its text stays the same.
 
 6. **Write `storyboard.md`.** Read `styles/clay.md` (classic: `styles/classic/README.md`). Then:
    - Split the script into **parts** (about 15 to 40 s each; a part can hold several
@@ -229,6 +243,20 @@ every other check does, and formulas must act out the voice in both looks.
    landing, a stamp), about one sound a beat at most. The kit and its rules are in `SOUND.md`.
    **Maths scenes that use Manim**: write them in `manim_scenes.py`, and put
    `scene('<id>', manim({ threeD: true }))` in `scenes.js` when the picture is 3D.
+   **Start every clay scene from the fixed layout** in `styles/clay.md` ("Fixed layout"): the camera, the
+   zones for the 3D, the formulas and the labels, and the hold heights.
+
+8b. **Frame each scene first (seconds, not minutes).** Before the first `make look`, take one still of
+   every clay scene at a busy cue, in one command: `make still <dir> hook@end idea@#step ...`. Read them
+   all. Then run `make zones <dir>` (seconds): for each clay scene it shades where the mascot and the models go
+   at any time, and prints the free boxes for formulas and labels, in stage px. Put every formula inside a free
+   box; never guess a position. Fix the camera when a scene has no free box. Only then run `make look`.
+   Auto-fit in the runtime pushes any text that leaves the safe area back in (and shrinks one that is too wide),
+   and `check` and `look` WARN about each fit: place that text yourself. The user asked for this on 2026-11-09: in the computed torque video the first `make look`
+   found 115 faults, because every camera was too close, and each full look pass took 10 minutes.
+   While you fix faults, measure only the scenes that you changed: `make collide <dir> --scene a,b`.
+   An edit to a helper that all scenes share makes `make look` measure every scene again, so put
+   scene-only code inside its scene.
 
 9. **Build and look.**
    ```bash

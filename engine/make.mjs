@@ -17,6 +17,7 @@
 //   node make.mjs bake [--only mascot|models|a,b]   compute the clay shapes once, to styles/library/clay/cache
 //   node make.mjs attached                  measures that every part of every model touches the rest
 //   node make.mjs clay [sheet]              vetting sheets of the mascot and models, to styles/library/clay/sheets
+//   node make.mjs zones [dir] [--scene a,b]   where the 3D is in each clay scene, and the free boxes for formulas
 //   node make.mjs look [dir] [--scene a,b]  after each edit: measure the changed scenes, draw their near frames and moving parts
 //   node make.mjs look [dir] --ok <digits>  the CHECK digit of each image, in order: "build" can run. --moving-ok <digits>: the same for the strips of a build: "final" can run
 //   node make.mjs collide [dir] [--scene a,b]   only the measures: mascot, objects and text against each other
@@ -49,7 +50,7 @@ const CHROME = process.env.CHROME || ['google-chrome', 'google-chrome-stable', '
 // more exact word times and voice checks; needs faster-whisper in engine/tts/.venv, about 1.6 GB).
 const CONFIG_FILE = path.join(ENGINE, '..', 'config.json');
 const CONFIG_DEFAULT = { voice: 'auto', gpu: 'auto', whisper: 'base', kokoroVoice: 'af_heart' };
-const CONFIG_CHOICES = { voice: ['auto', 'chatterbox', 'kokoro'], gpu: ['auto', 'off'], whisper: ['base', 'large'] };
+const CONFIG_CHOICES = { voice: ['auto', 'chatterbox-turbo', 'chatterbox', 'kokoro'], gpu: ['auto', 'off'], whisper: ['base', 'large'] };
 const readConfig = () => { try { return { ...CONFIG_DEFAULT, ...JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) }; } catch { return { ...CONFIG_DEFAULT }; } };
 const CONFIG = readConfig();
 
@@ -81,7 +82,10 @@ function timeline(dir) {
   return JSON.parse(fs.readFileSync(f, 'utf8'));
 }
 // musicVolume 0.37: the user raised the music by 3 dB on 2026-11-02 (it was 0.26).
-const renderCfg = (dir) => ({ music: true, musicVolume: 0.37, sfx: false, sfxVolume: 1, workers: Math.max(1, Math.min(6, Math.floor(os.cpus().length / 3))), ...(JSON.parse(fs.readFileSync(path.join(dir, 'video.json'), 'utf8'))._render || {}) });
+// Workers from the machine (Remotion's rule, get-concurrency.ts: half the cores, at most 8), and only as many
+// as free memory allows (HyperFrames' parallelCoordinator): about 1.2 GB for each Chrome page at 1080p.
+const autoWorkers = () => Math.max(1, Math.min(8, Math.round(os.cpus().length / 2), Math.floor(os.freemem() / (1.2 * 2 ** 30))));
+const renderCfg = (dir) => ({ music: true, musicVolume: 0.37, sfx: false, sfxVolume: 1, workers: autoWorkers(), ...(JSON.parse(fs.readFileSync(path.join(dir, 'video.json'), 'utf8'))._render || {}) });
 const slug = (dir) => path.basename(dir);
 
 // ---------- Manim scenes (the maths style) ----------
@@ -175,8 +179,8 @@ async function manim() {
 // Chatterbox if it is installed, else Kokoro.
 function voiceEngine(cfg = {}) {
   const v = cfg._tts?.engine || CONFIG.voice;
-  if (v === 'chatterbox' || v === 'kokoro') return v;
-  return fs.existsSync(TTS_PY) ? 'chatterbox' : 'kokoro';
+  if (v === 'chatterbox' || v === 'kokoro' || v === 'chatterbox-turbo') return v;
+  return fs.existsSync(TURBO_PY) ? 'chatterbox-turbo' : fs.existsSync(TTS_PY) ? 'chatterbox' : 'kokoro';
 }
 
 // ---------- config ----------
@@ -213,7 +217,7 @@ async function doctor() {
   line(!!mv && mv.status === 0, 'manim', mv && mv.status === 0 ? `Manim Community ${mv.stdout.trim()} (maths scenes)` : `not installed: needs sudo apt install libcairo2-dev libpango1.0-dev pkg-config texlive texlive-latex-extra dvisvgm, then: cd ${path.join(ENGINE, 'manim')} && uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python manim`, true);
   const cb = fs.existsSync(TTS_PY) && spawnSync(TTS_PY, ['-c', 'import torch, chatterbox; print(torch.cuda.is_available())'], { encoding: 'utf8' });
   const shared = fs.existsSync(path.join(ENGINE, 'tts', '.venv', 'shared-torch'));
-  const needCb = voiceEngine() === 'chatterbox';
+  const needCb = voiceEngine().startsWith('chatterbox');
   line(!needCb || (!!cb && cb.status === 0), 'chatterbox', !needCb && !(cb && cb.status === 0) ? 'not used: the voice is Kokoro (make config)' : cb && cb.status === 0 ? `voice (GPU: ${cb.stdout.trim() === 'True' ? 'yes' : 'no, slow on CPU'}${shared ? "; PyTorch from /path/to/other/.venv" : ''})` : shared ? "fails: it uses /path/to/other/.venv's PyTorch, which changed or is gone. See README.md" : 'not installed: see README.md');
   line(spawnSync('which', ['latex']).status === 0 && spawnSync('which', ['dvisvgm']).status === 0, 'latex', 'latex + dvisvgm, for Manim formulas', true);
   if (fs.existsSync(EXR)) {
@@ -251,6 +255,8 @@ function init() {
 // Whisper, as for a recording. A part = the words between two [pause] marks, read in
 // one call, so the tone carries across sentences; the pause is silence we add.
 const TTS_PY = path.join(ENGINE, 'tts', '.venv', 'bin', 'python');
+// Chatterbox-Turbo has its own environment: the main one shares PyTorch with ~/another environment (see README.md).
+const TURBO_PY = path.join(ENGINE, 'tts', '.venv-turbo', 'bin', 'python');
 // What Whisper hears in a spoken part (cached next to it).
 const LARGE_WHISPER = 'large-v3-turbo', HEAR = path.join(ENGINE, 'tts', 'hear.py');
 const largeWhisper = () => CONFIG.whisper === 'large' && fs.existsSync(TTS_PY);
@@ -302,11 +308,13 @@ async function takeReport(part) {
   return { d, extra: [...extraWords(part.text, heard.map((w) => w.text)), ...missingLetters(part.text, heard.map((w) => w.text)).map((w) => `missing ${w}`)], heard: heard.map((w) => w.text).join(' '), clauses };
 }
 
-async function chatterbox(dir, shadow, cfg) {
-  if (!fs.existsSync(TTS_PY)) die(`Chatterbox is not installed. See README.md ("Voice").`);
+async function chatterbox(dir, shadow, cfg, turbo = false) {
+  const PY = turbo ? TURBO_PY : TTS_PY;
+  if (!fs.existsSync(PY)) die(`Chatterbox${turbo ? '-Turbo' : ''} is not installed. See README.md ("Voice").`);
   const { parseScript } = await import(pathToFileURL(path.join(EXR, 'src', 'script.js')).href);
   // The user chose these by ear: see the header of engine/tts/chatterbox_voice.py.
-  const t = { exaggeration: 0.5, cfg_weight: 0.5, temperature: 0.8, seed: 7, stopGap: 0.6, commaMax: 0.3, paragraphGap: 1.0, retakes: 3, ...cfg._tts };
+  const t = { exaggeration: 0.5, cfg_weight: 0.5, temperature: 0.8, seed: 7, stopGap: 0.6, commaMax: 0.3, paragraphGap: 1.0, retakes: 3, ...cfg._tts, ...(turbo ? { model: 'turbo' } : {}) };
+  delete t.engine;
   const scriptText = fs.readFileSync(path.join(dir, 'script.md'), 'utf8'), bars = twoBars(scriptText);
   if (bars.length) die(`a {shown|spoken} has a second bar, so the voice reads the wrong text: ${bars.join(', ')}. Write "∣" (U+2223) for the bar in the shown part, for example {p(x∣ω_i)|p of x, given omega i}.`);
   const script = parseScript(scriptText);
@@ -321,6 +329,10 @@ async function chatterbox(dir, shadow, cfg) {
   // Seeds that an earlier run found good stay chosen, so the cache keeps hitting.
   const seedFile = path.join(shadow, 'seeds.json');
   const chosen = fs.existsSync(seedFile) ? JSON.parse(fs.readFileSync(seedFile, 'utf8')) : {};
+  // Parts that used all their retakes, by the hash of their text. A later run does not retake them again
+  // while the text stays the same (the computed torque video retook 3 unchanged parts on each of 4 runs).
+  const doneFile = path.join(shadow, 'exhausted.json'), exhausted = fs.existsSync(doneFile) ? JSON.parse(fs.readFileSync(doneFile, 'utf8')) : {};
+  const textKey = (p) => createHash('sha1').update(p.text).digest('hex').slice(0, 12);
   const scenes = [];
   for (const sc of script.scenes) {
     if (!sc.units.some((u) => u.type === 'word')) continue;
@@ -358,12 +370,12 @@ async function chatterbox(dir, shadow, cfg) {
   // is kept. A seed set by hand in video.json is never changed.
   const all = scenes.flatMap((sc) => sc.parts);
   const takes = new Map(); // part id -> [{ seed, raw, report }]
-  const fixed = (p) => t.seeds?.[p.id] !== undefined || t.seeds?.[p.id.split('#')[0]] !== undefined;
+  const fixed = (p) => t.seeds?.[p.id] !== undefined || t.seeds?.[p.id.split('#')[0]] !== undefined || exhausted[p.id] === textKey(p);
   let median = 0;
   const score = (r) => (r.d >= 3 || r.extra?.length ? 1e6 + r.d : 0) + Math.max(0, ...r.clauses.map((c) => c.rate / median));
   for (let round = 0; ; round++) {
     fs.writeFileSync(jobs, JSON.stringify({ params, cache: path.join(dir, 'build', 'tts-cache'), scenes }, null, 1));
-    const r = spawnSync(TTS_PY, [path.join(ENGINE, 'tts', 'chatterbox_voice.py'), jobs], { stdio: 'inherit' });
+    const r = spawnSync(PY, [path.join(ENGINE, 'tts', 'chatterbox_voice.py'), jobs], { stdio: 'inherit' });
     if (r.status !== 0) die('Chatterbox failed (see above)');
     const done = JSON.parse(fs.readFileSync(jobs + '.out.json', 'utf8')).scenes.flatMap((sc) => sc.parts);
     hearAll(done.map((p) => p.raw));
@@ -381,7 +393,8 @@ async function chatterbox(dir, shadow, cfg) {
       for (const p of bad) {
         const best = takes.get(p.id).find((x) => x.seed === p.seed).report;
         if (best.d >= 3 || best.extra?.length) console.log(`WARN voice ${p.id}: after ${round} retake(s) it still says something else${best.extra?.length ? ` (words that do not match the script: ${best.extra.join(', ')})` : ''}.\n  script: ${p.text}\n  heard:  ${best.heard}\n  If only the spelling differs, ignore this. Otherwise reword the part or set a seed in video.json ("_tts": {"seeds": {"${p.id}": 20}}).`);
-        const why = fixed(p) ? 'its seed is set by hand in video.json, so it was not retaken' : `after ${round} retake(s)`;
+        const why = fixed(p) ? (exhausted[p.id] === textKey(p) ? 'it used its retakes in an earlier run, and its text is the same' : 'its seed is set by hand in video.json, so it was not retaken') : `after ${round} retake(s)`;
+        if (!fixed(p) && round >= t.retakes) exhausted[p.id] = textKey(p);
         for (const c of best.clauses) if (c.rate > median * 1.3) console.log(`WARN fast ${p.id}: "${c.text}" at ${(c.rate / median).toFixed(2)} times the usual pace (${why}). Give it its own short sentence and a [pause] after it.`);
       }
       break;
@@ -392,6 +405,7 @@ async function chatterbox(dir, shadow, cfg) {
   }
   for (const p of all) { p.raw = takes.get(p.id).find((x) => x.seed === p.seed).raw; if (p.seed !== t.seed && !fixed(p)) chosen[p.id] = p.seed; else delete chosen[p.id]; }
   fs.writeFileSync(seedFile, JSON.stringify(chosen, null, 1));
+  fs.writeFileSync(doneFile, JSON.stringify(exhausted, null, 1));
   const { writeWav } = await import(pathToFileURL(path.join(EXR, 'src', 'wav.js')).href);
   for (const sc of scenes) {
     const clips = [];
@@ -500,8 +514,45 @@ async function shapePauses(raw, text, { stopGap = 0.6, commaMax = 0.3 } = {}) {
   return { samples: shaped, sampleRate: sr, missed };
 }
 
+// The pace of each scene from the script text alone, before any voice is made (the user asked, 2026-11-09:
+// 3 voice runs of 10 to 25 min each went to fixing the pace limit after the voice existed). The voice length
+// is fitted on 121 scenes of 7 Chatterbox videos: 0.173 s a syllable (a symbol word counts 2), 0.70 s a full
+// stop, 0.35 s a comma, 1.15 s a scene, plus every [pause] and 1 s a paragraph break. Mean error 3.6 % of the
+// length, about 5 words a minute. So an estimate over the limit + 2 stops the voice, and over limit - 5 WARNs.
+function paceEstimate(dir) {
+  const text = fs.readFileSync(path.join(dir, 'script.md'), 'utf8'), out = [];
+  for (const part of text.split(/^## /m).slice(1)) {
+    const [head, ...rest] = part.split('\n'), id = head.split(/[\s{]/)[0], core = /core=yes/.test(head);
+    const body = rest.filter((l) => !l.startsWith('>')).join('\n');
+    const pauses = [...body.matchAll(/\[pause\s*([\d.]*)\]/g)].reduce((a, m) => a + (+m[1] || 1), 0);
+    const paras = body.trim().split(/\n\s*\n/).filter((x) => x.trim()).length - 1;
+    const spoken = body.replace(/\{[^|}]*\|([^}]*)\}/g, '$1').replace(/\[[^\]]*\]/g, ''), words = spoken.split(/\s+/).filter(Boolean);
+    if (!words.length) continue;
+    const syl = words.reduce((k, w) => { const c = w.replace(/[^\w]/g, ''); return k + (!c ? 0 : SYMBOL.test(c) ? 2 : Math.max(1, (c.toLowerCase().match(/[aeiouy]+/g) || []).length)); }, 0);
+    const stops = (spoken.match(/[.!?](\s|$)/g) || []).length, commas = (spoken.match(/,/g) || []).length;
+    const dur = 0.1729 * syl + 0.6973 * stops + 0.3451 * commas + 1.1525 + pauses + paras;
+    // Clauses packed with symbol words came out "fast" and were retaken up to 3 times.
+    const dense = spoken.split(/[.!?;:]/).map((c) => c.trim().split(/\s+/).filter(Boolean)).filter((c) => c.length >= 5 && c.filter((w) => SYMBOL.test(w.replace(/[^\w]/g, ''))).length / c.length >= 0.4).map((c) => c.join(' '));
+    out.push({ id, core, dur, wpm: words.length / (dur / 60), limit: core ? 145 : 170, dense });
+  }
+  return out;
+}
+function paceReport(dir) {
+  const est = paceEstimate(dir), stop = [];
+  console.log('pace (estimated from the text, before any voice)');
+  for (const e of est) {
+    console.log(`${e.id.padEnd(20)} ${e.core ? 'core' : '    '} ${e.dur.toFixed(1).padStart(6)} s ${String(Math.round(e.wpm)).padStart(5)} wpm`);
+    if (e.wpm > e.limit + 15) stop.push(`${e.id}: about ${Math.round(e.wpm)} words a minute, over the limit of ${e.limit}. Cut words or add [pause 0.8] after key statements, before the voice is made`);
+    else if (e.wpm > e.limit - 5) console.log(`WARN ${e.id}: about ${Math.round(e.wpm)} words a minute, near or over the limit of ${e.limit} (the estimate is good to about 8)`);
+    for (const c of e.dense) console.log(`WARN ${e.id}: a clause that is mostly symbol words, likely to come out fast: "${c.slice(0, 70)}". Give each symbol its own short sentence`);
+  }
+  return stop;
+}
+async function pace() { const stop = paceReport(projectDir(positional()[0])); for (const x of stop) console.log(`ERROR ${x}`); process.exit(stop.length ? 1 : 0); }
+
 async function voice() {
   const dir = projectDir(positional()[0]);
+  if (!flag('--skip-pace')) { const stop = paceReport(dir); if (stop.length) { for (const x of stop) console.log(`ERROR ${x}`); die('voice: fix the pace first (no voice was made). --skip-pace makes it anyway.'); } }
   const shadow = path.join(dir, 'build', '_voice');
   fs.mkdirSync(shadow, { recursive: true });
   const cfg = JSON.parse(fs.readFileSync(path.join(dir, 'video.json'), 'utf8'));
@@ -527,7 +578,7 @@ async function voice() {
   // video: speed 0.9 gives 182 to 187 words a minute, 0.82 gives 172 to 174 (over the 170
   // limit), 0.78 gives 148 to 152, near the 160 the user chose for Chatterbox. Chatterbox: we speak, check
   // and retake each part, then hand explainroo the recordings to time.
-  const spoken = engine === 'kokoro' ? { ...cfg, voice: cfg._tts?.kokoroVoice || CONFIG.kokoroVoice, speed: cfg._tts?.speed ?? 0.78 } : await chatterbox(dir, shadow, cfg);
+  const spoken = engine === 'kokoro' ? { ...cfg, voice: cfg._tts?.kokoroVoice || CONFIG.kokoroVoice, speed: cfg._tts?.speed ?? 0.78 } : await chatterbox(dir, shadow, cfg, engine === 'chatterbox-turbo');
   fs.writeFileSync(path.join(shadow, 'video.json'), JSON.stringify(spoken, null, 2));
   // The large Whisper also times the words: asr-hook.mjs changes explainroo's transcribeWords.
   const hook = largeWhisper() ? ['--import', pathToFileURL(path.join(ENGINE, 'asr-hook.mjs')).href] : [];
@@ -952,8 +1003,12 @@ async function check() {
       for (const t of [...ts].filter((x) => x >= 0 && x < s.dur).sort((a, b) => a - b)) {
         await page.evaluate(`seek(${s.start + t})`);
         for (const i of await page.evaluate('layoutIssues()')) layout.add(`${s.id}: ${i}`);
+        // Maths in a plain text label looks like notes, not a formula (the user saw "ωres = 16 → ωn = 8" at 10:00 of the
+        // computed torque video). Typeset it with eqn() or s.tex().
+        for (const m of await page.evaluate(`[...document.querySelectorAll('[data-text="1"]')].filter((n) => n.closest('.scene')?.style.display !== 'none' && /[ωζθβτλσμπΣ∫≤≥∂∇→]|[₀-₉ₐ-ₜ]|\\b[kK][pvi]\\b|\\b\\w+\\s*=\\s*-?\\d/.test(n.textContent)).map((n) => n.textContent.trim().slice(0, 40))`)) layout.add(`${s.id}: "${m}" is maths in a plain text label. Typeset it with eqn() or s.tex()`);
       }
     }
+    for (const f of await page.evaluate('window.__fits()')) layout.add(`${f.scene}: auto-fit ${f.k < 0.999 ? `shrank "${f.label}" to ${Math.round(f.k * 100)} %` : `moved "${f.label}" ${Math.round(f.d)} px`} into the safe area (${fmt(f.from)} to ${fmt(f.to)} s). Place it there yourself`);
     for (const e of await page.evaluate('window.__errors')) problems.add(e.split('\n')[0]);
     const looks = await page.evaluate('window.__looks()');
     for (const l of looks.filter((x) => x.texAlone)) layout.add(`${l.id}: a formula with no picture. Show what it does with an object, and name each term on that object (reference/script.md, "Formulas")`);
@@ -1020,35 +1075,100 @@ async function render() {
   const t0 = Date.now();
   let done = 0;
   const errors = new Set();
-  const job = async (k) => {
-    const a = Math.floor((total * k) / workers), b = Math.floor((total * (k + 1)) / workers);
-    const page = await chrome(srv.url);
-    const out = path.join(partsDir, `part_${k}.mp4`);
-    const ff = spawn('ffmpeg', ['-v', 'error', '-y', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'mjpeg', '-i', '-', ...X264(fps, draft), out], { stdio: ['pipe', 'inherit', 'inherit'] });
+  // Tasks. A Manim stretch (from HyperFrames' static-frame reuse) does not screenshot each frame: the page draws
+  // only its overlay (header, wipe), screenshots it when it changes, and ffmpeg lays it over Manim's own frames.
+  // Everything else is drawn by Chrome as before. --no-fast turns the Manim path off; a draft never uses it.
+  const sceneOf = (T) => tl.scenes.find((x) => T >= x.start - 1e-6 && T < x.start + x.dur - 1e-6) || tl.scenes[tl.scenes.length - 1];
+  let manimIds = [];
+  if (!draft && !flag('--no-fast')) { const p0 = await chrome(srv.url); try { manimIds = await p0.evaluate('window.manimScenes()'); } finally { await p0.close(); } }
+  const segs = [];
+  for (let f = 0; f < total; f++) {
+    const sc = sceneOf(from + f / fps), kind = manimIds.includes(sc.id) ? `manim:${sc.id}` : 'chrome', last = segs[segs.length - 1];
+    if (last && last.kind === kind) last.b = f + 1; else segs.push({ kind, a: f, b: f + 1 });
+  }
+  const chromeFrames = segs.filter((x) => x.kind === 'chrome').reduce((n, x) => n + x.b - x.a, 0);
+  const piece = Math.max(fps * 2, Math.ceil(chromeFrames / workers));
+  const tasks = [];
+  for (const sg of segs) {
+    if (sg.kind !== 'chrome') { tasks.push({ ...sg, id: sg.kind.slice(6) }); continue; }
+    for (let a = sg.a; a < sg.b; a += piece) tasks.push({ kind: 'chrome', a, b: Math.min(sg.b, a + piece) });
+  }
+  const enc = X264(fps, draft), encVf = enc[1], encRest = enc.slice(2);
+  const partOf = (t) => path.join(partsDir, `part_${String(t.a).padStart(7, '0')}.mp4`);
+  const drawChrome = async (page, t) => {
+    const ff = spawn('ffmpeg', ['-v', 'error', '-y', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'mjpeg', '-i', '-', ...enc, partOf(t)], { stdio: ['pipe', 'inherit', 'inherit'] });
     try {
-      // Warm-up: on the GPU path the first frame a fresh page draws of a WebGL scene can
-      // miss objects whose shaders are not ready yet (a still showed a toy-3d block as a
-      // pale shadow; the next seek in the same page drew it solid). So each worker draws
-      // and captures its first frame once and throws that capture away.
-      if (a < b) { await page.evaluate(`seek(${from + a / fps})`); await page.shot({ format: 'jpeg', quality: 50, scale: draft ? 0.5 : 1 }); }
-      for (let i = a; i < b; i++) {
+      // Warm-up: on the GPU path the first frame a fresh page draws of a WebGL scene can miss objects whose
+      // shaders are not ready yet. So each task draws and captures its first frame once and throws it away.
+      await page.evaluate(`seek(${from + t.a / fps})`); await page.shot({ format: 'jpeg', quality: 50, scale: draft ? 0.5 : 1 });
+      for (let i = t.a; i < t.b; i++) {
         await page.evaluate(`seek(${from + i / fps})`);
         const buf = await page.shot({ format: 'jpeg', quality: draft ? 80 : 95, scale: draft ? 0.5 : 1 });
         if (!ff.stdin.write(buf)) await new Promise((r) => ff.stdin.once('drain', r));
         done++;
-        if (k === 0 && i % fps === 0) process.stdout.write(`\rframes ${done} / ${total}  (${(done / ((Date.now() - t0) / 1000)).toFixed(1)} fps)   `);
+        if (done % (fps * 5) === 0) process.stdout.write(`\rframes ${done} / ${total}  (${(done / ((Date.now() - t0) / 1000)).toFixed(1)} fps)   `);
+      }
+    } finally { ff.stdin.end(); await new Promise((r) => ff.on('close', r)); }
+  };
+  const drawManim = async (page, t) => {
+    const sc = tl.scenes.find((x) => x.id === t.id), mdir = path.join(dir, 'build', 'manim', t.id), info = JSON.parse(fs.readFileSync(path.join(mdir, 'info.json'), 'utf8'));
+    const ov = path.join(partsDir, `ov_${t.a}`); fs.mkdirSync(ov, { recursive: true });
+    const groups = [];
+    await page.evaluate('window.__overlayOnly = true');
+    await page.send('Emulation.setDefaultBackgroundColorOverride', { color: { r: 0, g: 0, b: 0, a: 0 } });
+    try {
+      for (let i = t.a; i < t.b; i++) {
+        await page.evaluate(`seek(${from + i / fps})`);
+        const sig = await page.evaluate('window.__overlaySig()');
+        if (sig === null) return false;   // a canvas: draw this stretch the normal way
+        if (!groups.length || groups[groups.length - 1].sig !== sig) {
+          await page.evaluate('window.__overlayMode(true)');
+          const file = path.join(ov, `${groups.length}.png`);
+          fs.writeFileSync(file, await page.shot({ format: 'png' }));
+          await page.evaluate('window.__overlayMode(false)');
+          groups.push({ sig, file, n: 0 });
+        }
+        groups[groups.length - 1].n++;
+        done++;
+      }
+    } finally {
+      await page.evaluate('window.__overlayOnly = false');
+      await page.send('Emulation.setDefaultBackgroundColorOverride', {});
+    }
+    // Manim's frames, one line a frame (a frame index repeats where the scene outlasts its frames).
+    const mlist = [], olist = [];
+    for (let i = t.a; i < t.b; i++) {
+      const k = Math.min(info.frames - 1, Math.floor((from + i / fps - sc.start) * info.fps + 1e-6));
+      mlist.push(`file '${path.join(mdir, `f_${String(Math.max(0, k) + 1).padStart(5, '0')}.jpg`)}'`, `duration ${1 / fps}`);
+    }
+    mlist.push(mlist[mlist.length - 2]);
+    for (const g of groups) olist.push(`file '${g.file}'`, `duration ${g.n / fps}`);
+    olist.push(olist[olist.length - 2]);
+    fs.writeFileSync(path.join(ov, 'm.txt'), mlist.join('\n')); fs.writeFileSync(path.join(ov, 'o.txt'), olist.join('\n'));
+    const r = await runAsync('ffmpeg', ['-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', path.join(ov, 'm.txt'), '-f', 'concat', '-safe', '0', '-i', path.join(ov, 'o.txt'),
+      '-filter_complex', `[0:v]fps=${fps},format=rgba[m];[1:v]fps=${fps},format=rgba[o];[m][o]overlay=0:0:eof_action=repeat:format=rgb,${encVf}[v]`,
+      '-map', '[v]', '-frames:v', String(t.b - t.a), '-r', String(fps), ...encRest, partOf(t)]);
+    if (r.code !== 0) throw new Error(`fast Manim render of ${t.id} failed: ${r.out.slice(-300)}`);
+    fs.rmSync(ov, { recursive: true, force: true });
+    return true;
+  };
+  // A pool of pages: each takes the next task. The longest tasks go first, so no page waits at the end.
+  const queue = tasks.slice().sort((x, y) => (y.b - y.a) - (x.b - x.a));
+  const worker = async () => {
+    const page = await chrome(srv.url);
+    try {
+      while (queue.length) {
+        const t = queue.shift();
+        if (t.kind === 'chrome' || !(await drawManim(page, t))) await drawChrome(page, t);
       }
       for (const e of await page.evaluate('window.__errors')) errors.add(e.split('\n')[0]);
-    } finally {
-      ff.stdin.end();
-      await new Promise((r) => ff.on('close', r));
-      await page.close();
-    }
-    return out;
+    } finally { await page.close(); }
   };
-  let parts;
-  try { parts = await Promise.all(Array.from({ length: workers }, (_, k) => job(k))); } finally { await srv.close(); }
-  console.log(`\nrendered ${total} frames with ${workers} workers in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+  try { await Promise.all(Array.from({ length: Math.min(workers, tasks.length) }, worker)); } finally { await srv.close(); }
+  const parts = tasks.map(partOf).sort();
+  const fastFrames = tasks.filter((x) => x.kind !== 'chrome').reduce((n, x) => n + x.b - x.a, 0);
+  if (fastFrames) console.log(`\nManim stretches: ${fastFrames} frames composited by ffmpeg, not drawn by Chrome`);
+  console.log(`rendered ${total} frames with ${workers} workers in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   for (const e of errors) console.log(`ERROR ${e}`);
   // A scene error means wrong frames in the video: never write it as finished.
   if (errors.size) die('the render had scene errors (above), so no video was written. Fix them and render again.');
@@ -1220,6 +1340,7 @@ async function review() {
   const dir = projectDir(positional()[0]), tl = timeline(dir);
   requireManim(dir);
   const fps = +opt('--fps', tl.fps);
+  loadApproved(dir);
   const out = path.join(dir, 'build', 'review');
   fs.rmSync(out, { recursive: true, force: true });
   fs.mkdirSync(path.join(out, 'cues'), { recursive: true });
@@ -1231,14 +1352,9 @@ async function review() {
 
   await withPage(dir, async (page) => {
     // Pass 1: every frame, numbers only.
-    const frames = [], n = Math.round(tl.duration * fps);
-    for (let i = 0; i < n; i++) {
-      frames.push({ t: i / fps, ...(await page.evaluate(`seek(${i / fps}).then(() => __traceFrame())`)) });
-      if (i % (fps * 5) === 0) process.stdout.write(`\rtrace ${fmt(i / fps)} / ${fmt(tl.duration)} s   `);
-    }
-    process.stdout.write('\n');
+    const n = Math.round(tl.duration * fps), frames = await traceParallel(dir, Array.from({ length: n }, (_, i) => i / fps), fps);
     // The ID pass over the whole video: drawings that move join the strips, and ink.md lists the rest.
-    const ink = await idPass(page, tl, tl.scenes.map((x) => x.id), frames);
+    const ink = await idParallel(dir, tl, tl.scenes.map((x) => x.id), frames);
     write('ink.md', `# Ink\n\nFrom exact masks of each text, formula, drawing and model, on every sixth frame. These are WARNs: look at each one.\n\n`
       + (ink.warns.length ? ink.warns.map((w) => `- ${w}`).join('\n') : 'Nothing to report.')
       + `\n\n## The 20 tightest gaps\n\n` + (ink.tight.length ? ink.tight.map((g) => `- ${fmt(g.t)} s, ${g.scene}: ${g.v} px between ${g.a} and ${g.b}`).join('\n') : 'None under 60 px.') + '\n');
@@ -1298,9 +1414,10 @@ async function review() {
       const cells = [];
       for (let k = 0; k < 12; k++) { const t = v.a + ((v.b - v.a) * k) / 11; cells.push({ label: `${fmt(t)} s`, img: await shot(inScene(sceneOf(v.scene), t), 0.25) }); }
       v.file = `moving/${stamp(v.a)}-${v.scene}-${moving.indexOf(v)}.jpg`;
-      grids.push({ file: v.file, cols: 4, w: 480, h: 270, title: `${v.thing} moves, ${v.scene}, ${fmt(v.a)} to ${fmt(v.b)} s`, cells, check: checkDigit(movingChecks, v.file) });
+      grids.push({ file: v.file, cols: 4, w: 480, h: 270, title: `${v.thing} moves, ${v.scene}, ${fmt(v.a)} to ${fmt(v.b)} s`, cells }); grids[grids.length - 1].check = checkDigit(movingChecks, v.file, gridKey(grids[grids.length - 1]));
     }
     write('moving-checks.json', JSON.stringify(movingChecks));
+    { const nNew = movingChecks.filter((c) => !c.pre).length; console.log(`movement strips: ${movingChecks.length}, ${movingChecks.length - nNew} read before (no digit), ${nNew} new: make look <dir> --moving-ok <their ${nNew} digits${nNew ? '' : ', or -'}>`); }
     const still = [...voiceWithoutMotion(dir, tl, frames), ...stillFormulas(dir, frames), ...formulasRunTogether(frames)];
     for (const w of still) console.log(`ERROR ${w}`);
     collisions.push(...still.map((what) => ({ what })));
@@ -1486,22 +1603,32 @@ function voiceWithoutMotion(dir, tl, frames, only) {
 }
 // One digit on each image. The gate opens only with the digits of all images, in order, so a look must
 // really read each one: a plain "ok" was a promise, and the promise was broken more than once.
-function checkDigit(records, file) {
+// Images already read need no digit again (the user asked, 2026-11-09: each look made him read 59 images,
+// most of them the same as in the look before). An image is the same when its frames and labels are the same:
+// its key is a hash of them, not of the composed file, which carries a new digit each time. The keys of images
+// read and confirmed with the right digits are kept in build/approved-images.json.
+let APPROVED = new Set();
+const approvedFile = (dir) => path.join(dir, 'build', 'approved-images.json');
+const loadApproved = (dir) => { APPROVED = new Set(readJson(approvedFile(dir)) || []); };
+const gridKey = (g) => createHash('sha1').update(g.title || '').update(g.cells.map((c) => `${c.label}|${c.img}`).join('\n')).digest('hex').slice(0, 16);
+function checkDigit(records, file, key) {
+  if (key && APPROVED.has(key)) { records.push({ file, key, pre: true }); return 'read'; }
   const digit = createHash('sha1').update(file + Date.now() + records.length).digest()[0] % 10, salt = createHash('sha1').update(`${file}${Math.random()}`).digest('hex').slice(0, 12);
-  records.push({ file, salt, hash: hash12(salt + digit) });
+  records.push({ file, salt, hash: hash12(salt + digit), key });
   return digit;
 }
-function checkCode(records, code, what) {
-  const digits = String(code).replace(/\D/g, '');
-  if (digits.length !== records.length) die(`${what}: this needs ${records.length} digit(s), one from each image in the order listed, and you gave ${digits.length}.`);
-  const wrong = records.filter((r, i) => hash12(r.salt + digits[i]) !== r.hash).map((r) => r.file);
+function checkCode(records, code, what, dir) {
+  const digits = String(code).replace(/\D/g, ''), need = records.filter((r) => !r.pre);
+  if (digits.length !== need.length) die(`${what}: this needs ${need.length} digit(s), one from each new image in the order listed (images marked "read before" have none), and you gave ${digits.length}.`);
+  const wrong = need.filter((r, i) => hash12(r.salt + digits[i]) !== r.hash).map((r) => r.file);
   if (wrong.length) die(`${what}: the digit is wrong for ${wrong.length} image(s). Read them again:\n${wrong.join('\n')}`);
+  if (dir) { loadApproved(dir); for (const r of records) if (r.key) APPROVED.add(r.key); fs.writeFileSync(approvedFile(dir), JSON.stringify([...APPROVED])); }
 }
 async function composeGrids(page, grids, out) {
   for (const g of grids) {
     const rows = Math.ceil(g.cells.length / g.cols), W_ = g.cols * (g.w + 8) + 8, H_ = 52 + rows * (g.h + 36) + 8;
     await page.viewport(W_, H_);
-    await page.evaluate(`document.body.innerHTML = ${JSON.stringify(`<div style="background:#222;color:#eee;font:600 20px Inter,sans-serif;padding:8px;width:${W_ - 16}px"><div style="height:44px;display:flex;justify-content:space-between;align-items:center"><span>${g.title.replace(/</g, '&lt;')}</span>${g.check === undefined ? '' : `<span style="font-size:34px;color:#ffd166">CHECK ${g.check}</span>`}</div><div style="display:grid;grid-template-columns:repeat(${g.cols},${g.w}px);gap:8px">${g.cells.map((c) => `<div><div style="height:28px;font-size:18px">${c.label}</div><img width="${g.w}" height="${g.h}" src="data:image/jpeg;base64,${c.img}"></div>`).join('')}</div></div>`)}; document.body.style.overflow='visible'; true`);
+    await page.evaluate(`document.body.innerHTML = ${JSON.stringify(`<div style="background:#222;color:#eee;font:600 20px Inter,sans-serif;padding:8px;width:${W_ - 16}px"><div style="height:44px;display:flex;justify-content:space-between;align-items:center"><span>${g.title.replace(/</g, '&lt;')}</span>${g.check === undefined ? '' : (g.check === 'read' ? `<span style="font-size:30px;color:#8a90a8">READ BEFORE</span>` : `<span style="font-size:34px;color:#ffd166">CHECK ${g.check}</span>`)}</div><div style="display:grid;grid-template-columns:repeat(${g.cols},${g.w}px);gap:8px">${g.cells.map((c) => `<div><div style="height:28px;font-size:18px">${c.label}</div><img width="${g.w}" height="${g.h}" src="data:image/jpeg;base64,${c.img}"></div>`).join('')}</div></div>`)}; document.body.style.overflow='visible'; true`);
     fs.writeFileSync(path.join(out, g.file), Buffer.from((await page.send('Page.captureScreenshot', { format: 'jpeg', quality: 85, clip: { x: 0, y: 0, width: W_, height: H_, scale: 1 } })).data, 'base64'));
   }
 }
@@ -1534,6 +1661,14 @@ function overlapsOf(frames, fps) {
 // and model. Motion that only the pixels show joins the frame's moved parts, so the voice check and the
 // movement strips see a moving drawing too. Gaps, text on a drawing, hidden models and low contrast are
 // WARNs: crowding is the user's judgement, so the 20 tightest moments go on a sheet for the reader.
+// The ID pass in several pages at once: scenes are independent, so split them, balanced by length.
+async function idParallel(dir, tl, ids, frames) {
+  const K = Math.max(1, Math.min(renderCfg(dir).workers, ids.length)), bins = Array.from({ length: K }, () => ({ ids: [], dur: 0 }));
+  const dur = (id) => tl.scenes.find((x) => x.id === id).dur;
+  for (const id of [...ids].sort((a, b) => dur(b) - dur(a))) { const b = bins.reduce((m, x) => (x.dur < m.dur ? x : m)); b.ids.push(id); b.dur += dur(id); }
+  const parts = await Promise.all(bins.filter((b) => b.ids.length).map((b) => withPage(dir, (page) => idPass(page, tl, b.ids, frames))));
+  return { warns: parts.flatMap((x) => x.warns), tight: parts.flatMap((x) => x.tight).sort((a, b) => a.v - b.v).slice(0, 20) };
+}
 async function idPass(page, tl, ids, frames) {
   const every = +(opt('--id-every') ?? 6), res = { warns: [], tight: [] };
   if (process.env.XV_ID === '0' || !(every > 0)) return res;
@@ -1619,6 +1754,34 @@ function groupErrors(list) {
   }
   return [...seen.values()].map((g) => (g.id && g.n > 1 ? `scene ${g.id} at ${g.from.toFixed(2)} to ${g.to.toFixed(2)} s (${g.n} frames): ${g.msg}` : g.line));
 }
+// The measures of each frame run in one page at a time, so one page used one core and the GPU idled (the
+// user found a 13-minute look that took 15 minutes on a 24-core laptop). Split the scenes over several pages
+// that run at the same time, balanced by length, and join the results in time order.
+async function measureParallel(dir, tl, ids) {
+  const K = Math.max(1, Math.min(renderCfg(dir).workers, ids.length));
+  const bins = Array.from({ length: K }, () => ({ ids: [], dur: 0 }));
+  for (const id of [...ids].sort((a, b) => tl.scenes.find((x) => x.id === b).dur - tl.scenes.find((x) => x.id === a).dur)) {
+    const bin = bins.reduce((m, x) => (x.dur < m.dur ? x : m)); bin.ids.push(id); bin.dur += tl.scenes.find((x) => x.id === id).dur;
+  }
+  const parts = await Promise.all(bins.filter((b) => b.ids.length).map((b) => withPage(dir, (page) => measureScenes(page, tl, b.ids, dir))));
+  return { frames: parts.flatMap((x) => x.frames).sort((a, b) => a.t - b.t), faults: parts.flatMap((x) => x.faults),
+    warns: parts.flatMap((x) => x.warns), tight: parts.flatMap((x) => x.tight).sort((a, b) => a.v - b.v).slice(0, 20) };
+}
+
+// Trace a list of times in several pages at once, in order (the review's pass over every frame).
+async function traceParallel(dir, times, fps) {
+  const K = Math.max(1, Math.min(renderCfg(dir).workers, Math.ceil(times.length / (fps * 20)))), out = new Array(times.length);
+  let done = 0;
+  await Promise.all(Array.from({ length: K }, (_, k) => withPage(dir, async (page) => {
+    for (let i = Math.floor((times.length * k) / K), b = Math.floor((times.length * (k + 1)) / K); i < b; i++) {
+      out[i] = { t: times[i], ...(await page.evaluate(`seek(${times[i]}).then(() => __traceFrame())`)) };
+      if (++done % (fps * 5) === 0) process.stdout.write(`\rtrace ${done} / ${times.length} frames, ${K} pages   `);
+    }
+  })));
+  process.stdout.write('\n');
+  return out;
+}
+
 async function measureScenes(page, tl, ids, dir) {
   const frames = [];
   for (const sc of tl.scenes.filter((x) => ids.includes(x.id))) for (let i = 0, n = Math.round(sc.dur * tl.fps); i < n; i++) {
@@ -1637,7 +1800,7 @@ async function look() {
   fs.mkdirSync(base, { recursive: true });
   if (movOk !== undefined) {
     if (JSON.stringify(readJson(lookFile(dir, 'built.json'))?.hashes) !== JSON.stringify(cur)) die('the source changed after the last build. Build first, then read the strips.');
-    checkCode(readJson(path.join(dir, 'build', 'review', 'moving-checks.json')) || [], movOk, 'moving-ok');
+    checkCode(readJson(path.join(dir, 'build', 'review', 'moving-checks.json')) || [], movOk, 'moving-ok', dir);
     fs.writeFileSync(lookFile(dir, 'moving-ok.json'), JSON.stringify({ hashes: cur }));
     return console.log('look: the movement strips of this build are recorded as read. "make final" can run.');
   }
@@ -1649,7 +1812,7 @@ async function look() {
     if (still.length) die(`these scenes changed after the last look: ${still.join(', ')}. Look again.`);
     const left = changedSince(cur, old).filter((id) => !pending.scenes.includes(id));
     if (left.length) die(`these changed scenes were not in the last look: ${left.join(', ')}. Look again.`);
-    checkCode(pending.checks || [], ok, 'ok');
+    checkCode(pending.checks || [], ok, 'ok', dir);
     fs.writeFileSync(lookFile(dir, 'passed.json'), JSON.stringify({ hashes: cur, at: new Date().toISOString() }));
     return console.log('look: recorded. "make build" can run.');
   }
@@ -1657,10 +1820,12 @@ async function look() {
   if (!ids.length) { fs.writeFileSync(lookFile(dir, 'pending.json'), JSON.stringify({ hashes: cur, scenes: [], faults: [], checks: [] })); return console.log('look: no scene changed since the last look.'); }
   for (const f of fs.readdirSync(base)) if (f.endsWith('.jpg')) fs.rmSync(path.join(base, f));
   const grids = [], list = [], checks = [], warns = [];
+  const measured = await measureParallel(dir, tl, ids);
   const faults = await withPage(dir, async (page) => {
-    const { frames, faults, warns: inkWarns, tight } = await measureScenes(page, tl, ids, dir);
+    const { frames, faults, warns: inkWarns, tight } = measured;
     warns.push(...inkWarns);
     for (const l of (await (async () => { const out = new Set(); for (const f of frames.filter((_, i) => i % 15 === 0)) { await page.evaluate(`seek(${f.t})`); for (const x of await page.evaluate('layoutIssues()')) out.add(`${f.scene}: ${x}`); } return out; })())) faults.push(l);
+    for (const f of await page.evaluate('window.__fits()')) warns.push(`fit ${f.scene}: auto-fit ${f.k < 0.999 ? `shrank "${f.label}" to ${Math.round(f.k * 100)} %` : `moved "${f.label}" ${Math.round(f.d)} px`} into the safe area`);
     faults.push(...voiceWithoutMotion(dir, tl, frames, ids));
     faults.push(...voiceMatchIssues(dir, tl, ids));
     const shot = async (t) => { await page.evaluate(`seek(${t})`); return (await page.shot({ format: 'jpeg', quality: 85 })).toString('base64'); };
@@ -1683,7 +1848,8 @@ async function look() {
     if (tg) { grids.push(tg); list.push(tg.file); }
     // Time order, and each image gets its digit in the order that the list prints.
     grids.sort((a, b) => (a.file < b.file ? -1 : 1));
-    for (const g of grids) g.check = checkDigit(checks, g.file);
+    loadApproved(dir);
+    for (const g of grids) g.check = checkDigit(checks, g.file, gridKey(g));
     await composeGrids(page, grids, base);
     return faults;
   });
@@ -1691,8 +1857,9 @@ async function look() {
   for (const w of warns) console.log(`WARN ${w}`);
   for (const f of faults) console.log(`ERROR ${f}`);
   console.log(`look: ${ids.length} scene(s), ${faults.length} fault(s). Read each image, in order:`);
-  for (const f of list.sort()) console.log(path.join(base, f));
-  console.log(faults.length ? 'Fix the faults, then look again.' : `Each image has a CHECK digit at its top right. Then run: make look ${dir} --ok <the ${checks.length} digits, in this order>`);
+  const pre = new Set(checks.filter((c) => c.pre).map((c) => c.file)), nNew = checks.length - pre.size;
+  for (const f of list.sort()) console.log(path.join(base, f) + (pre.has(f) ? '   (read before: the same frames, no digit)' : ''));
+  console.log(faults.length ? 'Fix the faults, then look again.' : nNew ? `Each new image has a CHECK digit at its top right. Then run: make look ${dir} --ok <the ${nNew} digits, in this order>` : `Every image was read before. Run: make look ${dir} --ok -`);
   process.exit(faults.length ? 1 : 0);
 }
 async function selftest() {
@@ -1700,15 +1867,20 @@ async function selftest() {
   process.exit(r.status ?? 1);
 }
 
-function steps(names) {
+// A step in brackets runs at the same time as the others in its group: they read the same timeline and write
+// to different files. The user asked on 2026-11-09 that every step that can run in parallel does.
+async function steps(names) {
   const d = positional()[0] || '.';
+  const run = (n) => new Promise((ok) => spawn(process.execPath, [fileURLToPath(import.meta.url), ...n.split(' '), d], { stdio: 'inherit' }).on('close', (code) => ok(code)));
   for (const n of names) {
-    console.log(`\n=== ${n} ===`);
-    const r = spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...n.split(' '), d], { stdio: 'inherit' });
-    if (r.status !== 0) die(`stopped at "${n}". Fix it, then run the same command again: finished steps are cached.`);
+    const group = Array.isArray(n) ? n : [n];
+    console.log(`\n=== ${group.join(' + ')} ===`);
+    const codes = await Promise.all(group.map(run));
+    const bad = group.filter((_, i) => codes[i] !== 0);
+    if (bad.length) die(`stopped at "${bad.join('", "')}". Fix it, then run the same command again: finished steps are cached.`);
   }
 }
-const build = () => steps(['voice', 'gate', 'manim', 'check', 'sheet', 'stable', 'review', 'built']);
+const build = () => steps(['voice', 'gate', 'manim', 'check', ['sheet', 'stable', 'review'], 'built']);
 const final = () => steps(['render', 'verify']);
 
 async function subtitlesCmd() {
@@ -1787,32 +1959,195 @@ async function claySheets() {
 // dropped something: with antialiasing on, a leg vanished from 2 frames of 8.
 async function stable() {
   const dir = projectDir(positional()[0]), tl = timeline(dir), every = +opt('--every', 1), bad = [];
-  await withPage(dir, async (page) => {
+  // Several pages at once, each over its own stretch of the video (the user asked for parallel work everywhere).
+  // A fixed grid, and the risky frames (HyperFrames' riskFrames): a GPU drop-out shows when something is drawn
+  // for the first time, so the first frames of each scene and the moment after each cue.
+  const tset = new Set(); for (let t = 0.04; t < tl.duration; t += every) tset.add(+t.toFixed(3));
+  if (!flag('--grid-only')) for (const sc of tl.scenes) { for (const d of [0.04, 0.5]) tset.add(+(sc.start + d).toFixed(3)); for (const m of Object.values(sc.marks || {})) if (m + 0.1 < sc.dur) tset.add(+(sc.start + m + 0.1).toFixed(3)); }
+  const times = [...tset].filter((t) => t < tl.duration).sort((a, b) => a - b);
+  const K = Math.max(1, Math.min(renderCfg(dir).workers, Math.ceil(times.length / 20)));
+  await Promise.all(Array.from({ length: K }, (_, k) => withPage(dir, async (page) => {
     const pic = async (t) => { await page.evaluate(`seek(${t})`); return page.shot({ format: 'jpeg', quality: 80 }); };
-    let n = 0;
-    for (let t = 0.04; t < tl.duration; t += every, n++) {
-      const a = await pic(t);
+    for (let i = Math.floor((times.length * k) / K), e = Math.floor((times.length * (k + 1)) / K); i < e; i++) {
+      const t = times[i], a = await pic(t);
       await pic(Math.max(0, t - every / 2));       // draw something else in between
       if (!a.equals(await pic(t))) bad.push(+t.toFixed(2));
     }
-    console.log(`stable: ${n} frames drawn twice, ${bad.length} differ`);
-  });
+  })));
+  bad.sort((a, b) => a - b);
+  console.log(`stable: ${times.length} frames drawn twice, in ${K} pages, ${bad.length} differ`);
   for (const t of bad.slice(0, 10)) console.log(`ERROR two draws differ at ${t} s (${tl.scenes.find((x) => t >= x.start && t < x.start + x.dur)?.id}). Look at it: "make still ${dir} ${t}"`);
   process.exit(bad.length ? 1 : 0);
+}
+
+// Parity (from HyperFrames' regression harness): a speed change must not change the picture.
+//   make parity <dir> --save   draw reference frames by the slow, sure path (seek + PNG screenshot)
+//   make parity <dir>          compare the rendered MP4 with them (PSNR); ERROR under the limit
+//   make parity <dir> --draw   compare a new drawing (PNG, no encode) with them: for runtime and capture changes
+// The frames: one every --every s (default 10) and one 1.5 s into each scene. PSNR is in dB; the MP4 limit is
+// 30 dB (lossy encode), the drawing limit 45 dB (the same pixels, but for GPU noise).
+async function parity() {
+  const dir = projectDir(positional()[0]), tl = timeline(dir), every = +opt('--every', 10), base = path.join(dir, 'build', 'parity');
+  const ref = path.join(base, 'ref'), test = path.join(base, 'test'), fps = tl.fps;
+  const frames = new Set();
+  for (let t = 1; t < tl.duration - 1; t += every) frames.add(Math.round(t * fps));
+  for (const s of tl.scenes) frames.add(Math.round(Math.min(s.start + 1.5, s.start + s.dur - 0.2) * fps));
+  const list = [...frames].sort((a, b) => a - b), name = (f) => `${String(f).padStart(6, '0')}.png`;
+  const draw = async (into) => {
+    fs.rmSync(into, { recursive: true, force: true }); fs.mkdirSync(into, { recursive: true });
+    const K = Math.max(1, Math.min(renderCfg(dir).workers, Math.ceil(list.length / 4)));
+    await Promise.all(Array.from({ length: K }, (_, k) => withPage(dir, async (page) => {
+      for (let i = k; i < list.length; i += K) {
+        const t = list[i] / fps;
+        await page.evaluate(`seek(${t})`); await page.shot({ format: 'png' });   // the first draw warms the shaders
+        await page.evaluate(`seek(${t})`); fs.writeFileSync(path.join(into, name(list[i])), await page.shot({ format: 'png' }));
+      }
+    })));
+  };
+  if (flag('--save')) { await draw(ref); return console.log(`parity: ${list.length} reference frames in ${ref}`); }
+  if (!fs.existsSync(ref)) die('parity: no reference frames. Run "make parity <dir> --save" first, with the engine you trust.');
+  const asDraw = flag('--draw'), video = opt('--file', path.join(dir, 'out', `${slug(dir)}.mp4`));
+  // A partial render (render --from s --to s): compare only its frames, shifted by its start.
+  const vFrom = Math.round(+opt('--from', 0) * fps), vTo = argv.includes('--to') ? Math.round(+opt('--to') * fps) : Infinity;
+  if (!asDraw && (vFrom || vTo < Infinity)) { const keep = list.filter((f) => f >= vFrom && f < vTo); list.length = 0; list.push(...keep); }
+  if (asDraw) await draw(test);
+  else {
+    if (!fs.existsSync(video)) die(`parity: no video at ${video}`);
+    fs.rmSync(test, { recursive: true, force: true }); fs.mkdirSync(test, { recursive: true });
+    // Exact frames by number, in one decoding pass: a time seek can land one frame late (it did at a wipe).
+    const r = await runAsync('ffmpeg', ['-v', 'error', '-y', '-i', video, '-vf', `select='${list.map((f) => `eq(n\\,${f - vFrom})`).join('+')}'`, '-fps_mode', 'passthrough', path.join(test, 'x%06d.png')]);
+    if (r.code !== 0) die(`parity: ffmpeg could not read the frames: ${r.out.slice(-300)}`);
+    list.forEach((f, i) => { const src = path.join(test, `x${String(i + 1).padStart(6, '0')}.png`); if (fs.existsSync(src)) fs.renameSync(src, path.join(test, name(f))); });
+  }
+  const limit = +opt('--limit', asDraw ? 45 : 30), res = [];
+  const pool = list.slice(); await Promise.all(Array.from({ length: 6 }, async () => { while (pool.length) { const f = pool.shift();
+    const r = await runAsync('ffmpeg', ['-v', 'info', '-i', path.join(ref, name(f)), '-i', path.join(test, name(f)), '-lavfi', '[0][1]psnr', '-f', 'null', '-']);
+    const m = String(r.err || r.stderr || r.out || '').match(/average:(inf|[\d.]+)/);
+    res.push({ f, db: m ? (m[1] === 'inf' ? Infinity : +m[1]) : NaN }); } }));
+  res.sort((a, b) => a.f - b.f);
+  const bad = res.filter((r) => !(r.db >= limit)), fin = res.filter((r) => isFinite(r.db)).map((r) => r.db);
+  const avg = fin.length ? fin.reduce((a, b) => a + b, 0) / fin.length : Infinity;
+  fs.writeFileSync(path.join(base, 'parity.md'), `# Parity (${asDraw ? 'new drawing' : 'video'} against the reference)\n\n` + res.map((r) => `- ${fmt(r.f / fps)} s (${tl.scenes.find((s) => r.f / fps >= s.start && r.f / fps < s.start + s.dur)?.id}): ${isFinite(r.db) ? r.db.toFixed(1) + ' dB' : r.db === Infinity ? 'identical' : 'not measured'}`).join('\n') + '\n');
+  console.log(`parity: ${res.length} frames, lowest ${Math.min(...res.map((r) => r.db)).toFixed(1)} dB, mean of the others ${avg === Infinity ? 'identical' : avg.toFixed(1) + ' dB'} (limit ${limit} dB)`);
+  for (const r of bad) console.log(`ERROR parity: the frame at ${fmt(r.f / fps)} s differs (${isNaN(r.db) ? 'not measured' : r.db.toFixed(1) + ' dB'}). Compare ${path.join(ref, name(r.f))} with ${path.join(test, name(r.f))}`);
+  process.exit(bad.length ? 1 : 0);
+}
+
+// Measure capture paths on one stretch (for engine work): screenshot against canvas.drawElementImage.
+async function capbench() {
+  const dir = projectDir(positional()[0]), tl = timeline(dir), at = +opt('--at', 150), n = +opt('--n', 60), fps = tl.fps;
+  const srv = await serve(dir), page = await chrome(srv.url, { flags: ['--enable-features=CanvasDrawElement'] });
+  try {
+    await page.evaluate(`seek(${at})`); await page.shot({ format: 'jpeg', quality: 95 });
+    let t0 = Date.now();
+    for (let i = 0; i < n; i++) { await page.evaluate(`seek(${at + i / fps})`); await page.shot({ format: 'jpeg', quality: 95 }); }
+    const a = (Date.now() - t0) / n;
+    await page.evaluate(`(() => { const st = document.getElementById('stage'), c = document.createElement('canvas'); c.setAttribute('layoutsubtree', ''); c.setAttribute('content', 'drawable'); c.width = 1920; c.height = 1080; c.id = 'xv-de';
+      st.parentNode.insertBefore(c, st); c.appendChild(st); st.setAttribute('drawable', ''); window.__deCtx = c.getContext('2d'); })()`);
+    const one = `(async () => { const c = document.getElementById('xv-de'); await new Promise((r) => requestAnimationFrame(r)); window.__deCtx.clearRect(0, 0, 1920, 1080); window.__deCtx.drawElementImage(document.getElementById('stage'), 0, 0); return (c.toDataURL('image/jpeg', 0.95)).length; })()`;
+    await page.evaluate(`seek(${at})`); let len = await page.evaluate(one);
+    t0 = Date.now();
+    for (let i = 0; i < n; i++) { await page.evaluate(`seek(${at + i / fps})`); len = await page.evaluate(one); }
+    const b = (Date.now() - t0) / n;
+    console.log(`screenshot: ${a.toFixed(1)} ms a frame; drawElementImage + toDataURL: ${b.toFixed(1)} ms a frame (last ${len} bytes)`);
+    await page.evaluate(`seek(${at + 0.5})`); await page.evaluate(one);
+    const url = await page.evaluate("document.getElementById('xv-de').toDataURL('image/png')");
+    fs.writeFileSync(path.join(dir, 'build', 'capbench-de.png'), Buffer.from(url.split(',')[1], 'base64'));
+    await page.evaluate("(() => { const c = document.getElementById('xv-de'), st = document.getElementById('stage'); c.parentNode.insertBefore(st, c); c.remove(); })()");
+    fs.writeFileSync(path.join(dir, 'build', 'capbench-shot.png'), await page.shot({ format: 'png' }));
+  } finally { await page.close(); await srv.close(); }
+}
+
+// Where can formulas and labels go? (the user asked, 2026-11-09: fixes by guess made new faults.) For each
+// clay scene: sample it every 0.25 s, mark every screen cell that the mascot or a model covers at any time
+// (with a 16 px margin), keep the title band, and report the largest free rectangles in the safe area.
+// Each scene also gets an image: its middle frame with the 3D area shaded and the free areas outlined.
+async function zones() {
+  const W = 1920, H = 1080, SAFE = { x: 96, y: 72, w: 1728, h: 936 };
+  const dir = projectDir(positional()[0]), tl = timeline(dir), only = opt('--scene')?.split(',');
+  const ids = tl.scenes.map((x) => x.id).filter((id) => !only || only.includes(id));
+  const out = path.join(dir, 'build', 'zones'); fs.rmSync(out, { recursive: true, force: true }); fs.mkdirSync(out, { recursive: true });
+  const C = 24, GW = Math.ceil(W / C), GH = Math.ceil(H / C), M = 16, TITLE = { x1: 960, y1: 190 }, MINW = 360, MINH = 72;
+  const K = Math.max(1, Math.min(renderCfg(dir).workers, ids.length)), bins = Array.from({ length: K }, () => []);
+  ids.forEach((id, i) => bins[i % K].push(id));
+  const results = (await Promise.all(bins.filter((b) => b.length).map((b) => withPage(dir, async (page) => {
+    const res = [];
+    for (const id of b) {
+      const sc = tl.scenes.find((x) => x.id === id), grid = new Uint8Array(GW * GH);
+      let clay = false;
+      for (let t = 0.05; t < sc.dur; t += 0.25) {
+        await page.evaluate(`seek(${sc.start + t})`);
+        const boxes = await page.evaluate('window.__zoneBoxes()');
+        if (!boxes) break;
+        clay = true;
+        for (const bx of boxes) {
+          const x0 = Math.max(0, Math.floor((bx.x0 - M) / C)), x1 = Math.min(GW - 1, Math.floor((bx.x1 + M) / C));
+          const y0 = Math.max(0, Math.floor((bx.y0 - M) / C)), y1 = Math.min(GH - 1, Math.floor((bx.y1 + M) / C));
+          for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) grid[y * GW + x] = 1;
+        }
+      }
+      if (!clay) continue;
+      // Outside the safe area, and the title band, are not free.
+      for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
+        const px = x * C, py = y * C;
+        if (px < SAFE.x || py < SAFE.y || px + C > SAFE.x + SAFE.w || py + C > SAFE.y + SAFE.h || (px < TITLE.x1 && py < TITLE.y1)) grid[y * GW + x] = 2;
+      }
+      // The largest empty rectangles, one after another (histogram method), down to the smallest useful size.
+      const free = [];
+      for (let n = 0; n < 4; n++) {
+        const hgt = new Array(GW).fill(0); let best = null;
+        for (let y = 0; y < GH; y++) {
+          for (let x = 0; x < GW; x++) hgt[x] = grid[y * GW + x] ? 0 : hgt[x] + 1;
+          const st = [];
+          for (let x = 0; x <= GW; x++) {
+            const hh = x < GW ? hgt[x] : 0; let start = x;
+            while (st.length && st[st.length - 1][1] >= hh) {
+              const [sx, sh] = st.pop(), w = x - sx;
+              if (sh * w > (best?.a || 0)) best = { a: sh * w, x: sx, y: y - sh + 1, w, h: sh };
+              start = sx;
+            }
+            st.push([start, hh]);
+          }
+        }
+        if (!best || best.w * C < MINW || best.h * C < MINH) break;
+        free.push({ x: best.x * C, y: best.y * C, w: best.w * C, h: best.h * C });
+        for (let y = best.y; y < best.y + best.h; y++) for (let x = best.x; x < best.x + best.w; x++) grid[y * GW + x] = 3;
+      }
+      // The image: the middle frame, 3D cells shaded red, free areas outlined green.
+      await page.evaluate(`seek(${sc.start + sc.dur / 2})`);
+      await page.evaluate(`(() => { const st = document.getElementById('stage'), o = document.createElement('div'); o.id = 'xv-zones'; o.style.cssText = 'position:absolute;inset:0;z-index:999;pointer-events:none';
+        const g = ${JSON.stringify(Array.from(grid))}, f = ${JSON.stringify(free)};
+        for (let y = 0; y < ${GH}; y++) for (let x = 0; x < ${GW}; x++) if (g[y * ${GW} + x] === 1) { const d = document.createElement('div'); d.style.cssText = 'position:absolute;left:' + x * ${C} + 'px;top:' + y * ${C} + 'px;width:${C}px;height:${C}px;background:rgba(214,51,108,0.22)'; o.appendChild(d); }
+        f.forEach((r, i) => { const d = document.createElement('div'); d.style.cssText = 'position:absolute;left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;height:' + r.h + 'px;border:5px solid #2f9e55;box-sizing:border-box;font:700 34px Inter;color:#2f9e55;padding:6px'; d.textContent = 'free ' + (i + 1); o.appendChild(d); });
+        st.appendChild(o); })()`);
+      fs.writeFileSync(path.join(out, `${id}.jpg`), await page.shot({ format: 'jpeg', quality: 80 }));
+      await page.evaluate("document.getElementById('xv-zones')?.remove()");
+      res.push({ id, free });
+    }
+    return res;
+  })))).flat().sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+  const md = ['# Free zones for formulas and labels', '', 'From every quarter second of each clay scene. Place formulas inside these boxes (stage px).', ''];
+  for (const r of results) {
+    const line = r.free.length ? r.free.map((f, i) => `free ${i + 1}: x ${f.x} to ${f.x + f.w}, y ${f.y} to ${f.y + f.h} (${f.w} x ${f.h})`).join('; ') : 'NO free zone of 360 x 72 px: move the camera';
+    console.log(`${r.id}: ${line}`); md.push(`- ${r.id}: ${line} (zones/${r.id}.jpg)`);
+    if (!r.free.length) console.log(`WARN ${r.id}: the 3D covers the whole safe area at some time. Pull the camera back or move the look point`);
+  }
+  fs.writeFileSync(path.join(out, 'zones.md'), md.join('\n') + '\n');
+  console.log(`zones: ${results.length} clay scene(s), images in ${out}`);
 }
 
 // The collision measures alone, fast, for one scene or all: run it after each edit, before any build.
 async function collide() {
   const dir = projectDir(positional()[0]), tl = timeline(dir), ids = opt('--scene')?.split(',') || tl.scenes.map((x) => x.id);
   let warns = [];
-  const faults = await withPage(dir, async (page) => { const m = await measureScenes(page, tl, ids, dir); warns = m.warns; return [...m.faults, ...voiceWithoutMotion(dir, tl, m.frames, ids)]; });
+  const m = await measureParallel(dir, tl, ids); warns = m.warns; const faults = [...m.faults, ...voiceWithoutMotion(dir, tl, m.frames, ids)];
   for (const w of warns) console.log(`WARN ${w}`);
   for (const f of faults) console.log(`ERROR ${f}`);
   console.log(`collide: ${faults.length} fault(s)`);
   process.exit(faults.length ? 1 : 0);
 }
 
-const commands = { collide, look, gate, built, attached, selftest, doctor, config, init, build, final, voice, subtitles: subtitlesCmd, manim, check, sheet, stable, still, review, render, verify, preview, bake, clay: claySheets };
+const commands = { pace, capbench, parity, zones, collide, look, gate, built, attached, selftest, doctor, config, init, build, final, voice, subtitles: subtitlesCmd, manim, check, sheet, stable, still, review, render, verify, preview, bake, clay: claySheets };
 if (!commands[cmd]) { console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 27).map((l) => l.replace(/^\/\/ ?/, '')).join('\n')); process.exit(cmd ? 1 : 0); }
 await commands[cmd]();
 if (cmd !== 'preview') process.exit(0);

@@ -1,5 +1,6 @@
 engine/manim/.venv
 engine/tts/.venv
+engine/tts/.venv-turbo
 __pycache__/
 *.pyc
 gallery/build/

@@ -38,6 +38,11 @@ const CASES = {
   labelsCrossFade: { code: "{ bg: BG.cream, async setup(s) { s.g = await s.clay({ bg: BG.cream }); s.hero = await s.g.mascot({ x: -9 }); s.g.orbit(0, 8, 44, [0, 4, 0]); s.a = s.text('First label', { x: 1500, y: 300, size: 40, color: '#222' }); s.b = s.text('Second label', { x: 1500, y: 300, size: 40, color: '#222' }); await s.g.ready(); }, draw(s) { s.hero.place(-9, 0); set(s.a, { opacity: 1 - s.p(0.5, 0.3) }); set(s.b, { opacity: s.p(0.5, 0.3) }); s.g.render(); } }", expect: /overlap .*First label.*Second label/ },
   formulasRunTogether: { code: `${world("const one = (x) => eqn(s, { x, y: 200, size: 60, pieces: { a: ['x = 1'] }, rows: { a: ['a'] }, steps: [{ at: 0, row: 'a', dur: 0.1 }] }); s.f1 = await one(1200); s.f2 = await one(1340);")} draw(s) { s.hero.place(-9, 0); s.f1.draw(); s.f2.draw(); s.g.render(); } }`, expect: /two formulas run together/ },
   shoulderIntoRack: { code: `${world("s.m = await s.g.model('rack', { x: 2.5 });")} draw(s) { s.hero.place(0, 0); s.g.render(); } }`, expect: /mascot (shirt|sleeve\d|upper\d) into rack|rack .* into mascot (shirt|sleeve\d|upper\d)/ },
+  frozenStride: { code: `${world('')} draw(s) { s.hero.place(-9, 0, { face: 1.57 }); s.hero.stride(1.0, 0.5); s.g.render(); } }`, expect: /legs apart, frozen mid-step/ },
+  waitOnRoute: { code: `${world('')} draw(s) { s.hero.route(s.t, [[0, -9, 0, 1.57], [3, -9, 0, 1.57]]); s.g.render(); } }`, expect: null },
+  // The stance helper: one call puts his hands on the cart and his feet clear of its rail (4 rounds by hand before).
+  pushOnCart: { code: `${world("s.m = await s.g.model('track', { x: 0, k: 2.6 });")} draw(s) { s.hero.blendPose('rest', 'rest', 0); s.g.pushOn(s.hero, s.m, 'body', { side: '-z' }); s.g.render(); } }`, expect: null },
+  pushOnSled: { code: `${world("s.m = await s.g.model('track', { x: 0, k: 2.6 });")} draw(s) { s.hero.blendPose('rest', 'rest', 0); s.g.pushOn(s.hero, s.m, 'lead', { side: '+x' }); s.g.render(); } }`, expect: null },
   handThroughOwnBody: { code: `${world('')} draw(s) { s.hero.place(0, 0, { face: 1.57 }); s.hero.reach(1, [0, 3.9, 0]); s.g.render(); } }`, expect: /mascot (hand|fore)1 into own/ },
   arrowThroughMascot: { code: `${world("s.a = s.g.arrow('#d6503e');")} draw(s) { s.hero.place(-9, 0); s.a.set([-13, 4, 0], [-5, 4, 0]); s.g.render(); } }`, expect: /arrow .* into mascot|mascot .* into arrow/ },
   oneFrameContact: { code: `${world("s.m = await s.g.model('tank', { x: 0 }); s.n = await s.g.model('target', { x: 6 });")} draw(s) { s.hero.place(-9, 0); s.n.root.position.x = Math.abs(s.t - 16 / 30) < 0.01 ? 0.4 : 6; s.g.render(); } }`, expect: /tank .* into target|target .* into tank/ },
@@ -146,6 +151,35 @@ try {
     fs.writeFileSync(path.join(dir, 'video.json'), vjNow); fs.writeFileSync(path.join(dir, 'scenes.js'), srcNow); writeTimeline(one);
   }
 
+  // ---------- auto-fit: a text past the edge is pushed inside, a text too wide shrinks ----------
+  // The computed torque video (2026-11-09) needed 3 look passes for labels and formulas that left the frame.
+  {
+    const vjNow = fs.readFileSync(path.join(dir, 'video.json'), 'utf8'), srcNow = fs.readFileSync(path.join(dir, 'scenes.js'), 'utf8');
+    const sc = (id, start) => ({ id, index: 0, start, dur: 1, lead: 0, text: 'x', transition: 'none', marks: {}, attrs: {}, words: [{ text: 'Test', start: 0.05, end: 0.3 }] });
+    const FIT = {
+      offEdge: "{ bg: '#f0e7d6', setup(s) { s.a = s.text('Edge label', { x: 1880, y: 500, anchor: 'l', size: 48, color: '#222' }); }, draw(s) {} }",
+      tooWide: "{ bg: '#f0e7d6', setup(s) { s.a = s.text('W'.repeat(60), { x: 960, y: 500, size: 60, color: '#222' }); }, draw(s) {} }",
+    };
+    fs.writeFileSync(path.join(dir, 'video.json'), JSON.stringify({ title: 'selftest', _look: 'classic' }));
+    fs.writeFileSync(path.join(dir, 'scenes.js'), Object.entries(FIT).map(([id, c]) => `scene('${id}', ${c});`).join('\n') + '\n');
+    writeTimeline(Object.keys(FIT).map((id, i) => sc(id, i)));
+    const c = make('check', dir);
+    report('auto-fit pushes a text that leaves the frame back inside', /offEdge: auto-fit moved "Edge label"/.test(c.out) && !/Edge label" leaves the safe area/.test(c.out), c.out.slice(-600));
+    report('auto-fit shrinks a text wider than the safe area', /tooWide: auto-fit shrank "W+" to \d+ %/.test(c.out) && !/WWW.*leaves the safe area/.test(c.out), c.out.slice(-600));
+    fs.writeFileSync(path.join(dir, 'video.json'), vjNow); fs.writeFileSync(path.join(dir, 'scenes.js'), srcNow); writeTimeline(one);
+  }
+
+  // ---------- zones: the free boxes for formulas avoid the 3D ----------
+  {
+    const vjNow = fs.readFileSync(path.join(dir, 'video.json'), 'utf8'), srcNow = fs.readFileSync(path.join(dir, 'scenes.js'), 'utf8');
+    fs.writeFileSync(path.join(dir, 'video.json'), JSON.stringify({ title: 'selftest', _look: 'clay' }));
+    fs.writeFileSync(path.join(dir, 'scenes.js'), `import { BG } from '/_lib/clay.js';\nscene('left', ${world("s.m = await s.g.model('tank', { x: -4 });")} draw(s) { s.hero.place(-9, 0); s.g.render(); } });\n`);
+    writeTimeline([{ id: 'left', index: 0, start: 0, dur: 1, lead: 0, text: 'x', transition: 'none', marks: {}, attrs: {}, words: [{ text: 'Test', start: 0.05, end: 0.3 }] }]);
+    const z = make('zones', dir), m = z.out.match(/left: free 1: x (\d+) to (\d+), y (\d+) to (\d+)/);
+    report('zones finds a free box beside the 3D, and not on it', !!m && +m[1] >= 700 && +m[1] <= 1000, z.out.slice(-400));
+    fs.writeFileSync(path.join(dir, 'video.json'), vjNow); fs.writeFileSync(path.join(dir, 'scenes.js'), srcNow); writeTimeline(one);
+  }
+
   // ---------- a scene that only walks the mascot draws the same frame in any order ----------
   {
     const srcNow = fs.readFileSync(path.join(dir, 'scenes.js'), 'utf8');
@@ -169,6 +203,9 @@ try {
   report('look --ok refuses wrong digits', make('look', dir, '--ok', good.replace(/\d$/, (d) => (+d + 1) % 10)).code !== 0);
   report('look --ok refuses too few digits', make('look', dir, '--ok', good.slice(1)).code !== 0);
   report('look --ok opens the gate with the digits', make('look', dir, '--ok', good).code === 0 && make('gate', dir).code === 0);
+  // Images already read need no digit again: the same frames give the same key.
+  const again = make('look', dir, '--scene', 'clean');
+  report('a second look at unchanged frames asks for no digits', /Every image was read before/.test(again.out) && make('look', dir, '--ok', '-').code === 0, again.out.slice(-500));
   fs.appendFileSync(path.join(dir, 'scenes.js'), '// an edit outside any scene\n');
   const g2 = make('gate', dir);
   report('an edit closes the gate again', g2.code !== 0 && /clean/.test(g2.out), g2.out);
@@ -188,6 +225,17 @@ try {
   fs.writeFileSync(path.join(dir, 'build', 'review', 'moving-checks.json'), JSON.stringify([{ file: 'a.jpg', salt: 'x', hash: createHash('sha1').update('x7').digest('hex').slice(0, 16) }]));
   report('moving-ok refuses wrong digits', make('look', dir, '--moving-ok', '3').code !== 0);
   report('moving-ok accepts the digits', make('look', dir, '--moving-ok', '7').code === 0);
+  // ---------- pace from the text, before any voice ----------
+  {
+    const pd = fs.mkdtempSync(path.join(os.tmpdir(), 'kaleidoscope-pace-'));
+    fs.writeFileSync(path.join(pd, 'video.json'), '{}');
+    const fast = Array.from({ length: 30 }, () => 'k p and k v and q d').join(' ');
+    fs.writeFileSync(path.join(pd, 'script.md'), `# t\n\n## a {core=yes}\n${fast}.\n\n## b {core=yes}\nThe arm lifts the weight. [pause 1] It pulls hardest when it is level. [pause 1]\n`);
+    const pc = make('pace', pd);
+    report('pace stops a core scene that is far too fast, before any voice', pc.code !== 0 && /ERROR a:/.test(pc.out) && !/ERROR b:/.test(pc.out) && /WARN a: a clause that is mostly symbol words/.test(pc.out), pc.out.slice(-400));
+    fs.rmSync(pd, { recursive: true, force: true });
+  }
+
   // ---------- the voice check hears a word that the voice added ----------
   // Video 1: the voice said "We write them XTP of omega i given X" three times, and the letter
   // distance (2) let it pass. A clean take, with Whisper's number pieces and spellings, must pass.
