@@ -852,7 +852,7 @@ C[5] = {
       // Near the shoulder the way to the pointer is not clear: keep the last way, and keep the hand out a little.
       let a = d.length() > 0.9 ? Math.atan2(-d.x, -d.y) : (this.lastA ?? 0), L = clamp(d.length(), 0.9, 2.6);   // a: 0 down, +90 forward (to the cart), -90 back
       this.lastA = a;
-      a = clamp(a, -40 * D, 165 * D);
+      a = clamp(a, -40 * D, 100 * D);   // back to 40 degrees; forward up to just over level (higher, the elbow looks wrong)
       // Along the arm's way from the shoulder, the hand stops where it would go into the cart (its skin, plus
       // the hand's half-thickness), so a hand that comes down onto the cart comes in closer to him.
       // The cart's own surface (its distance field), so the hand stops with its palm on it: the check passes.
