@@ -169,8 +169,9 @@ it in the right way. See them in `make clay m-<name>`.
 | `rampStep`, `rampSigmoid`, `rampRelu` | ramps whose tops follow the activations, for a rolling ball | none |
 | `tokenCone`, `tokenCube` | XOR tokens, blue and plum | none |
 | `bowl`, `terrain` | error bowl; bumpy slab with a local minimum, for a rolling ball | none |
+| `cat`, `mat` | sitting tabby cat, 3.05 tall; striped floor mat 5.2 by 3.4 (`models/attention.js`) | cat: `head` lifts and turns (pivot at the neck), `tail` swings |
 
-The rows from `door` down are in `styles/library/clay/models/ipcv-*.js`. The head comment and the
+The rows from `door` down are in `styles/library/clay/models/ipcv-*.js`, and `cat`, `mat` in `models/attention.js`. The head comment and the
 notes of each file give their sizes, joint positions and surface formulas.
 
 Small objects are larger than real size, so they stay readable. Set `k` for each scene.
