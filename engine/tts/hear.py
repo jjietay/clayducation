@@ -25,6 +25,9 @@ from faster_whisper import WhisperModel
 
 def load(name):
     # The GPU when it works, else the CPU: the check must not need a GPU.
+    # make config --gpu off sets CLAYDUCATION_GPU=off: then the CPU, also when a GPU is there.
+    if os.environ.get("CLAYDUCATION_GPU") == "off":
+        return WhisperModel(name, device="cpu", compute_type="int8")
     try:
         return WhisperModel(name, device="cuda", compute_type="float16")
     except Exception as e:

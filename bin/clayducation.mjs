@@ -16,8 +16,20 @@ const REPO = process.env.CLAYDUCATION_REPO || 'https://github.com/jjietay/claydu
 const EXPLAINROO = 'https://github.com/vincentsch/explainroo';
 const argv = process.argv.slice(2);
 const flag = (k) => argv.includes(k);
-const opt = (k) => { const i = argv.indexOf(k); return i < 0 ? undefined : argv[i + 1]; };
+const stop = (msg) => { console.log(msg); process.exit(1); };
+// A flag that takes a value must have one: "--dir --yes" must not clone into a folder named "--yes".
+const opt = (k) => {
+  const i = argv.indexOf(k);
+  if (i < 0) return undefined;
+  const v = argv[i + 1];
+  if (v === undefined || v.startsWith('-')) stop(`${k} needs a value, for example: ${k} ${k === '--voice' ? 'kokoro' : '~/my/folder'}`);
+  return v;
+};
 const YES = flag('--yes') || flag('-y'), DRY = flag('--dry-run');
+const VOICES = ['chatterbox', 'kokoro'];
+const voiceArg = opt('--voice')?.toLowerCase();
+if (voiceArg && !VOICES.includes(voiceArg)) stop(`--voice must be one of: ${VOICES.join(', ')}`);
+const dirArg = opt('--dir');
 const HOME = os.homedir();
 const tilde = (p) => (p.startsWith(HOME) ? '~' + p.slice(HOME.length) : p);
 const untilde = (p) => (p.startsWith('~') ? path.join(HOME, p.slice(1)) : path.resolve(p));
@@ -45,12 +57,19 @@ const gpuNote = gpuName ? `NVIDIA ${gpuName.replace(/^NVIDIA /, '')}` : appleSil
 
 // ---------- questions ----------
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+// With no input (stdin closed or piped short), a question never gets an answer: stop with a message.
+let inputClosed = false;
+rl.on('close', () => { inputClosed = true; });
+const noInput = () => stop('\nNo input for the questions. Run the setup in a terminal, or add --yes to take every default.');
 // Each prompt shows its options and its default; Enter takes the default.
 async function ask(q, def, choices, show) {
   if (YES) return def;
   const opts = show || (choices ? choices.join('/') : 'a path');
   for (;;) {
-    const a = (await rl.question(`${q} (${opts}) [Enter = ${def}]: `)).trim() || def;
+    if (inputClosed) noInput();
+    const answer = await Promise.race([rl.question(`${q} (${opts}) [Enter = ${def}]: `), new Promise((r) => rl.once('close', () => r(null)))]);
+    if (answer === null) noInput();
+    const a = answer.trim() || def;
     if (!choices || choices.includes(a.toLowerCase())) return choices ? a.toLowerCase() : a;
     console.log(`  Type one of: ${choices.join(', ')}`);
   }
@@ -65,11 +84,22 @@ if (checks.some(([, ok, , needed]) => needed && !ok)) {
   process.exit(1);
 }
 
-const dir = untilde(opt('--dir') || await ask(`1. Install folder`, '~/.claude/skills/clayducation'));
-const defVoice = gpuName || appleSilicon ? 'chatterbox' : 'kokoro';
+const skillLink = path.join(HOME, '.claude', 'skills', 'clayducation');
+const dir = untilde(dirArg || await ask(`1. Install folder`, '~/.claude/skills/clayducation'));
+// Before the rename, the skill was "Kaleidoscope" in ~/.claude/skills/kaleidoscope. Move that copy
+// to the new folder, so its voice and Manim environments stay, and point it at the renamed repository.
+const oldDir = path.join(HOME, '.claude', 'skills', 'kaleidoscope');
+const moveOld = !fs.existsSync(dir) && fs.existsSync(path.join(oldDir, '.git'));
+// The plan is made before anything moves, so every check of what is installed looks where it is now.
+const base = moveOld ? oldDir : dir;
+const at = (...p) => path.join(base, ...p);
+// A run on an existing install keeps its settings (voice, GPU, Whisper), as /setup-clayducation left them.
+const prev = (() => { try { return JSON.parse(fs.readFileSync(at('config.json'), 'utf8')); } catch { return null; } })();
+const hwVoice = gpuName || appleSilicon ? 'chatterbox' : 'kokoro';
+const defVoice = prev?.voice === 'kokoro' ? 'kokoro' : prev?.voice?.startsWith('chatterbox') ? 'chatterbox' : hwVoice;
 console.log(`\n   chatterbox  natural voice; a 3 to 6 GB download; fast on a GPU, slow on a CPU
    kokoro      small voice model; fast on a CPU; comes with the word-timing tool`);
-const voice = opt('--voice') || await ask('2. Voice', defVoice, ['chatterbox', 'kokoro']);
+const voice = voiceArg || await ask('2. Voice', defVoice, VOICES);
 const manim = flag('--no-manim') ? false : await yesNo('\n3. Install Manim for maths scenes (about 1 GB, needs LaTeX)?', true);
 const agentsDir = path.join(HOME, '.claude', 'agents');
 const agents = flag('--no-agents') ? false : await yesNo(`4. Link the script agent into ${tilde(agentsDir)}?`, true);
@@ -78,20 +108,18 @@ const agents = flag('--no-agents') ? false : await yesNo(`4. Link the script age
 const exr = process.env.EXPLAINROO_HOME || path.join(HOME, '.explainroo');
 const steps = [];
 const run = (title, cmd, args, opts = {}) => steps.push({ title, cmd, args, ...opts });
-// Before the rename, the skill was "Kaleidoscope" in ~/.claude/skills/kaleidoscope. Move that copy
-// to the new folder, so its voice and Manim environments stay, and point it at the renamed repository.
-const oldDir = path.join(HOME, '.claude', 'skills', 'kaleidoscope');
-const moveOld = !fs.existsSync(dir) && fs.existsSync(path.join(oldDir, '.git'));
 if (moveOld) {
   steps.push({ title: `Move the old Kaleidoscope install from ${tilde(oldDir)}`, move: oldDir });
   run('Point the skill at the renamed repository', 'git', ['-C', dir, 'remote', 'set-url', 'origin', REPO]);
 }
-const isRepo = moveOld || fs.existsSync(path.join(dir, '.git'));
+const isRepo = fs.existsSync(at('.git'));
 if (isRepo) run('Update the skill', 'git', ['-C', dir, 'pull', '--ff-only']);
 else run('Download the skill', 'git', ['clone', '--depth', '1', REPO, dir]);
-if (fs.existsSync(path.join(exr, 'bin', 'explainroo.js'))) run('Word timing (explainroo) is installed', null);
+// explainroo is installed only when its packages are there too: a failed "npm install" leaves the clone alone.
+const exrCloned = fs.existsSync(path.join(exr, 'bin', 'explainroo.js'));
+if (exrCloned && fs.existsSync(path.join(exr, 'node_modules'))) run('Word timing (explainroo) is installed', null);
 else {
-  run('Download explainroo (word timing, Kokoro voice)', 'git', ['clone', '--depth', '1', EXPLAINROO, exr]);
+  if (!exrCloned) run('Download explainroo (word timing, Kokoro voice)', 'git', ['clone', '--depth', '1', EXPLAINROO, exr]);
   run('Install explainroo', 'npm', ['install', '--no-audit', '--no-fund'], { cwd: exr });
 }
 run('Fetch the Whisper and Kokoro models', 'node', [path.join(exr, 'bin', 'explainroo.js'), 'doctor', '--fetch'], { cwd: exr });
@@ -106,20 +134,27 @@ if (voice === 'chatterbox') {
   const torchArgs = gpuName
     ? ['--override', path.join(tts, 'torch-overrides.txt'), '--index', 'https://download.pytorch.org/whl/cu128', '--index-strategy', 'unsafe-best-match']
     : mac ? [] : ['--index', 'https://download.pytorch.org/whl/cpu', '--index-strategy', 'unsafe-best-match'];
-  if (!fs.existsSync(py)) run('Make the voice environment', uv, ['venv', '--python', '3.12', path.join(tts, '.venv')]);
+  // Never make a venv where one is: uv asks to replace it, and Enter (yes) deletes the voice.
+  if (!fs.existsSync(at('engine', 'tts', '.venv', 'bin', 'python'))) run('Make the voice environment', uv, ['venv', '--python', '3.12', path.join(tts, '.venv')]);
   run(`Install Chatterbox (${gpuName ? 'CUDA' : mac ? 'Metal or CPU' : 'CPU'})`, uv, ['pip', 'install', '--python', py, ...torchArgs, 'chatterbox-tts', 'setuptools<81'], { env: { UV_HTTP_TIMEOUT: '600' } });
   // The large Whisper (make config --whisper large) runs in the same environment.
   run('Install faster-whisper (large Whisper for word timing)', uv, ['pip', 'install', '--python', py, 'faster-whisper', 'librosa']);
 }
 if (manim) {
   const m = path.join(dir, 'engine', 'manim');
-  if (!fs.existsSync(path.join(m, '.venv', 'bin', 'python'))) run('Make the Manim environment', uv, ['venv', '--python', '3.12', path.join(m, '.venv')]);
+  if (!fs.existsSync(at('engine', 'manim', '.venv', 'bin', 'python'))) run('Make the Manim environment', uv, ['venv', '--python', '3.12', path.join(m, '.venv')]);
   run('Install Manim', uv, ['pip', 'install', '--python', path.join(m, '.venv', 'bin', 'python'), 'manim']);
 }
 if (agents) steps.push({ title: `Link the script agent into ${tilde(agentsDir)}`, link: 'agents' });
 steps.push({ title: 'Add the /setup-clayducation command', link: 'setup' });
+// Claude Code finds skills only in ~/.claude/skills, so a skill in another folder gets a link there.
+if (path.resolve(dir) !== skillLink) steps.push({ title: `Link the skill as ${tilde(skillLink)}`, link: 'skill' });
 // The large Whisper is the default on an NVIDIA GPU; on a Mac or a CPU it is slower, so the small one stays.
-run('Save the settings', 'node', [path.join(dir, 'engine', 'make.mjs'), 'config', '--voice', voice, '--gpu', 'auto', '--whisper', voice === 'chatterbox' && gpuName ? 'large' : 'base']);
+// Settings that are already there stay: a Turbo voice stays Turbo when the answer is chatterbox.
+const keepTurbo = voice === 'chatterbox' && prev?.voice === 'chatterbox-turbo';
+const gpuSetting = prev?.gpu || 'auto';
+const whisperSetting = prev?.whisper || (voice === 'chatterbox' && gpuName ? 'large' : 'base');
+run('Save the settings', 'node', [path.join(dir, 'engine', 'make.mjs'), 'config', '--voice', keepTurbo ? 'chatterbox-turbo' : voice, '--gpu', gpuSetting, '--whisper', whisperSetting]);
 run('Compute the clay shapes', 'node', [path.join(dir, 'engine', 'make.mjs'), 'bake'], { mayFail: true });
 run('Check everything', 'node', [path.join(dir, 'engine', 'make.mjs'), 'doctor'], { mayFail: true });
 
@@ -185,6 +220,14 @@ for (const [i, s] of steps.entries()) {
     fs.mkdirSync(path.dirname(to), { recursive: true });
     fs.rmSync(to, { force: true, recursive: false });
     fs.symlinkSync(path.join(dir, 'setup'), to);
+    continue;
+  }
+  if (s.link === 'skill') {
+    const st = fs.lstatSync(skillLink, { throwIfNoEntry: false });
+    if (st && !st.isSymbolicLink()) { console.log(`  ${tilde(skillLink)} is a folder already, so Claude Code uses that copy, not ${tilde(dir)}.`); continue; }
+    fs.mkdirSync(path.dirname(skillLink), { recursive: true });
+    if (st) fs.rmSync(skillLink);
+    fs.symlinkSync(dir, skillLink);
     continue;
   }
   if (!s.cmd) continue;

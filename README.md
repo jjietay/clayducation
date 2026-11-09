@@ -7,7 +7,7 @@ A Claude Code skill that makes a narrated teaching video about a topic.<br>
 
 <img src="https://raw.githubusercontent.com/jjietay/clayducation/main/gallery/png/clay-cancel.png" alt="The clay mascot pushes a cart on a spring while two terms of the formula above are struck out" width="100%">
 
-<sub>Code draws every frame, without a video model, from 28 clay models of our own, and makes the music and the sound effects. The voice runs on your own computer, with or without a GPU.</sub>
+<sub>Code draws every frame, without a video model, from 68 clay models of our own, and makes the music and the sound effects. The voice runs on your own computer, with or without a GPU.</sub>
 
 <a href="https://jjietay.github.io/clayducation/"><b>Open the gallery page</b></a>
 
@@ -38,7 +38,7 @@ In Claude Code, in the conversation where the topic came up:
 
 ### New: clay, with a mascot
 
-The default for every video: soft 3D clay, plain backgrounds and flat text, 28 models that we made in
+The default for every video: soft 3D clay, plain backgrounds and flat text, 68 models that we made in
 code, and one silent mascot who pulls, pushes and holds the things that the voice talks about.
 [`styles/clay.md`](styles/clay.md) has the mascot, his controls and every model.
 

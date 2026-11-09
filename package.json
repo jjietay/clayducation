@@ -1,6 +1,6 @@
 {
   "name": "clayducation",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Set up Clayducation, a Claude Code skill that makes narrated teaching videos.",
   "license": "MIT",
   "type": "module",
