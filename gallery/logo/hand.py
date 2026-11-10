@@ -47,13 +47,21 @@ DEFS = '''<defs>
 N = len(G["glyphs"]); L0 = [(rnd(i, 2) - 0.5) * 170 for i in range(N)]
 xm = (N - 1) / 2; m = sum(L0) / N; b = sum((i - xm) * (l - m) for i, l in enumerate(L0)) / sum((i - xm) ** 2 for i in range(N))
 LIFT = [l - m - b * (i - xm) for i, l in enumerate(L0)]
+# The sizes, and the shift that keeps the gaps even: a letter that is larger takes more room, and pushes the
+# letters after it along by that much (a letter grows about its middle).
+SC = [1 + (rnd(i, 3) - 0.5) * 0.26 for i in range(N)]
+SHIFT, run = [], 0.0
+for i, g in enumerate(G["glyphs"]):
+    w = (SC[i] - 1) * g["adv"] * 1000
+    SHIFT.append(run + w / 2); run += w
+SHIFT = [v - run / 2 for v in SHIFT]   # the word stays where it was, as a whole
 def build(ink):
     parts, k = [], 0
     for i, g in enumerate(G["glyphs"]):
         rot = 0                                # upright: no lean (kept for the pebble and the dot)
         lift = LIFT[i]                         # units (1000 = 1 em)
-        sc = 1 + (rnd(i, 3) - 0.5) * 0.26
-        x = g["x"] * 1000 + g["adv"] * 500     # the letter's middle
+        sc = SC[i]
+        x = g["x"] * 1000 + g["adv"] * 500 + SHIFT[i]     # the letter's middle
         if g["ch"] == "o":
             D = XH * 1000 * 1.2; cx, cy = x, -XH * 500 + lift * 0.5
             parts.append(f'<g transform="translate({cx - D/2:.1f} {cy - D/2:.1f}) rotate({rot*1.4:.1f} {D/2:.1f} {D/2:.1f}) scale({D/200:.4f})"><path d="{PEB}" fill="url(#cf)" filter="url(#clay)"/><path d="{PLAY}" fill="url(#hole)" filter="url(#press)"/></g>')
@@ -64,11 +72,11 @@ def build(ink):
             stem = [c for c in cs if top(c) < XH * 0.9]; dot = [c for c in cs if top(c) >= XH * 0.9]
             xs = [p[-2] for c in dot for p in c if len(p) > 1]; dx = (min(xs) + max(xs)) / 2 * 1000
             cs = stem
-        d = d_of([p for c in cs for p in c], g["x"] * 1000)
+        d = d_of([p for c in cs for p in c], g["x"] * 1000 + SHIFT[i])
         tf = f'rotate({rot:.1f} {x:.1f} {-XH*500:.1f}) translate({x:.1f} {-XH*500 - lift:.1f}) scale({sc:.3f}) translate({-x:.1f} {XH*500:.1f})'
         parts.append(f'<path d="{d}" fill="{ink}" transform="{tf}"/>')
         if g["ch"] == "i":
-            R = 80; cx = g["x"] * 1000 + dx; cy = -XH * 1000 - 170
+            R = 80; cx = g["x"] * 1000 + SHIFT[i] + dx; cy = -XH * 1000 - 170
             parts.append(f'<g transform="rotate({rot:.1f} {x:.1f} {-XH*500:.1f}) translate(0 {-lift:.1f}) translate({cx - R:.1f} {cy - R:.1f}) scale({R/100:.3f})"><circle cx="100" cy="100" r="92" fill="url(#pop)" filter="url(#clay)"/></g>')
     W = G["width"] * 1000
     return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="-80 -1000 {W + 160:.0f} 1300" role="img" aria-label="Clayducation"><title>Clayducation</title>\n{DEFS}\n' + "\n".join(parts) + "\n</svg>\n"

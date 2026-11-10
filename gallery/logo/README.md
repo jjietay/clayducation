@@ -16,8 +16,8 @@ need no font. The lifts and sizes come from a fixed seed: the same files come ou
 
 To make the files again:
 
-- `python3 glyphs.py <PlusJakartaSans[wght].ttf> 0 > glyphs.json` (needs `fonttools` and `uharfbuzz`): the
-  outline and the place of each letter.
+- `python3 glyphs.py <PlusJakartaSans[wght].ttf> -0.05 > glyphs.json` (needs `fonttools` and `uharfbuzz`): the
+  outline and the place of each letter, set 0.05 em closer than the font sets them.
 - `python3 hand.py glyphs.json .`: `logo.svg` and `logo-dark.svg`.
 - `python3 logo.py .`: `mark.svg` and `favicon.svg`.
 - The PNG files are the SVG files drawn by Chrome on a clear background (`apple-touch-icon.png` on #f3ede2),
