@@ -1223,7 +1223,7 @@ const kit = {
 // from his place to the goal through the corners of the grown footprints (a visibility graph, Dijkstra), each corner
 // rounded with an arc. He turns on the spot toward the path, walks it forward (the kit's walkPath: one pace, eased only
 // at its two ends, facing along the path), and turns on the spot to face the thing.
-const GROW = 2.1, NODE = 1.4, ARC = 1.8, TURN = 2.3, PACE = 2.7;   /* GROW: his fists reach about 1.7 from his middle as he walks, plus 0.4 */
+const GROW = 2.1, NODE = 1.4, ARC = 1.8, TURN = 2.3, PACE = 4.0;   /* GROW: his fists reach about 1.7 from his middle as he walks, plus 0.4 */
 function footprints() {
   const out = [], b = new THREE.Box3(), seen = new Set();
   const add = (o) => {
