@@ -71,7 +71,7 @@ const focus = { obj: null, k: 0, want: 0 };
 const scrollMax = () => document.documentElement.scrollHeight - innerHeight;
 let goal = scrollY, cur = scrollY, gliding = false;
 addEventListener('wheel', (e) => {
-  if (stylesOpen()) { if (!e.target.closest('.styles .sheet')) e.preventDefault(); return; }   // the panel scrolls; the page does not
+  if (stylesOpen()) { if (!e.target.closest('.folder .sheet')) e.preventDefault(); return; }   // the panel scrolls; the page does not
   if (focus.obj) { e.preventDefault(); return; }
   if (still || e.ctrlKey) return;
   e.preventDefault();
@@ -90,16 +90,14 @@ function glide() {
   if (Math.abs(cur - goal) < 0.5) { cur = goal; gliding = false; }
   scrollTo(0, cur);
 }
-// More styles (chapter 7): a panel over the darkened page. A click outside the panel, or Escape, closes it.
-const stylesEl = $('.styles'), moreEl = $('.more');
-const stylesOpen = () => !stylesEl.hidden;
-function openStyles() { stylesEl.hidden = false; stylesEl.offsetWidth; stylesEl.classList.add('on'); $('.sheet', stylesEl).focus({ preventScroll: true }); }
-function closeStyles() {
-  stylesEl.classList.remove('on');
-  setTimeout(() => { if (!stylesEl.classList.contains('on')) { stylesEl.hidden = true; moreEl.focus({ preventScroll: true }); } }, 320);
-}
-moreEl.addEventListener('click', openStyles);
-stylesEl.addEventListener('click', (e) => { if (!e.target.closest('.sheet')) closeStyles(); });
+// More styles (chapter 7): a folder at the bottom of the screen. A click on it slides it up to a quarter of the
+// screen; a click on its tab, a click on the dark page above it, or Escape slides it back down.
+const folderEl = $('.folder'), tabEl = $('.tab', folderEl), sheetEl = $('.sheet', folderEl);
+const stylesOpen = () => folderEl.classList.contains('open');
+function openStyles() { folderEl.classList.add('open'); document.documentElement.classList.add('folder-open'); tabEl.setAttribute('aria-expanded', 'true'); sheetEl.scrollTop = 0; sheetEl.setAttribute('tabindex', '-1'); sheetEl.focus({ preventScroll: true }); }
+function closeStyles() { folderEl.classList.remove('open'); document.documentElement.classList.remove('folder-open'); tabEl.setAttribute('aria-expanded', 'false'); sheetEl.scrollTop = 0; tabEl.focus({ preventScroll: true }); }
+folderEl.addEventListener('click', (e) => { if (!stylesOpen()) openStyles(); else if (e.target.closest('.tab')) closeStyles(); });
+addEventListener('click', (e) => { if (stylesOpen() && !e.target.closest('.folder')) closeStyles(); });
 const jump = (y) => { goal = clamp(y, 0, scrollMax()); cur = scrollY; gliding = !still; if (still) scrollTo(0, goal); };
 
 // ---------- words: one statement per chapter, in place on the screen; nothing floats between chapters ----------
@@ -367,7 +365,7 @@ function stepFocus() {
 
 // 0. A lump of clay. It is heavy and uneven: palm-flattened faces, thumb marks, finger ridges, a flat bottom.
 // A press dents it; with the button down the dent stays. Then the lump becomes a clay figure in his shape,
-// which cracks: its pieces fall away from the top down, show him inside, and land as crumbs.
+// which cracks; he breaks out of it with his arms up, and its pieces land on the floor.
 function hash3(x, y, z) { const h = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return h - Math.floor(h); }
 function noise3(x, y, z) {
   const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z), xf = x - xi, yf = y - yi, zf = z - zi;
@@ -405,21 +403,80 @@ function figure(x, y, z) {
   d = smin(d, e(0, 2.35, 0.05, 2.8, 1.55, 1.45), 0.9);     // the hips, round his hands
   return smin(d, e(0, 1.35, 0.25, 2.05, 1.9, 1.8), 1.0);   // the legs and shoes
 }
+// The break-out. The cracks open from the top down (0.62 to 0.7). His head pushes the top off (0.685), his
+// arms come up with bent elbows and throw the side pieces out (0.69 to 0.75), and the lower pieces peel away
+// from the top down (0.73 to 0.86). The pieces are slabs of clay with an inner wall and a broken edge; they
+// fly, land, squash on the floor and stay there. Small crumbs fly out with them.
+const ARMS_UP = (t) => (still ? 0 : sm(0.69, 0.75, t)), ARM_ANGLE = (u) => 0.2 + 2.2 * u;
+const GRAV = 22, REST = 0.16, TS = 0.1;   // gravity, a landed piece's middle above the floor, scroll per time unit
+const SHO = [1.3, 4.52], REACH = 3.3;     // his shoulder (x, y) in the figure, and how far his arm reaches
 C[0] = {
   start: [0, 0.6, 0], end: [0, 0.6, 0.35], via: [[3.5, -4.4], [S1[0] - 1, -4.4]],
   build() {
     // A UV sphere, cut into pieces that can fall away: each piece has its own copy of the points on its edge,
-    // so a piece leaves no stretched triangles behind when it falls.
-    const src = new THREE.SphereGeometry(2, 180, 130), sp = src.attributes.position.array, idx = src.index.array, n0 = sp.length / 3;
-    const seeds = Array.from({ length: 46 }, (_, i) => { const y = 1 - (i + 0.5) / 46 * 2, r = Math.sqrt(1 - y * y), a = i * 2.39996; return new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r); });
-    const v = new THREE.Vector3(), pieceOf = (x, y, z) => { v.set(x, y, z).normalize(); let best = 0, bd = -2; seeds.forEach((s, k) => { const d = v.dot(s); if (d > bd) { bd = d; best = k; } }); return best; };
+    // so a piece leaves no stretched triangles behind when it falls. The cut lines wander (a warped direction).
+    const src = new THREE.SphereGeometry(2, 180, 130), sp = src.attributes.position.array, idx = src.index.array;
+    const NP = 72;
+    const seeds = Array.from({ length: NP }, (_, i) => { const y = 1 - (i + 0.5) / NP * 2, r = Math.sqrt(1 - y * y), a = i * 2.39996; return new THREE.Vector3(Math.cos(a) * r + (hash3(i, 8, 1) - 0.5) * 0.3, y + (hash3(i, 9, 2) - 0.5) * 0.2, Math.sin(a) * r + (hash3(i, 3, 5) - 0.5) * 0.3).normalize(); });
+    const v = new THREE.Vector3(), pieceOf = (x, y, z) => {
+      v.set(x, y, z).normalize(); v.set(v.x + 0.09 * fbm(v.x * 5 + 1, v.y * 5, v.z * 5), v.y + 0.09 * fbm(v.x * 5, v.y * 5 + 4, v.z * 5), v.z + 0.09 * fbm(v.x * 5, v.y * 5, v.z * 5 + 8)).normalize();
+      let best = 0, bd = -2; seeds.forEach((s, k) => { const d = v.dot(s); if (d > bd) { bd = d; best = k; } }); return best;
+    };
+    // The piece of each triangle; then each triangle takes the piece of most of its neighbours, so no small
+    // islands of one piece are left inside another.
+    const NT = idx.length / 3, tk = new Int32Array(NT), sid = new Int32Array(sp.length / 3), pk = new Map();
+    for (let i = 0; i < sid.length; i++) { const k = `${sp[i * 3].toFixed(4)},${sp[i * 3 + 1].toFixed(4)},${sp[i * 3 + 2].toFixed(4)}`; if (!pk.has(k)) pk.set(k, pk.size); sid[i] = pk.get(k); }
+    const te = new Map(), tn = Array.from({ length: NT }, () => []);
+    for (let t = 0; t < NT; t++) {
+      const a = idx[t * 3], b = idx[t * 3 + 1], c = idx[t * 3 + 2];
+      tk[t] = pieceOf(sp[a * 3] + sp[b * 3] + sp[c * 3], sp[a * 3 + 1] + sp[b * 3 + 1] + sp[c * 3 + 1], sp[a * 3 + 2] + sp[b * 3 + 2] + sp[c * 3 + 2]);
+      for (let e = 0; e < 3; e++) { const x = sid[idx[t * 3 + e]], y = sid[idx[t * 3 + (e + 1) % 3]]; if (x === y) continue; const k = x < y ? x * 1e6 + y : y * 1e6 + x; const o = te.get(k); if (o === undefined) te.set(k, t); else { tn[t].push(o); tn[o].push(t); } }
+    }
+    for (let it = 0; it < 6; it++) for (let t = 0; t < NT; t++) {
+      const same = tn[t].filter((o) => tk[o] === tk[t]).length; if (same >= 2 || !tn[t].length) continue;
+      const cnt = new Map(); for (const o of tn[t]) cnt.set(tk[o], (cnt.get(tk[o]) || 0) + 1);
+      tk[t] = [...cnt].sort((u, w) => w[1] - u[1])[0][0];
+    }
     const map = new Map(), dirs = [], piece = [], tri = [];
     for (let t = 0; t < idx.length; t += 3) {
-      const a = idx[t], b = idx[t + 1], c = idx[t + 2];
-      const k = pieceOf(sp[a * 3] + sp[b * 3] + sp[c * 3], sp[a * 3 + 1] + sp[b * 3 + 1] + sp[c * 3 + 1], sp[a * 3 + 2] + sp[b * 3 + 2] + sp[c * 3 + 2]);
-      for (const i of [a, b, c]) { const key = i * 64 + k; let j = map.get(key); if (j === undefined) { j = dirs.length / 3; map.set(key, j); dirs.push(sp[i * 3], sp[i * 3 + 1], sp[i * 3 + 2]); piece.push(k); } tri.push(j); }
+      const a = idx[t], b = idx[t + 1], c = idx[t + 2], k = tk[t / 3];
+      for (const i of [a, b, c]) { const key = i * 128 + k; let j = map.get(key); if (j === undefined) { j = dirs.length / 3; map.set(key, j); dirs.push(sp[i * 3], sp[i * 3 + 1], sp[i * 3 + 2]); piece.push(k); } tri.push(j); }
     }
     const n = dirs.length / 3;
+    // Points at the same place (the sphere's seam and poles, and the edges of the pieces) are one point (canon);
+    // they share one normal while the clay is whole, so no seam shows.
+    const key = new Map(), canon = new Int32Array(n); this.twins = [];
+    for (let i = 0; i < n; i++) { const k = `${dirs[i * 3].toFixed(4)},${dirs[i * 3 + 1].toFixed(4)},${dirs[i * 3 + 2].toFixed(4)}`; if (key.has(k)) key.get(k).push(i); else key.set(k, [i]); }
+    let cid = 0; for (const list of key.values()) { for (const i of list) canon[i] = cid; cid++; if (list.length > 1) this.twins.push(list); }
+    // The edges where two pieces meet. Smooth them along the edge, so a crack is a curve, not steps of the grid;
+    // a point where three pieces meet stays.
+    const edges = new Map();
+    for (let t = 0; t < tri.length; t += 3) for (let e = 0; e < 3; e++) {
+      const a = tri[t + e], b = tri[t + (e + 1) % 3], ca = canon[a], cb = canon[b]; if (ca === cb) continue;
+      const k = ca < cb ? ca * 1e6 + cb : cb * 1e6 + ca; let l = edges.get(k); if (!l) edges.set(k, (l = [])); l.push([a, b, piece[a]]);
+    }
+    const nb = new Map(), cp = new Float32Array(cid * 3);
+    for (let i = 0; i < n; i++) cp.set([dirs[i * 3], dirs[i * 3 + 1], dirs[i * 3 + 2]], canon[i] * 3);
+    for (const l of edges.values()) if (l.length === 2 && l[0][2] !== l[1][2]) {
+      const a = canon[l[0][0]], b = canon[l[0][1]];
+      if (!nb.has(a)) nb.set(a, new Set()); if (!nb.has(b)) nb.set(b, new Set()); nb.get(a).add(b); nb.get(b).add(a);
+    }
+    for (let it = 0; it < 4; it++) {
+      const nx = cp.slice();
+      for (const [c, s] of nb) { if (s.size !== 2) continue; const [a, b] = [...s]; for (let d = 0; d < 3; d++) nx[c * 3 + d] = 0.5 * cp[c * 3 + d] + 0.25 * (cp[a * 3 + d] + cp[b * 3 + d]); const l = Math.hypot(nx[c * 3], nx[c * 3 + 1], nx[c * 3 + 2]) / 2; for (let d = 0; d < 3; d++) nx[c * 3 + d] /= l; }
+      cp.set(nx);
+    }
+    // Then relax the points near the edges (three rings in from the edge) so no small triangle folds over.
+    const adj = Array.from({ length: cid }, () => new Set());
+    for (let t = 0; t < tri.length; t += 3) for (let e = 0; e < 3; e++) { const a = canon[tri[t + e]], b = canon[tri[t + (e + 1) % 3]]; if (a !== b) { adj[a].add(b); adj[b].add(a); } }
+    let ring = new Set(nb.keys()); const near = new Set(), done = new Set(ring);
+    for (let r = 0; r < 3; r++) { const nx = new Set(); for (const c of ring) for (const d of adj[c]) if (!done.has(d)) { done.add(d); nx.add(d); near.add(d); } ring = nx; }
+    for (let it = 0; it < 8; it++) for (const c of near) {
+      if (Math.abs(cp[c * 3 + 1]) > 1.9) continue;   // the poles
+      let x = 0, y = 0, z = 0; for (const d of adj[c]) { x += cp[d * 3]; y += cp[d * 3 + 1]; z += cp[d * 3 + 2]; }
+      const l = Math.hypot(x, y, z) / 2; if (l > 0) { cp[c * 3] = x / l; cp[c * 3 + 1] = y / l; cp[c * 3 + 2] = z / l; }
+    }
+    for (let i = 0; i < n; i++) for (let d = 0; d < 3; d++) dirs[i * 3 + d] = cp[canon[i] * 3 + d];
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
     g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
@@ -448,31 +505,97 @@ C[0] = {
       this.fig[i * 3] = v.x * lo * (1 + 0.03 * fbm(v.x * 3 + 2, v.y * 3, v.z * 3)); this.fig[i * 3 + 1] = fy; this.fig[i * 3 + 2] = v.z * lo;
     }
     this.col0 = col.slice(); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    // Points at the same place (the sphere's seam and poles, and the edges of the pieces) share one normal
-    // while the clay is whole, so no seam shows.
-    const key = new Map(); this.twins = [];
-    for (let i = 0; i < n; i++) { const k = `${dirs[i * 3].toFixed(4)},${dirs[i * 3 + 1].toFixed(4)},${dirs[i * 3 + 2].toFixed(4)}`; if (key.has(k)) key.get(k).push(i); else key.set(k, [i]); }
-    for (const list of key.values()) if (list.length > 1) this.twins.push(list);
-    // Each piece: its middle on the figure, when it falls (from the top down), which way, and how it turns.
+    // The figure's own normals at rest (shared across the edges): the inner wall is under each point along it.
+    { const fg = new THREE.BufferGeometry(); fg.setAttribute('position', new THREE.BufferAttribute(this.fig.slice(), 3)); fg.setIndex(tri); fg.computeVertexNormals();
+      const fn = fg.attributes.normal.array, acc = new Float32Array(cid * 3);
+      for (let i = 0; i < n; i++) for (let d = 0; d < 3; d++) acc[canon[i] * 3 + d] += fn[i * 3 + d];
+      this.figN = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) { const c = canon[i] * 3, l = Math.hypot(acc[c], acc[c + 1], acc[c + 2]) || 1; for (let d = 0; d < 3; d++) this.figN[i * 3 + d] = acc[c + d] / l; } }
+    // Each piece: its middle on the figure, which way is out, when it cracks, when and how it leaves.
     this.pieces = seeds.map((s, k) => ({ c: new THREE.Vector3(), n: 0, k }));
     for (let i = 0; i < n; i++) { const p = this.pieces[piece[i]]; p.c.x += this.fig[i * 3]; p.c.y += this.fig[i * 3 + 1]; p.c.z += this.fig[i * 3 + 2]; p.n++; }
+    const UP = new THREE.Vector3(0, 1, 0);
     for (const p of this.pieces) {
+      const h = (a, b) => hash3(p.k, a, b);
       p.c.divideScalar(Math.max(1, p.n));
-      p.t0 = 0.66 + 0.16 * clamp(1 - p.c.y / 9) + 0.02 * hash3(p.k, 4, 1);
-      const out = new THREE.Vector3(p.c.x, 0, p.c.z); if (out.lengthSq() < 0.01) out.set(hash3(p.k, 1, 1) - 0.5, 0, 0.5); out.normalize();
-      p.out = out.multiplyScalar(1.3 + 1.6 * hash3(p.k, 2, 7));
-      p.axis = new THREE.Vector3(hash3(p.k, 3, 1) - 0.5, hash3(p.k, 5, 2) - 0.5, hash3(p.k, 6, 3) - 0.5).normalize(); p.spin = 1.5 + 2.5 * hash3(p.k, 7, 4);
+      const flat = new THREE.Vector3(p.c.x, 0, p.c.z); if (flat.lengthSq() < 0.01) flat.set(h(1, 1) - 0.5, 0, 0.5); flat.normalize();
+      p.nrm = p.c.clone().sub(new THREE.Vector3(0, clamp(p.c.y, 2, 6.6), 0)).normalize();
+      p.tc = 0.62 + 0.07 * clamp(1 - p.c.y / 9) + 0.01 * h(4, 1);   // the crack opens, from the top down
+      let tl = 0.73 + 0.13 * clamp((6.6 - p.c.y) / 6.6) + 0.015 * h(2, 2), kind = 'peel';
+      if (p.c.y > 6.6) { tl = 0.684 + 0.012 * h(3, 3); kind = 'head'; }
+      // The arm, coming up at the side, hits this piece when its angle (from straight down) gets near the piece's.
+      const ax = Math.abs(p.c.x), sx = Math.sign(p.c.x) || 1, phi = Math.atan2(ax - SHO[0], SHO[1] - p.c.y), far = Math.hypot(ax - SHO[0], p.c.y - SHO[1]);
+      if (kind !== 'head' && ax > 0.9 && phi > 0 && far < REACH) {
+        for (let s = 0.69; s <= 0.75; s += 0.001) if (ARM_ANGLE(sm(0.69, 0.75, s)) >= phi - 0.3) { if (s < tl) { tl = s; kind = 'arm'; p.phi = phi; p.sx = sx; } break; }
+      }
+      p.tl = tl; p.kind = kind;
+      if (kind === 'head') p.v = p.nrm.clone().multiplyScalar(2.6 + 1.2 * h(5, 5)).add(new THREE.Vector3(0, 4.2, 0));
+      else if (kind === 'arm') p.v = new THREE.Vector3(p.sx * (Math.cos(p.phi) * 2.6 + Math.sin(p.phi) * 1.6), Math.sin(p.phi) * 2.6 + 1.2, p.nrm.z * 1.4).multiplyScalar(0.85 + 0.3 * h(6, 6));
+      else p.v = flat.clone().multiplyScalar(1.1 + 1.0 * h(7, 7)).add(new THREE.Vector3(0, 0.6 * h(8, 8), 0));
+      p.tland = (p.v.y + Math.sqrt(p.v.y * p.v.y + 2 * GRAV * Math.max(0, p.c.y - REST))) / GRAV;
+      // A peeling piece tips its top out as it falls; a thrown piece turns about a random axis.
+      if (kind === 'peel') { p.axis = UP.clone().cross(flat).add(new THREE.Vector3(h(1, 9) - 0.5, 0, h(2, 9) - 0.5).multiplyScalar(0.5)).normalize(); p.spin = (1.3 + 0.5 * h(3, 9)) / Math.max(0.25, p.tland); }
+      else { p.axis = new THREE.Vector3(h(3, 1) - 0.5, h(5, 2) - 0.5, h(6, 3) - 0.5).normalize(); p.spin = 3 + 3 * h(7, 4); }
+      p.scale = 0.62 + 0.18 * h(9, 9);   // its size on the floor (the slab curls and bunches up as it falls)
     }
     this.mat = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.86, sheen: 0.22, sheenRoughness: 0.7, sheenColor: new THREE.Color('#ffd9bf'), specularIntensity: 0.12,
       normalMap: clayNormals(), normalScale: new THREE.Vector2(0.95, 0.95), side: THREE.DoubleSide });
     this.lump = new THREE.Mesh(g, this.mat); this.lump.position.set(0, 0, 0.6); put(this.lump);
     this.lump.frustumCulled = false;   // its shape changes every frame
+
+    // The inside of the clay: an inner wall under each point, and a broken edge (a strip of two triangles)
+    // along every edge where two pieces meet. Each piece has its own edge, so the pieces can come apart.
+    const rim = [];
+    for (const l of edges.values()) if (l.length === 2 && l[0][2] !== l[1][2]) rim.push(l[0][0], l[0][1], l[1][0], l[1][1]);
+    this.rim = rim; const E = rim.length / 2, m = n + E * 4;
+    const tg = new THREE.BufferGeometry(), tidx = [], tuv = new Float32Array(m * 2);
+    tg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(m * 3), 3));
+    tg.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(m * 3), 3));
+    for (let t = 0; t < tri.length; t += 3) tidx.push(tri[t], tri[t + 2], tri[t + 1]);
+    tuv.set(uvs);
+    for (let e = 0; e < E; e++) {
+      const a = rim[e * 2], b = rim[e * 2 + 1], o = n + e * 4;   // outer a, outer b, inner b, inner a
+      tuv.set([uvs[a * 2], uvs[a * 2 + 1], uvs[b * 2], uvs[b * 2 + 1], uvs[b * 2], uvs[b * 2 + 1] + 0.012, uvs[a * 2], uvs[a * 2 + 1] + 0.012], o * 2);
+      tidx.push(o, o + 1, o + 2, o, o + 2, o + 3);
+    }
+    tg.setAttribute('uv', new THREE.BufferAttribute(tuv, 2)); tg.setIndex(tidx);
+    this.thick = new Float32Array(n); for (let i = 0; i < n; i++) this.thick[i] = 0.17 + 0.09 * hash3(canon[i], 3, 7);
+    this.inMat = new THREE.MeshPhysicalMaterial({ color: '#9c5c3e', roughness: 0.93, sheen: 0.15, sheenRoughness: 0.8, sheenColor: new THREE.Color('#f0b894'), specularIntensity: 0.08,
+      side: THREE.DoubleSide });
+    this.inner = new THREE.Mesh(tg, this.inMat); this.inner.position.copy(this.lump.position); this.inner.frustumCulled = false; this.inner.visible = false; put(this.inner);
+
+    // Crumbs: small bits of clay that break off the edges when a piece leaves.
+    const NC = 220, cg = new THREE.DodecahedronGeometry(1, 0);
+    this.crumbs = new THREE.InstancedMesh(cg, new THREE.MeshPhysicalMaterial({ color: '#b47758', roughness: 0.9, sheen: 0.2, sheenColor: new THREE.Color('#ffd9bf') }), NC);
+    this.crumbs.position.copy(this.lump.position); this.crumbs.frustumCulled = false; this.crumbs.visible = false; put(this.crumbs);
+    this.crumb = Array.from({ length: NC }, (_, i) => {
+      const h = (a, b) => hash3(i, a, b + 40), p = this.pieces[Math.floor(h(1, 1) * NP)];
+      const r = 0.035 + 0.09 * h(2, 2) ** 2, at = p.c.clone().add(new THREE.Vector3(h(3, 3) - 0.5, h(4, 4) - 0.5, h(5, 5) - 0.5).multiplyScalar(0.9));
+      const vel = p.v.clone().multiplyScalar(0.6 + 0.6 * h(6, 6)).add(new THREE.Vector3(h(7, 7) - 0.5, h(8, 8) * 0.8, h(9, 9) - 0.5).multiplyScalar(3));
+      return { p, r, at, vel, t0: p.tl + 0.006 * h(10, 10), land: (vel.y + Math.sqrt(vel.y * vel.y + 2 * GRAV * Math.max(0, at.y - r))) / GRAV,
+        axis: new THREE.Vector3(h(11, 1) - 0.5, h(12, 1) - 0.5, h(13, 1) - 0.5).normalize(), sq: new THREE.Vector3(1 + 0.4 * h(14, 1), 0.7 + 0.3 * h(15, 1), 1 + 0.3 * h(16, 1)) };
+    });
     this.sh = shadow(5.5, 4.5, 0, 0.6, 0.55);
   },
+  // Where piece p's middle is, and how it is turned and squashed, at scroll t (ck: how far its crack is open).
+  pieceAt(p, t) {
+    const ck = heroReady ? sm(p.tc, p.tc + 0.025, t) : 0, tau = heroReady ? Math.max(0, (t - p.tl) / TS) : 0;
+    const o = { ck, tau, at: p.c.clone().addScaledVector(p.nrm, 0.07 * ck), q: null, s: 1, sy: 1, sxz: 1 };
+    if (tau <= 0) return o;
+    const f = Math.min(tau, p.tland), after = tau - p.tland;
+    o.at.copy(p.c).addScaledVector(p.nrm, 0.07).addScaledVector(p.v, f); o.at.y -= 0.5 * GRAV * f * f;
+    if (after > 0) {
+      // Landed: it slides a little, and the soft clay squashes on the floor.
+      o.at.x += p.v.x * 0.12 * (1 - Math.exp(-after * 6)); o.at.z += p.v.z * 0.12 * (1 - Math.exp(-after * 6)); o.at.y = REST;
+      const sq = sm(0, 0.12, after) * (1 - 0.35 * sm(0.12, 0.4, after)); o.sy = 1 - 0.45 * sq; o.sxz = 1 + 0.18 * sq;
+    }
+    o.q = new THREE.Quaternion().setFromAxisAngle(p.axis, p.spin * f); o.s = lerp(1, p.scale, sm(0, 1, f / Math.max(0.2, p.tland)));
+    return o;
+  },
   act(t) {
-    const L = this.lump, n = this.n, D3 = this.dirs, v = new THREE.Vector3(), q = new THREE.Quaternion(), w = new THREE.Vector3();
+    const L = this.lump, n = this.n, D3 = this.dirs, v = new THREE.Vector3(), w = new THREE.Vector3();
     // The scroll: a lump (0 to 0.3, the pointer can dent it); a squash (0.3 to 0.42); the lump becomes the
-    // figure (0.4 to 0.62); the figure cracks, and its pieces fall away from the top down (0.66 to 0.92).
+    // figure (0.4 to 0.62); then the break-out (0.62 to 0.88, see above).
     const sq = still ? 0 : bump(0.3, 0.42, t), m = heroReady ? (still ? sm(0.4, 0.62, t) : back(sm(0.4, 0.62, t))) : 0;
     // The pointer, while it is a lump: the ray hits the lump's fixed shape (a dent moves away from the pointer).
     let dir = null;
@@ -487,9 +610,8 @@ C[0] = {
       if (dir) { v.fromArray(D3, i * 3).normalize(); const a = v.angleTo(dir); if (a < 0.9) { const f = Math.exp(-((a / 0.34) ** 2)); tp = Math.max(tp, damp(this.temp[i], 0.14 * f, 9)); if (hard) this.perm[i] = Math.min(0.42, this.perm[i] + dt * 0.7 * f); } }
       this.temp[i] = tp < 1e-4 ? 0 : tp;
     }
-    // How far each piece has fallen.
-    const fall = this.pieces.map((p) => (heroReady ? clamp((t - p.t0) / 0.11) : 0));
-    const rot = this.pieces.map((p, k) => new THREE.Quaternion().setFromAxisAngle(p.axis, p.spin * fall[k]));
+    this.mat.normalScale.setScalar(lerp(0.95, 0.5, clamp(m)));   // the figure is taller than the lump: its texture stretches, so it is weaker
+    const at = this.pieces.map((p) => this.pieceAt(p, t)), broken = at.some((a) => a.ck > 0);
     const P = L.geometry.attributes.position, col = L.geometry.attributes.color;
     for (let i = 0; i < n; i++) {
       v.fromArray(D3, i * 3).normalize();
@@ -500,37 +622,70 @@ C[0] = {
       ly += LIFT * (1 - 0.3 * sq) - 0.01;
       // Towards the figure.
       let x = lerp(lx, this.fig[i * 3], m), y = lerp(ly, this.fig[i * 3 + 1], m), z = lerp(lz, this.fig[i * 3 + 2], m);
-      const k = this.piece[i], f = fall[k];
-      if (f > 0) {
-        // A falling piece: it turns about its middle, flies a little out, drops to the floor, and gets small.
-        const p = this.pieces[k], s = 1 - 0.78 * sm(0.5, 1, f);
-        w.set(x - p.c.x, y - p.c.y, z - p.c.z).multiplyScalar(s).applyQuaternion(rot[k]);
-        const drop = 1.2 * f - (p.c.y + 1.2 - 0.3) * f * f;
-        x = p.c.x + p.out.x * f + w.x; y = Math.max(0.02, p.c.y + drop + w.y); z = p.c.z + p.out.z * f + w.z;
-      }
+      const k = this.piece[i], A = at[k], p = this.pieces[k];
+      if (A.q) {
+        w.set(x - p.c.x, y - p.c.y, z - p.c.z).multiplyScalar(A.s).applyQuaternion(A.q);
+        x = A.at.x + w.x * A.sxz; y = Math.max(0.02, A.at.y + w.y * A.sy); z = A.at.z + w.z * A.sxz;
+      } else if (A.ck > 0) { x += A.at.x - p.c.x; y += A.at.y - p.c.y; z += A.at.z - p.c.z; }
       P.setXYZ(i, x, y, z);
-      const kc = 1 - 0.55 * this.perm[i] - 0.3 * this.temp[i] - 0.12 * f;
+      const kc = 1 - 0.55 * this.perm[i] - 0.3 * this.temp[i] - 0.1 * clamp(A.tau);
       col.setXYZ(i, this.col0[i * 3] * kc, this.col0[i * 3 + 1] * kc, this.col0[i * 3 + 2] * kc);
     }
     P.needsUpdate = true; col.needsUpdate = true; L.geometry.computeVertexNormals();
     const N = L.geometry.attributes.normal, a = new THREE.Vector3();
     for (const list of this.twins) {
-      if (list.some((i) => fall[this.piece[i]] > 0)) continue;   // a piece that falls has its own edge
+      if (list.some((i) => at[this.piece[i]].ck > 0)) continue;   // a cracked piece has its own edge
       a.set(0, 0, 0); for (const i of list) a.add(v.fromBufferAttribute(N, i)); a.normalize(); for (const i of list) N.setXYZ(i, a.x, a.y, a.z);
     }
     N.needsUpdate = true; L.geometry.computeBoundingSphere();
     L.visible = true;
+    // The inner wall and the broken edges, once the cracks open.
+    this.inner.visible = broken;
+    if (broken) {
+      const T = this.inner.geometry.attributes.position, rim = this.rim;
+      const FN = this.figN, nv = new THREE.Vector3();
+      for (let i = 0; i < n; i++) {
+        const A = at[this.piece[i]], th = this.thick[i]; nv.fromArray(FN, i * 3); if (A.q) { nv.applyQuaternion(A.q); nv.x *= A.sxz; nv.y *= A.sy; nv.z *= A.sxz; }
+        T.setXYZ(i, P.getX(i) - nv.x * th, Math.max(0.01, P.getY(i) - nv.y * th), P.getZ(i) - nv.z * th);
+      }
+      for (let e = 0, o = n; e < rim.length; e += 2, o += 4) {
+        const A = rim[e], B = rim[e + 1];
+        T.setXYZ(o, P.getX(A), P.getY(A), P.getZ(A)); T.setXYZ(o + 1, P.getX(B), P.getY(B), P.getZ(B));
+        T.setXYZ(o + 2, T.getX(B), T.getY(B), T.getZ(B)); T.setXYZ(o + 3, T.getX(A), T.getY(A), T.getZ(A));
+      }
+      T.needsUpdate = true; this.inner.geometry.computeVertexNormals();
+    }
+    // The crumbs.
+    const CR = this.crumbs, M = new THREE.Matrix4(), q = new THREE.Quaternion(), s3 = new THREE.Vector3(), p3 = new THREE.Vector3();
+    let any = false;
+    this.crumb.forEach((c, i) => {
+      const tau = heroReady ? (t - c.t0) / TS : -1;
+      if (tau <= 0) { M.makeScale(0, 0, 0); CR.setMatrixAt(i, M); return; }
+      any = true;
+      const f = Math.min(tau, c.land), after = Math.max(0, tau - c.land);
+      p3.copy(c.at).addScaledVector(c.vel, f); p3.y -= 0.5 * GRAV * f * f;
+      if (after > 0) { p3.x += c.vel.x * 0.1 * (1 - Math.exp(-after * 5)); p3.z += c.vel.z * 0.1 * (1 - Math.exp(-after * 5)); p3.y = c.r * 0.7 + Math.abs(Math.sin(after * 9)) * 0.25 * Math.exp(-after * 7); }
+      q.setFromAxisAngle(c.axis, 6 * f + 2 * Math.min(after, 0.4));
+      s3.copy(c.sq).multiplyScalar(c.r * sm(0, 0.08, tau));
+      CR.setMatrixAt(i, M.compose(p3, q, s3));
+    });
+    CR.visible = any; CR.instanceMatrix.needsUpdate = true;
     const sw = lerp(1, 1.15, m);
     this.sh.scale.set(5.6 * sw * (1 + 0.28 * sq), 4.6 * (1 + 0.28 * sq), 1);
     if (!H) return;
-    // He is inside the figure; the falling pieces show him, head first.
+    // He is inside the figure; he wakes as it cracks, then breaks out with his arms up.
     H.root.visible = heroReady && t > 0.64;
     H.pose.rest(); place(0, 0.6, lerp(0, 0.35, sm(0.92, 1, t)));
+    const up = ARMS_UP(t) * (1 - (still ? 0 : sm(0.8, 0.87, t)));
+    if (up > 0) for (const A of H.arms) {
+      A.shoulder.rotation.set(-0.15 * up, 0, A.sx * ARM_ANGLE(up)); A.elbow.rotation.set(lerp(-0.12, -0.25, up), 0, A.sx * 0.75 * up);
+      A.wrist.rotation.set(0, 0, A.sx * 0.25 * up);
+    }
     const wave = still ? 0 : bump(0.88, 0.995, t);
     if (wave) { H.blendPose('rest', 'wave', wave); H.arms[1].elbow.rotation.z += Math.sin(now() / 120) * 0.3 * wave; }
-    H.blendExpression('sleepy', 'surprised', sm(0.7, 0.78, t)); H.blendExpression('surprised', 'smile', sm(0.84, 0.9, t));
+    if (t < 0.72) H.blendExpression('sleepy', 'surprised', sm(0.655, 0.685, t)); else H.blendExpression('surprised', 'smile', sm(0.72, 0.76, t));
     // His head stays still while the clay cracks; after it, he looks at the viewer (the camera), not to the side.
-    lookAt(cam.position, sm(0.88, 0.95, t) * (1 - wave));
+    lookAt(cam.position, sm(0.74, 0.8, t) * (1 - wave));
   },
   shot(t) {
     const o = still ? 1 : sm(0.34, 0.6, t);
@@ -1048,6 +1203,10 @@ const PALM7 = new THREE.Vector3(RIGHT7[0], 0, RIGHT7[1]);   // at the catch: fro
 // The palm faces down and a little in (straight down would bend the wrist square), and the roll lies just
 // outside his leg, under the hand: the arm hangs nearly straight, a little out.
 const OVER7 = new THREE.Vector3(-RIGHT7[0] * 0.35, -0.94, -RIGHT7[1] * 0.35).normalize();
+// After he has the roll down at his side, he turns towards the viewer (0.6 to 0.74); his hand and the roll turn
+// with him, about his middle.
+const TURN7 = (t) => -0.42 * (still ? 1 : sm(0.6, 0.74, t));
+function turn7(v, a, point = true) { const c = Math.cos(a), sn = Math.sin(a), x = v.x - (point ? S7[0] : 0), z = v.z - (point ? S7[1] : 0); v.x = x * c + z * sn + (point ? S7[0] : 0); v.z = -x * sn + z * c + (point ? S7[1] : 0); return v; }
 const GRIP7 = 0.61;                                         // from the middle of the palm to the axis
 const CARRY7 = new THREE.Vector3(S7[0] + RIGHT7[0] * 1.66 + FWD7[0] * 0.1, 4.52 - 2.56, S7[1] + RIGHT7[1] * 1.66 + FWD7[1] * 0.1);
 C[7] = {
@@ -1105,27 +1264,27 @@ C[7] = {
       // The roll: in from the right, turning over, to his open hand (0.1 to 0.42); then with his hand down to his
       // side, turned level with the ground (0.46 to 0.62).
       const rc = 0.28, f = sm(0.1, 0.42, t), fe = 1 - (1 - f) ** 3, down = sm(0.46, 0.62, t);
-      const hand = CATCH7.clone().lerp(CARRY7, down), palm = PALM7.clone().lerp(OVER7, down).normalize(), atHand = hand.clone().addScaledVector(palm, lerp(GRIP7, 0.39, sm(0.7, 1, down)) + 0.1 * Math.sin(down * Math.PI));   // the straight arm stops short of its point: the roll comes up to the palm   // the palm touches the roll at one point
+      const tn = TURN7(t), hand = turn7(CATCH7.clone().lerp(CARRY7, down), tn), palm = turn7(PALM7.clone().lerp(OVER7, down).normalize(), tn, false), atHand = hand.clone().addScaledVector(palm, lerp(GRIP7, 0.39, sm(0.7, 1, down)) + 0.1 * Math.sin(down * Math.PI));   // the straight arm stops short of its point: the roll comes up to the palm   // the palm touches the roll at one point
       if (f < 1) {
         const A = worldAt(innerWidth + 260, innerHeight * 0.2, CATCH7.z);
         this.roll.position.copy(A).lerp(atHand, fe); this.roll.position.y += Math.sin(f * Math.PI) * 1.0;
         this.roll.rotation.set(0.3 * (1 - fe), 0, (1 - fe) * 9);
       } else {
         this.roll.position.copy(atHand);
-        this.roll.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(FWD7[0] * down, 1 - down, FWD7[1] * down).normalize());
+        this.roll.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), turn7(new THREE.Vector3(FWD7[0] * down, 1 - down, FWD7[1] * down), tn, false).normalize());
       }
     }
     if (!H) return;
-    H.pose.rest(); place(S7[0], S7[1], F7);
+    H.pose.rest(); place(S7[0], S7[1], F7 + TURN7(t));
     const h = happy();
     if (h > 0) { H.blendPose('rest', 'wave', h); H.arms[1].elbow.rotation.z += Math.sin(now() / 120) * 0.3 * h; }
     else H.blendPose('rest', 'point', sm(0.66, 0.82, t));
-    const reach = sm(0.26, 0.36, t), hand = CATCH7.clone().lerp(CARRY7, sm(0.46, 0.62, t));
-    H.hold(0, hand.toArray(), reach, PALM7.clone().lerp(OVER7, sm(0.46, 0.62, t)).normalize().toArray());
+    const reach = sm(0.26, 0.36, t), hand = turn7(CATCH7.clone().lerp(CARRY7, sm(0.46, 0.62, t)), TURN7(t));
+    H.hold(0, hand.toArray(), reach, turn7(PALM7.clone().lerp(OVER7, sm(0.46, 0.62, t)), TURN7(t), false).normalize().toArray());
     H.blendExpression('neutral', 'surprised', sm(0.08, 0.16, t)); H.blendExpression('surprised', 'smile', Math.max(h, sm(0.42, 0.5, t)));
     if (t < 0.24) lookAt(B.root.position, sm(0.06, 0.14, t)); else if (t < 0.5) lookAt(this.roll.position, 1); else lookAt(null, h ? 0 : 0.5);
   },
-  shot(t) { return { at: [S7[0] + 0.6, 4.4, 0], dist: 28, az: -6 + 3 * pn.x, el: 6 - 2 * pn.y, sx: -0.18, sy: 0.17 }; },
+  shot(t) { return { at: [S7[0] + 0.6, 4.4, 0], dist: 28, az: -6 + 3 * pn.x, el: 6 - 2 * pn.y, sx: -0.18, sy: 0.1 }; },
 };
 $('.copy').addEventListener('click', (e) => {
   navigator.clipboard?.writeText('npx clayducation').catch(() => {});
@@ -1182,7 +1341,7 @@ function penFlight(s) {
   const u = s.u;
   let f, a, b;
   if (u < 0.5) { a = C[1].penAt(1); b = atHover; f = inOut(sm(0, 0.26, u)); penZoom = inOut(sm(0.22, 0.5, u)); }
-  else { a = atHover; b = C[2].penAt(0); f = inOut(sm(0.66, 1, u)); penZoom = inOut(1 - sm(0.5, 0.72, u)); }
+  else { a = atHover; b = C[2].penAt(0); f = inOut(sm(0.66, 1, u)); penZoom = (1 - sm(0.5, 0.76, u)) ** 2; }   // out: fast at first, then slow
   pen.position.lerpVectors(a.p, b.p, f); pen.position.y += Math.sin(f * Math.PI) * (u < 0.5 ? 0.8 : 0.6);
   pen.quaternion.slerpQuaternions(a.q, b.q, f); pen.scale.lerpVectors(a.s, b.s, f);
   // The camera moves along the ray to the barrel: at the end, the barrel's edge is far outside the frame.
@@ -1191,6 +1350,14 @@ function penFlight(s) {
     cam.position.addScaledVector(dir, step);
     const gapToPen = D0 - step - rEnd;   // how far the camera is from the barrel's skin
     cam.near = clamp(gapToPen * 0.5, 0.005, NEAR); cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+  }
+  // On the way out, the camera also turns: it rolls, and swings round the pen in an arc, so the pen spins away
+  // from the viewer. The swing starts at zero (the camera is at the barrel's skin, and must not go into it); both
+  // end at zero with the zoom, so the shot ends on the set's own camera.
+  if (u >= 0.5 && penZoom > 0) {
+    const k = penZoom, swing = new THREE.Quaternion().setFromAxisAngle(up, -2.6 * k * (1 - k)), roll = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), 1.7 * k);
+    cam.position.sub(hover).applyQuaternion(swing).add(hover);
+    cam.quaternion.premultiply(swing).multiply(roll); cam.updateMatrixWorld();
   }
 }
 
@@ -1275,7 +1442,7 @@ function hover() {
   document.body.style.cursor = hovered ? 'zoom-in' : '';
 }
 addEventListener('click', (e) => {
-  if (!built || e.target.closest('a, button, [contenteditable], .graph, .styles')) return;
+  if (!built || e.target.closest('a, button, [contenteditable], .graph, .folder')) return;
   if (focus.obj) { closeFocus(); return; }
   const list = pickables(), h = list.length ? rayAt(e.clientX, e.clientY).intersectObjects(list)[0] : null;
   if (h) {
