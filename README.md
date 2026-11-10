@@ -2,7 +2,7 @@
 
 <h1><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/jjietay/clayducation/main/gallery/logo/logo-dark-1200.png"><img src="https://raw.githubusercontent.com/jjietay/clayducation/main/gallery/logo/logo-1200.png" alt="Clayducation" width="460"></picture></h1>
 
-A Claude Code skill that makes a narrated teaching video about a topic.<br>
+An AI video engine, built on Claude Code, that makes a narrated teaching video about a topic.<br>
 <b>New:</b> soft 3D clay with a silent mascot who does the work. The classic 2D styles are still there.<br>One agent checks the script before the voice is made.
 
 <img src="https://raw.githubusercontent.com/jjietay/clayducation/main/gallery/png/clay-cancel.png" alt="The clay mascot pushes a cart on a spring while two terms of the formula above are struck out" width="100%">
@@ -108,7 +108,7 @@ The biggest parts are PyTorch for the voice (about 5 GB with CUDA), the Chatterb
 Whisper (1.6 GB), and explainroo with its small models (1 GB). Chrome, Node and ffmpeg add about 0.6 GB if
 they are not installed yet.
 
-**Updates.** The setup installs the newest release (a `vX.Y.Z` tag). Once a day, the skill checks for a
+**Updates.** The setup installs the newest release (a `vX.Y.Z` tag). Once a day, the video engine checks for a
 newer release. If there is one, it shows you what changed ([`RELEASES.md`](RELEASES.md)) and asks
 whether to update before the video. You can also update at any time with
 `node ~/.claude/skills/clayducation/bin/update.mjs --apply`. Your settings stay. To follow the newest
@@ -118,7 +118,7 @@ work on `main` before it is released, run `npx clayducation --main`.
 
 ## Before it starts
 
-When the skill starts, Claude asks up to five questions with clickable options, and skips any that your
+When the video engine starts, Claude asks up to five questions with clickable options, and skips any that your
 request already answers: the look (clay, or the classic 2D styles), who the video is for, the length,
 when to check with you (one shot, after the storyboard, or after the first frames), and the music.
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// Clayducation setup: installs the Claude Code skill and what it needs, after a few questions.
+// Clayducation setup: installs the video engine (a Claude Code skill) and what it needs, after a few questions.
 //   npx clayducation            ask the questions, show the plan, then install
 //   npx clayducation --yes      take every default
 //   npx clayducation --dry-run  show the plan and the commands, change nothing
 // Other flags: --dir <path>, --voice chatterbox|kokoro, --no-manim, --no-agents,
 //   --main (follow the main branch, not the newest release tag).
-// Run it again at any time: it updates the skill to the newest release and installs only what is missing.
+// Run it again at any time: it updates the video engine to the newest release and installs only what is missing.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -78,7 +78,7 @@ async function ask(q, def, choices, show) {
 }
 const yesNo = async (q, def) => (await ask(q, def ? 'y' : 'n', ['y', 'n', 'yes', 'no'], 'y/n')).startsWith('y');
 
-console.log(`\n${bold('Clayducation setup')}\nThis installs the Clayducation skill for Claude Code. It asks 4 questions,\nthen shows the plan before it changes anything.\n`);
+console.log(`\n${bold('Clayducation setup')}\nThis installs the Clayducation video engine for Claude Code. It asks 4 questions,\nthen shows the plan before it changes anything.\n`);
 for (const [name, ok, note, needed] of checks) console.log(`  ${ok ? 'ok  ' : needed ? 'MISS' : 'miss'}  ${name.padEnd(7)} ${note}`);
 console.log(`  info  ${'gpu'.padEnd(7)} ${gpuNote}\n`);
 if (checks.some(([, ok, , needed]) => needed && !ok)) {
@@ -114,7 +114,7 @@ const steps = [];
 const run = (title, cmd, args, opts = {}) => steps.push({ title, cmd, args, ...opts });
 if (moveOld) {
   steps.push({ title: `Move the old Kaleidoscope install from ${tilde(oldDir)}`, move: oldDir });
-  run('Point the skill at the renamed repository', 'git', ['-C', dir, 'remote', 'set-url', 'origin', REPO]);
+  run('Point the video engine at the renamed repository', 'git', ['-C', dir, 'remote', 'set-url', 'origin', REPO]);
 }
 // Users get the newest release tag (vX.Y.Z), so work on main reaches them only when it is released.
 // With --main, or before the first tag, the install follows main as before.
@@ -126,16 +126,16 @@ const onBranch = () => spawnSync('git', ['-C', dir, 'symbolic-ref', '-q', 'HEAD'
 // An install on a release does not change to main only because the tag lookup failed.
 if (isRepo && !tag && !MAIN && !moveOld && spawnSync('git', ['-C', base, 'symbolic-ref', '-q', 'HEAD']).status !== 0) {
   run('Keep the installed release (no newer release found)', null);
-} else if (isRepo && tag) steps.push({ title: `Update the skill to release ${tag}`, fn: () => moveToTag(dir, tag) });
+} else if (isRepo && tag) steps.push({ title: `Update the video engine to release ${tag}`, fn: () => moveToTag(dir, tag) });
 else if (isRepo) steps.push({
-  title: 'Update the skill from main',
+  title: 'Update the video engine from main',
   // An install on a release tag has no branch to pull, so it moves to the newest main.
   fn: () => (onBranch()
     ? spawnSync('git', ['-C', dir, 'pull', '--ff-only', 'origin', 'main'], { stdio: 'inherit' }).status === 0
     : spawnSync('git', ['-C', dir, 'fetch', '--quiet', 'origin', 'main'], { stdio: 'inherit' }).status === 0
       && spawnSync('git', ['-C', dir, '-c', 'advice.detachedHead=false', 'checkout', '--quiet', 'FETCH_HEAD'], { stdio: 'inherit' }).status === 0),
 });
-else run(`Download the skill${tag ? ` (release ${tag})` : ''}`, 'git', ['-c', 'advice.detachedHead=false', 'clone', '--depth', '1', ...(tag ? ['--branch', tag] : []), REPO, dir]);
+else run(`Download the video engine${tag ? ` (release ${tag})` : ''}`, 'git', ['-c', 'advice.detachedHead=false', 'clone', '--depth', '1', ...(tag ? ['--branch', tag] : []), REPO, dir]);
 // explainroo is installed only when its packages are there too: a failed "npm install" leaves the clone alone.
 const exrCloned = fs.existsSync(path.join(exr, 'bin', 'explainroo.js'));
 if (exrCloned && fs.existsSync(path.join(exr, 'node_modules'))) run('Word timing (explainroo) is installed', null);
@@ -169,7 +169,7 @@ if (manim) {
 if (agents) steps.push({ title: `Link the script agent into ${tilde(agentsDir)}`, link: 'agents' });
 steps.push({ title: 'Add the /setup-clayducation command', link: 'setup' });
 // Claude Code finds skills only in ~/.claude/skills, so a skill in another folder gets a link there.
-if (path.resolve(dir) !== skillLink) steps.push({ title: `Link the skill as ${tilde(skillLink)}`, link: 'skill' });
+if (path.resolve(dir) !== skillLink) steps.push({ title: `Link the video engine as ${tilde(skillLink)}`, link: 'skill' });
 // The large Whisper is the default on an NVIDIA GPU; on a Mac or a CPU it is slower, so the small one stays.
 // Settings that are already there stay: a Turbo voice stays Turbo when the answer is chatterbox.
 const keepTurbo = voice === 'chatterbox' && prev?.voice === 'chatterbox-turbo';

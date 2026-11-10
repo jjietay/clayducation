@@ -1,6 +1,6 @@
 ---
 name: setup-clayducation
-description: Set up or change the Clayducation video skill on this machine - the voice (Chatterbox or Kokoro), GPU use and the Whisper model. Use for /setup-clayducation, "switch the video voice", or "make videos without a GPU".
+description: Set up or change the Clayducation video engine on this machine - the voice (Chatterbox or Kokoro), GPU use and the Whisper model. Use for /setup-clayducation, "switch the video voice", or "make videos without a GPU".
 ---
 
 # Set up Clayducation

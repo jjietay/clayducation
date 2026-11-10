@@ -1,7 +1,7 @@
 {
   "name": "clayducation",
   "version": "0.5.0",
-  "description": "Set up Clayducation, a Claude Code skill that makes narrated teaching videos.",
+  "description": "Set up Clayducation, an AI video engine built on Claude Code that makes narrated teaching videos.",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -21,6 +21,7 @@
   "keywords": [
     "claude-code",
     "claude-code-skill",
+    "video-engine",
     "explainer-video",
     "animation",
     "manim",

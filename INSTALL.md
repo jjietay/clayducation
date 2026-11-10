@@ -62,7 +62,7 @@ node engine/make.mjs doctor
 
 ## Make a release (maintainer)
 
-Users install the newest `vX.Y.Z` tag, and the skill tells them about a newer one. Work on `main`
+Users install the newest `vX.Y.Z` tag, and the video engine tells them about a newer one. Work on `main`
 reaches them only when you tag it:
 
 ```bash
