@@ -47,7 +47,9 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then echo "The release page of $TAG is there already"; exit 0; fi
           awk -v h="## $TAG" '$0 == h { f = 1; next } /^## v/ { if (f) exit } f' RELEASES.md > notes.md
           if ! grep -q '[^[:space:]]' notes.md; then echo "RELEASES.md has no \"## $TAG\" section"; exit 1; fi
-          gh release create "$TAG" --verify-tag --title "$TAG" --notes-file notes.md
+          # Only the version in package.json on main is "Latest": a filled-in older page took the label (v0.5.1).
+          latest=false; [ "$TAG" = "v$(node -p "require('./package.json').version")" ] && latest=true
+          gh release create "$TAG" --verify-tag --title "$TAG" --notes-file notes.md --latest=$latest
       # npm refuses a version that is already published; then there is nothing to do. npm lists a new version
       # only some minutes after it takes it, so its "409 ... previously staged / published" counts as done too.
       - name: Publish, unless this version is on npm already
