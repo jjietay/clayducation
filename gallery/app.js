@@ -92,11 +92,16 @@ function glide() {
 }
 // More styles (chapter 7): a folder at the bottom of the screen. A click on it slides it up to a quarter of the
 // screen; a click on its tab, a click on the dark page above it, or Escape slides it back down.
-const folderEl = $('.folder'), tabEl = $('.tab', folderEl), sheetEl = $('.sheet', folderEl);
+const folderEl = $('.folder'), tabEl = $('.tab', folderEl), sheetEl = $('.sheet', folderEl), manimEl = $('#manim', folderEl);
 const stylesOpen = () => folderEl.classList.contains('open');
 function openStyles() { folderEl.classList.add('open'); document.documentElement.classList.add('folder-open'); tabEl.setAttribute('aria-expanded', 'true'); sheetEl.scrollTop = 0; sheetEl.setAttribute('tabindex', '-1'); sheetEl.focus({ preventScroll: true }); }
 function closeStyles() { folderEl.classList.remove('open'); document.documentElement.classList.remove('folder-open'); tabEl.setAttribute('aria-expanded', 'false'); sheetEl.scrollTop = 0; tabEl.focus({ preventScroll: true }); }
-folderEl.addEventListener('click', (e) => { if (!stylesOpen()) openStyles(); else if (e.target.closest('.tab')) closeStyles(); });
+folderEl.addEventListener('click', (e) => {
+  const toManim = e.target.closest('.tab.manim');   // the red tab opens the folder at the Manim part
+  if (!stylesOpen()) { openStyles(); if (toManim) sheetEl.scrollTop = manimEl.offsetTop - 22; }
+  else if (toManim) sheetEl.scrollTo({ top: manimEl.offsetTop - 22, behavior: still ? 'auto' : 'smooth' });
+  else if (e.target.closest('.tab')) closeStyles();
+});
 addEventListener('click', (e) => { if (stylesOpen() && !e.target.closest('.folder')) closeStyles(); });
 const jump = (y) => { goal = clamp(y, 0, scrollMax()); cur = scrollY; gliding = !still; if (still) scrollTo(0, goal); };
 
@@ -1284,7 +1289,7 @@ C[7] = {
     H.blendExpression('neutral', 'surprised', sm(0.08, 0.16, t)); H.blendExpression('surprised', 'smile', Math.max(h, sm(0.42, 0.5, t)));
     if (t < 0.24) lookAt(B.root.position, sm(0.06, 0.14, t)); else if (t < 0.5) lookAt(this.roll.position, 1); else lookAt(null, h ? 0 : 0.5);
   },
-  shot(t) { return { at: [S7[0] + 0.6, 4.4, 0], dist: 28, az: -6 + 3 * pn.x, el: 6 - 2 * pn.y, sx: -0.18, sy: 0.1 }; },
+  shot(t) { return { at: [S7[0] + 0.6, 4.4, 0], dist: 30.5, az: -6 + 3 * pn.x, el: 6 - 2 * pn.y, sx: -0.18, sy: 0.13 }; },
 };
 $('.copy').addEventListener('click', (e) => {
   navigator.clipboard?.writeText('npx clayducation').catch(() => {});
