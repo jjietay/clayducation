@@ -62,6 +62,8 @@ measures as the rest of the video, so a hand that misses or goes into a thing is
 
 <img src="https://raw.githubusercontent.com/jjietay/clayducation/main/gallery/png/actions.png" alt="Twelve frames of the mascot's actions: carry, carry from the floor, sit, kneel, type, write on a board, toss, knock, grip a door handle, press a button, pull a lever, turn a wheel" width="100%">
 
+<img src="https://raw.githubusercontent.com/jjietay/clayducation/main/gallery/png/actions-new.png" alt="Six frames of the newer actions: kick a ball, jump, hammer a nail, sweep with a broom, water a plant, lie down on a rug" width="100%">
+
 ### Classic: 29 flat styles
 
 The first version's 2D styles, one style for each part of a video. Ask for them by name, for example
