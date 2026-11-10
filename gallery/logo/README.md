@@ -1,6 +1,7 @@
 # Clayducation logo
 
-The word "clayducati_n", hand-set: each letter upright on one straight line, with its own small lift and size.
+The word "clayducati_n", hand-set: each letter with its own random lift (up to 0.11 em), turn (up to 9 degrees)
+and size, on one straight line. `MAX_LIFT` and `MAX_TURN` at the top of `hand.py` set the limits.
 The o is a pebble of clay with a play button pressed into it (a video, made of clay), and the dot on the i is
 a ball of coral clay. The pebble alone is the mark and the icon.
 
@@ -12,7 +13,7 @@ a ball of coral clay. The pebble alone is the mark and the icon.
 | `favicon.svg`, `favicon.ico`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | Icons: a simpler mark (no rings, no shadow, a larger play shape), so it stays clear at 16 px. |
 
 The letters are Plus Jakarta Sans ExtraBold (SIL Open Font License), turned into outlines, so the SVG files
-need no font. The lifts and sizes come from a fixed seed: the same files come out each time.
+need no font. The lifts, turns and sizes come from a fixed seed: the same files come out each time.
 
 To make the files again:
 

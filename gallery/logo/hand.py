@@ -1,5 +1,5 @@
-# The Clayducation logo: "clayducati_n", hand-set (each letter upright, with its own lift and size, from a fixed
-# seed, on one straight line), the clay play pebble for the o, and a ball of coral clay for the dot on the i.
+# The Clayducation logo: "clayducati_n", hand-set (each letter with its own lift, turn and size, from a fixed
+# seed and clamped, on one straight line), the clay play pebble for the o, and a ball of coral clay for the dot on the i.
 # Usage: python3 hand.py <glyphs.json> <output folder>  ->  logo.svg (ink letters) and logo-dark.svg (cream letters)
 import json, math, sys
 src, out = sys.argv[1], sys.argv[2]
@@ -42,11 +42,18 @@ DEFS = '''<defs>
 <radialGradient id="hole" cx="40%" cy="35%" r="75%"><stop offset="0" stop-color="#a65a35"/><stop offset="1" stop-color="#8a4528"/></radialGradient>
 <radialGradient id="pop" cx="38%" cy="30%" r="80%"><stop offset="0" stop-color="#ff8a7f"/><stop offset="1" stop-color="#e2433a"/></radialGradient>
 </defs>'''
-# The bounce: each letter up or down by its own amount, with no drift along the word (the mean and the slope of
-# the lifts are taken out), so the word stays on one straight horizontal line.
-N = len(G["glyphs"]); L0 = [(rnd(i, 2) - 0.5) * 170 for i in range(N)]
+# The bounce and the turn: each letter up or down, and turned, by a random amount from a bell curve (most
+# letters a little, some more, a few hardly at all), each clamped to a maximum. The mean and the slope of the
+# lifts are taken out first, so the word as a whole stays on one straight horizontal line.
+MAX_LIFT, MAX_TURN = 110, 9.0           # units (1000 = 1 em), degrees
+def bell(i, k):                          # a standard normal value, from two fixed random numbers
+    u, v = max(1e-6, rnd(i, k)), rnd(i, k + 50)
+    return math.sqrt(-2 * math.log(u)) * math.cos(2 * math.pi * v)
+N = len(G["glyphs"]); L0 = [bell(i, 2) * MAX_LIFT * 0.55 for i in range(N)]
 xm = (N - 1) / 2; m = sum(L0) / N; b = sum((i - xm) * (l - m) for i, l in enumerate(L0)) / sum((i - xm) ** 2 for i in range(N))
-LIFT = [l - m - b * (i - xm) for i, l in enumerate(L0)]
+clampv = lambda v, M: max(-M, min(M, v))
+LIFT = [clampv(l - m - b * (i - xm), MAX_LIFT) for i, l in enumerate(L0)]
+TURN = [clampv(bell(i, 7) * MAX_TURN * 0.55, MAX_TURN) for i in range(N)]
 # The sizes, and the shift that keeps the gaps even: a letter that is larger takes more room, and pushes the
 # letters after it along by that much (a letter grows about its middle).
 SC = [1 + (rnd(i, 3) - 0.5) * 0.26 for i in range(N)]
@@ -58,13 +65,13 @@ SHIFT = [v - run / 2 for v in SHIFT]   # the word stays where it was, as a whole
 def build(ink):
     parts, k = [], 0
     for i, g in enumerate(G["glyphs"]):
-        rot = 0                                # upright: no lean (kept for the pebble and the dot)
+        rot = TURN[i]                          # degrees, about the letter's middle
         lift = LIFT[i]                         # units (1000 = 1 em)
         sc = SC[i]
         x = g["x"] * 1000 + g["adv"] * 500 + SHIFT[i]     # the letter's middle
         if g["ch"] == "o":
-            D = XH * 1000 * 1.2; cx, cy = x, -XH * 500 + lift * 0.5
-            parts.append(f'<g transform="translate({cx - D/2:.1f} {cy - D/2:.1f}) rotate({rot*1.4:.1f} {D/2:.1f} {D/2:.1f}) scale({D/200:.4f})"><path d="{PEB}" fill="url(#cf)" filter="url(#clay)"/><path d="{PLAY}" fill="url(#hole)" filter="url(#press)"/></g>')
+            D = XH * 1000 * 1.2; cx, cy = x, -XH * 500 - lift
+            parts.append(f'<g transform="translate({cx - D/2:.1f} {cy - D/2:.1f}) rotate({rot:.1f} {D/2:.1f} {D/2:.1f}) scale({D/200:.4f})"><path d="{PEB}" fill="url(#cf)" filter="url(#clay)"/><path d="{PLAY}" fill="url(#hole)" filter="url(#press)"/></g>')
             continue
         cs = contours(g["path"])
         if g["ch"] == "i":
