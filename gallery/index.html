@@ -63,7 +63,8 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 .mark { font-weight: 800; font-size: 20px; letter-spacing: -.02em; text-decoration: none; }
 .bar nav { display: flex; gap: 18px; align-items: center; font-weight: 700; font-size: 20px; }
 .bar nav a { text-decoration: none; }
-.dots { position: fixed; z-index: 5; right: 18px; top: 50%; transform: translateY(-50%); display: grid; gap: 12px; mix-blend-mode: difference; }
+.dots { position: fixed; z-index: 5; right: 18px; top: 50%; transform: translateY(-50%); display: grid; gap: 12px; mix-blend-mode: difference; transition: z-index 0s .6s; }
+.folder-open .dots { z-index: 1; transition: none; }   /* under the open folder; back on top only when it has slid down */
 .dots button { width: 10px; height: 10px; padding: 0; border: 2px solid #fff; border-radius: 50%; background: none; cursor: pointer; transition: transform .2s, background .2s; }
 .dots button.on { background: #fff; transform: scale(1.3); }
 .dots button span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
@@ -112,20 +113,23 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
   box-shadow: 0 -14px 34px -18px rgba(20, 20, 30, .75), 0 0 0 100vmax rgba(14, 15, 22, 0); }
 .folder:not(.open):hover { transform: translateY(calc(100% - var(--peek) - 8px)); }
 .folder.open { transform: none; cursor: auto; box-shadow: 0 -14px 34px -18px rgba(20, 20, 30, .75), 0 0 0 100vmax rgba(14, 15, 22, .6); }
-.folder .tab { position: absolute; left: 5vw; bottom: calc(100% - 1px); height: var(--tab); padding: 0 64px; border: 0; background: #1f1e24; color: var(--paper); cursor: pointer;
-  clip-path: polygon(34px 0, calc(100% - 34px) 0, 100% 100%, 0 100%); border-radius: 10px 10px 0 0; font: 700 15px/1 'Plus Jakarta Sans', sans-serif; letter-spacing: .01em; }
+.folder .tab { position: absolute; left: 5vw; bottom: calc(100% - 1px); height: var(--tab); padding: 0 66px; border: 0; background: #1f1e24; color: var(--paper); cursor: pointer;
+  clip-path: polygon(34px 0, calc(100% - 34px) 0, 100% 100%, 0 100%); border-radius: 10px 10px 0 0; font: 700 15px/1 'Plus Jakarta Sans', sans-serif; letter-spacing: .01em; font-size: 16px; }
+.folder .tab:not(.manim) { width: 232px; padding: 0; }
+.folder .tab.manim { left: calc(5vw + 204px); z-index: -1; width: 176px; padding: 0 0 0 22px; background: #e0453a; color: #fff; }   /* a divider tab, behind the first one */
+.folder .tab.manim:hover { filter: brightness(1.08); }
 .folder .tab span { display: inline-block; margin-left: 8px; transition: transform .45s ease; }
 .folder.open .tab span { transform: rotate(180deg); }
 .folder .sheet { position: relative; height: 100%; overflow: hidden; overscroll-behavior: contain; padding: 22px max(5vw, 32px) 36px; scrollbar-color: #4a4752 transparent; }
 .folder.open .sheet { overflow-y: auto; }
 .folder .sheet:focus { outline: none; }   /* it takes the focus when it opens, so the keys scroll it */
 .folder:not(.open) .sheet { pointer-events: none; }
-.folder h3 { margin: 6px 0 6px; font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
-.folder h3 + p { margin: 0 0 18px; max-width: 70ch; color: #b9b4a8; }
-.folder .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; margin-bottom: 30px; }
+.folder h3 { margin: 6px 0 8px; font-size: 31px; font-weight: 800; letter-spacing: -.02em; }
+.folder h3 + p { margin: 0 0 22px; max-width: 70ch; font-size: 18px; color: #b9b4a8; }
+.folder .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(345px, 1fr)); gap: 22px; margin-bottom: 36px; }
 .folder figure { margin: 0; }
 .folder img { display: block; width: 100%; height: auto; border-radius: 10px; background: #14161f; }
-.folder figcaption { margin-top: 8px; font-size: 14px; line-height: 1.4; color: #b9b4a8; }
+.folder figcaption { margin-top: 10px; font-size: 16px; line-height: 1.45; color: #b9b4a8; }
 .folder figcaption b { color: var(--paper); }
 
 /* Without WebGL: a still frame on each screen that has one. */
@@ -226,8 +230,9 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
     </div>
     <div class="folder" role="region" aria-label="More styles">
       <button class="tab" type="button" aria-expanded="false">More styles <span aria-hidden="true">↑</span></button>
+      <button class="tab manim" type="button">Manim</button>
       <div class="sheet" tabindex="-1">
-        <h3>Manim, inside the clay videos</h3>
+        <h3 id="manim">Manim, inside the clay videos</h3>
         <p>For a curve, a plot or a formula that changes step by step, the video changes to Manim and back.</p>
         <div class="grid">
           <figure><img src="png/manim/gains.jpg" width="1280" height="720" loading="lazy" alt="A Manim scene: gains from the poles."><figcaption><b>Gains from the poles.</b> Computed torque: the damping and the frequency give k<sub>v</sub> and k<sub>p</sub>.</figcaption></figure>
