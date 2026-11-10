@@ -137,37 +137,6 @@ addEventListener('pointermove', (e) => Object.assign(ptr, { x: e.clientX, y: e.c
 document.documentElement.addEventListener('mouseleave', () => { ptr.mouse = false; });
 const pn = { x: 0, y: 0, sx: 0, sy: 0 };
 
-// The pointer, drawn (only with a mouse): a soft blob of clay on a spring that stretches along its way and
-// squashes when pressed; a click pops it to the next colour. Over a link or a button it grows and lets the
-// words through; over a text field the normal text pointer shows. It starts at the first move of a mouse, so a
-// touch screen never has it.
-{
-  const el = $('.clay-cursor'), blob = $('.blob', el), dot = $('.dot', el), COLS = ['#ff5a4e', '#ffb627', '#22c3a6', '#4f7cff', '#ff6fb1'];
-  let bx = ptr.x, by = ptr.y, vx = 0, vy = 0, press = 0, pop = 0, ci = 0, last = performance.now(), seen = false;
-  const kindOf = (t) => (t?.closest?.('[contenteditable], input, textarea') ? 'text' : t?.closest?.('a, button, .graph, .folder:not(.open)') ? 'link' : '');
-  addEventListener('pointermove', (e) => {
-    if (e.pointerType !== 'mouse') return;
-    if (!seen) { seen = true; bx = e.clientX; by = e.clientY; document.documentElement.classList.add('clay-pointer'); requestAnimationFrame(tick); }
-    el.classList.add('on');
-    const k = kindOf(e.target) || (/zoom/.test(document.body.style.cursor) ? 'link' : '');   // the pages and film frames (3D) set zoom-in
-    el.classList.toggle('link', k === 'link'); el.classList.toggle('text', k === 'text');
-  }, { passive: true });
-  document.documentElement.addEventListener('mouseleave', () => el.classList.remove('on'));
-  addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse') ptr.down = true; });
-  addEventListener('pointerup', () => { ptr.down = false; });
-  addEventListener('click', () => { ci = (ci + 1) % COLS.length; el.style.setProperty('--c', COLS[ci]); pop = 1; });
-  const tick = (T) => {
-    requestAnimationFrame(tick);
-    const d = Math.min(0.05, (T - last) / 1000); last = T;
-    // A spring, a little under-damped, so the clay wobbles as it stops.
-    if (still) { bx = ptr.x; by = ptr.y; vx = vy = 0; }
-    else { vx += ((ptr.x - bx) * 380 - vx * 30) * d; vy += ((ptr.y - by) * 380 - vy * 30) * d; bx += vx * d; by += vy * d; }
-    press += ((ptr.down ? 1 : 0) - press) * Math.min(1, d * 18); pop *= Math.exp(-d * 7);
-    const sp = Math.hypot(vx, vy), st = Math.min(0.38, sp / 2600), a = Math.atan2(vy, vx), g = 1 + 0.32 * pop;
-    blob.style.transform = `translate(${bx.toFixed(1)}px, ${by.toFixed(1)}px) rotate(${a.toFixed(3)}rad) scale(${((1 + st) * (1 + 0.16 * press) * g).toFixed(3)}, ${((1 - st * 0.55) * (1 - 0.24 * press) * g).toFixed(3)})`;
-    dot.style.transform = `translate(${ptr.x.toFixed(1)}px, ${ptr.y.toFixed(1)}px)`;
-  };
-}
 
 // ---------- the world ----------
 const canvas = document.createElement('canvas'); canvas.className = 'world'; canvas.setAttribute('aria-hidden', 'true');

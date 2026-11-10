@@ -44,8 +44,3 @@ holding hand is on its point.
 Motion rules: the head and the camera follow the pointer through damped springs, never in steps. With
 reduced motion, nothing moves by itself; the scroll still plays each chapter. On a narrow screen the set
 goes below the statement and the camera steps back. Without WebGL 2, three chapters show a still frame.
-
-The pointer: with a mouse, a soft blob of clay follows it on a spring, stretches along its way and squashes
-when pressed; each click pops it to the next bright colour (coral, sunflower, teal, blue, pink). A small dark
-dot is the exact point. Over a link or a button the blob grows and lets the words through; over a text field
-the normal text pointer shows. It starts at the first move of a mouse, so a touch screen never has it.
