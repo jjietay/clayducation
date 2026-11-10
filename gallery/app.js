@@ -1256,7 +1256,10 @@ function obstacles(a, b, G = GROW) {
   return footprints().map((raw) => { let g = G; for (const p of [a, b]) if (inside(p, grow(raw, g))) g = Math.max(0, axisGap(p, raw) - 0.05); return grow(raw, g); });
 }
 function planPath(a, b) {
-  for (const G of [GROW, 1.2, 0.9]) { const p = planWith(a, b, G); if (p) return p; }   /* no way at full room: try a little less */
+  const full = planWith(a, b, GROW), near = planWith(a, b, 1.8);   /* a way with a little less room, when it is much shorter (a gap between two things) */
+  if (full && !(near && pathLen(near) < 0.75 * pathLen(full))) return full;
+  if (near) return near;
+  for (const G of [1.2, 0.9]) { const p = planWith(a, b, G); if (p) return p; }   /* no way at full room: try a little less */
   return [a, b];
 }
 function planWith(a, b, G) {
@@ -1308,21 +1311,46 @@ const pathLen = (p) => p.slice(1).reduce((s, q, i) => s + Math.hypot(q[0] - p[i]
 const turnDur = (a, b) => 1.5 * Math.abs(Math.atan2(Math.sin(b - a), Math.cos(b - a))) / TURN;   /* an eased turn peaks at 1.5 times its mean speed */
 // A walk from [x, z, face] to [x, z, face]: a turn on the spot, the path, a turn on the spot.
 function makeWalk(from, to) {
-  // The last 1.4 is straight, along the way he will face: he arrives walking toward the thing he uses.
-  const g = [to[0], to[1]], pre = [to[0] - Math.sin(to[2]) * 1.4, to[1] - Math.cos(to[2]) * 1.4], Rg = obstacles([from[0], from[1]], g);
-  const usePre = Math.hypot(g[0] - from[0], g[1] - from[1]) > 2.5 && !Rg.some((r) => inside(pre, r) || crosses(pre, g, r));
-  const pts = resample(rounded(usePre ? [...planPath([from[0], from[1]], pre), g] : planPath([from[0], from[1]], g))), L = pathLen(pts);
+  // The last 1.4 is straight, along the way he will face: he arrives walking toward the thing he uses. The first 1.4
+  // is straight back from the way he faced: he steps away from the thing he used. Each only where it is clear and the
+  // path does not turn back on it (more than 120 degrees).
+  const a = [from[0], from[1]], g = [to[0], to[1]], fd = [Math.sin(from[2]), Math.cos(from[2])], td = [Math.sin(to[2]), Math.cos(to[2])];
+  const pre = [g[0] - td[0] * 1.4, g[1] - td[1] * 1.4], post = [a[0] - fd[0] * 1.4, a[1] - fd[1] * 1.4], R0 = obstacles(a, g), far = Math.hypot(g[0] - a[0], g[1] - a[1]) > 2.5;
+  let usePre = far && !R0.some((r) => inside(pre, r) || crosses(pre, g, r)), usePost = far && !R0.some((r) => inside(post, r) || crosses(a, post, r));
+  const unit = (p, q) => { const l = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1; return [(q[0] - p[0]) / l, (q[1] - p[1]) / l]; }, dot = (u, v) => u[0] * v[0] + u[1] * v[1];
+  let mid;
+  for (let k = 0; k < 3; k++) {
+    mid = planPath(usePost ? post : a, usePre ? pre : g);
+    const badPre = usePre && dot(unit(mid[mid.length - 2], pre), td) < -0.5, badPost = usePost && dot(unit(post, mid[1]), [-fd[0], -fd[1]]) < -0.5;
+    if (!badPre && !badPost) break; if (badPre) usePre = false; if (badPost) usePost = false;
+  }
+  if ((usePre || usePost) && pathLen([...(usePost ? [a] : []), ...mid, ...(usePre ? [g] : [])]) > 1.25 * pathLen(planPath(a, g)) + 1) { usePre = usePost = false; mid = planPath(a, g); }   /* a long way round only to arrive straight: he turns on the spot instead */
+  const pts = resample(rounded([...(usePost ? [a] : []), ...mid, ...(usePre ? [g] : [])])), L = pathLen(pts);
   if (L < 0.05) { const d = turnDur(from[2], to[2]); return { pts: [[from[0], from[1]], [to[0], to[1]]], L: 0, f0: from[2], f1: to[2], d0: d, T: 0, d1: 0, dur: d, to }; }
   const T = 0.5 + L / PACE, fx = (t) => { let r = null; play.walkPath({ place: (x, z, { face }) => { r = face; }, stride() {}, STEP: 1 }, t, { t0: 0, t1: T, pts }); return r; };
   const dir0 = fx(0), dir1 = fx(T), d0 = turnDur(from[2], dir0), d1 = turnDur(dir1, to[2]);   /* the facing that walkPath itself has at its two ends */
-  return { pts, L, straight: Math.hypot(to[0] - from[0], to[1] - from[1]), f0: from[2], f1: to[2], dir0, dir1, d0, T, d1, dur: d0 + T + d1, to };
+  // Slow down into tight corners: each step of walkPath's own time gets at least the time that keeps his turn under
+  // TURN rad/s; a max filter, then a mean of the same width, makes the slowing smooth and never shorter than needed.
+  const N = Math.max(8, Math.ceil(T * 60)), fs = [], need = [];
+  for (let i = 0; i <= N; i++) fs.push(fx(T * i / N));
+  for (let i = 0; i < N; i++) need.push(Math.max(T / N, Math.abs(Math.atan2(Math.sin(fs[i + 1] - fs[i]), Math.cos(fs[i + 1] - fs[i]))) / (TURN - 0.3)));
+  const R = 24, mx = need.map((_, i) => Math.max(...need.slice(Math.max(0, i - R), i + R + 1))), dt = mx.map((_, i) => { const w = mx.slice(Math.max(0, i - R), i + R + 1); return w.reduce((a, b) => a + b, 0) / w.length; });
+  const tt = [0]; for (const x of dt) tt.push(tt[tt.length - 1] + x);
+  const Tw = tt[N];
+  return { pts, L, straight: Math.hypot(to[0] - from[0], to[1] - from[1]), f0: from[2], f1: to[2], dir0, dir1, d0, T: Tw, Tp: T, tt, d1, dur: d0 + Tw + d1, to };
 }
 // Where the walk puts him at t, and how he moves (for a stand-in: hero = null).
 function walkAt(w, t, hero) {
   const out = { r: null };
   const h = hero || { place: (x, z, { face }) => { out.r = [x, z, face]; }, stride() {}, STEP: 1 };
   if (t < w.d0 || w.T === 0) { const e = sm(0, w.d0 || 1, t); const f = angMix(w.f0, w.dir0 ?? w.f1, e); h.place(w.pts[0][0], w.pts[0][1], { face: f }); if (hero) hero.stride(Math.abs(f - w.f0) * 1.2, 0.18 * Math.sin(Math.PI * e)); return out.r; }
-  if (t < w.d0 + w.T) { play.walkPath(h, t - w.d0, { t0: 0, t1: w.T, pts: w.pts }); return out.r; }
+  if (t < w.d0 + w.T) {
+    let tp = t - w.d0;   /* the walk's time to walkPath's own time (the slowed corners) */
+    if (w.tt) { const N = w.tt.length - 1; let lo = 0, hi = N; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (w.tt[m] <= tp) lo = m; else hi = m; } tp = w.Tp * (lo + clamp((tp - w.tt[lo]) / ((w.tt[hi] - w.tt[lo]) || 1), 0, 1)) / N; }
+    /* his arms swing less in the first and last 1.5 of the way: he starts and stops right by a thing */
+    const hs = hero ? { place: (...a) => hero.place(...a), stride: (d, amp) => hero.stride(d, amp * (0.3 + 0.7 * sm(0, 1.5, Math.min(d / hero.STEP, w.L - d / hero.STEP)))), STEP: hero.STEP } : h;
+    play.walkPath(hs, tp, { t0: 0, t1: w.Tp ?? w.T, pts: w.pts }); return out.r;
+  }
   const e = sm(0, w.d1 || 1, t - w.d0 - w.T), f = angMix(w.dir1, w.f1, e), p = w.pts[w.pts.length - 1];
   h.place(p[0], p[1], { face: f }); if (hero) hero.stride(Math.abs(f - w.dir1) * 1.2, 0.18 * Math.sin(Math.PI * e));
   return out.r;
@@ -1837,7 +1865,7 @@ const ACTS = {
     end(d) { return this.stand(d); }, dur: 3.3, commit: 1.3,
     idle(st) { C[5].wheel.setPose(st * STEPW / PI2); },
     run(t, dir) {
-      const a = (dir ? 1 - seg(t, 1.0, 1.4) : seg(t, 1.0, 1.4)) * STEPW, k = seg(t, 0, 0.9) * (1 - seg(t, 2.6, 0.6));   /* the hands come in over 0.9 s */
+      const a = (dir ? 1 - seg(t, 1.0, 1.4) : seg(t, 1.0, 1.4)) * STEPW, k = seg(t, 0, 0.95) * (1 - seg(t, 2.45, 0.85));   /* the hands come in over 0.95 s and let go over 0.85 s */
       C[5].wheel.setPose(a / PI2); H.pose.rest();
       kit.grip(C[5].wheel, 'wheel', RIM, { k, standOff: 2.0, dir: this.dir3(), lean: 0.08 });
       blendFace('neutral', 'thinking', k);
@@ -1862,7 +1890,13 @@ const ACTS = {
     label: 'jump()', objs: () => [C[5].spot],
     stand() { const [x, z] = W5(...SPOT); return [x, z, 0]; }, end(d) { return this.stand(d); }, dur: 2.3, commit: 0.6,
     idle() {},
-    run(t) { const s = this.stand(); H.pose.rest(); place(s[0], s[1], s[2]); play.jump(H, t, { at: 0.6, x: s[0], z: s[1], face: s[2] }); blendFace('neutral', 'smile', seg(t, 0.6, 0.3) * (1 - seg(t, 1.9, 0.3))); },
+    run(t) {
+      const s = this.stand(), go = (u) => { H.pose.rest(); place(s[0], s[1], s[2]); play.jump(H, u, { at: 0.6, x: s[0], z: s[1], face: s[2] }); };
+      // The arms: the mean of their pose over 0.24 s around t, so the swing up at take-off is smooth (nothing is held).
+      const js = H.arms.flatMap((a) => [a.shoulder, a.elbow, a.wrist]).filter(Boolean), q = js.map(() => new THREE.Quaternion()), K = 7;
+      for (let k = 0; k < K; k++) { go(t + 0.24 * (k / (K - 1) - 0.5)); js.forEach((j, i) => (k ? q[i].slerp(j.quaternion, 1 / (k + 1)) : q[i].copy(j.quaternion))); }
+      go(t); js.forEach((j, i) => j.quaternion.copy(q[i]));
+      blendFace('neutral', 'smile', seg(t, 0.6, 0.3) * (1 - seg(t, 1.9, 0.3))); },
   },
   // Lie down on the rug, rest, and get up (the kit's lieDown(), as in chapter 6).
   rest: {
@@ -1888,7 +1922,11 @@ const ACTS = {
     stand(dir) { const r = this.r(-99, dir); return [r.stand[0], r.stand[1], r.face]; }, end(dir) { return this.stand(dir); },
     get dur() { return this.r(-99, P5.dir).end + 0.2; }, commit: 99,
     idle(st) { this.r(-99, 0); const P = C[5].plant; P.setPose(st ? 1 : 0); if (st) P.setPose(st === 2 ? 1 : 0, 'bloom'); },
-    run(t, dir) { const D = this.dur, s = this.stand(dir); H.pose.rest(); place(s[0], s[1], s[2]); this.r(t, dir, H); blendFace('neutral', 'smile', seg(t, 4, 0.5) * (1 - seg(t, D - 1.5, 0.5))); lookAt(C[5].plant.root.position, seg(t, 1.5, 0.6) * (1 - seg(t, D - 1.2, 0.5))); },
+    run(t, dir) {
+      const D = this.dur, s = this.stand(dir); H.pose.rest(); place(s[0], s[1], s[2]); this.r(t, dir, H);
+      /* the hand on its way to the can's grip (and off it at the end) already holds it, so it closes on the grip, not into it */
+      if ((t > 0.3 && t < 0.9) || (t > D - 0.8 && t < D - 0.2)) (H.holds ??= []).push({ i: 0, point: C[5].can.root.localToWorld(new THREE.Vector3(-0.1, 1.53, 0)).toArray(), k: 0.94 });
+      blendFace('neutral', 'smile', seg(t, 4, 0.5) * (1 - seg(t, D - 1.5, 0.5))); lookAt(C[5].plant.root.position, seg(t, 1.5, 0.6) * (1 - seg(t, D - 1.2, 0.5))); },
   },
   // Sweep the dust pile to the left with the broom (dir 0), and back to the right (dir 1): the kit's sweep(). The broom
   // leans into its stand, where he takes it and puts it back.
@@ -1925,7 +1963,7 @@ function p5Step(dt) {
     if (P5.w.t >= P5.w.dur) { P5.mode = P5.act ? 'do' : 'idle'; P5.t = 0; P5.dir = P5.st[P5.act]; P5.at = [P5.w.to[0], P5.w.to[1]]; P5.face = P5.w.to[2]; P5.quiet = 0; }   /* a walk with no action (the checks) ends idle */
   } else if (P5.mode === 'do' || P5.mode === 'undo') {
     const A = ACTS[P5.act], back = P5.mode === 'undo' && P5.t < A.commit;
-    P5.t += (P5.mode === 'undo' ? 2 : 1) * dt * (back ? -1 : 1);
+    P5.t += (back ? 1.5 : 1) * dt * (back ? -1 : 1);
     if (back && P5.t <= 0) { P5.t = 0; const s = A.stand(P5.dir); P5.at = [s[0], s[1]]; P5.face = s[2]; P5.mode = 'idle'; P5.quiet = 0; }
     else if (!back && P5.t >= A.dur) { const e = A.end(P5.dir); P5.st[P5.act] = A.next ? A.next(P5.dir) : 1 - P5.dir; P5.at = [e[0], e[1]]; P5.face = e[2]; P5.last = P5.act; P5.mode = 'idle'; P5.quiet = 0; }
   }
