@@ -283,6 +283,19 @@ try {
       const r = await page.ev(`scrollTo(0, ${y0 + (y1 - y0) * f / N}); __clayFrame(1 / 60); (() => { const c = __chk(), H = __clayHero(), e = new H.root.rotation.constructor().setFromQuaternion(H.root.quaternion, 'YXZ'); return { ...c, p: H.root.position.toArray().map((v) => +v.toFixed(2)), ry: +e.y.toFixed(3), rx: +e.x.toFixed(3), rz: +e.z.toFixed(3), x: ${JSON.stringify(args[6] || 'null')} ? eval(${JSON.stringify(args[6] || 'null')}) : '' }; })()`);
       console.log(r.s, 'pic', r.diff.toFixed(1), 'root', r.p.join(','), 'turn', r.ry, r.rx, r.rz, JSON.stringify(r.x), r.out.join(' | '));
     }
+  } else if (mode === 'hairscan') {
+    // His hair's colour on every frame of five actions (a synced 5x5 read at the crown of the hair mesh, as seen).
+    await page.ev(`scrollTo(0, __clayAt(5, 0.5)); for (let i = 0; i < 60; i++) __clayFrame(1 / 60); true`);
+    let n = 0, light = [];
+    for (const a of (args[1] || 'toss,kick,jump,carry,hammer').split(',')) {
+      await page.ev(`__clayPlayer.click('${a}'); true`);
+      const r = await page.ev(`(() => { const out = []; for (let i = 0; i < 60 * 14; i++) { __clayFrame(1 / 60); const q = __clayProbe(({ H, THREE, toScreen }) => { const h = H.shapes.find((m) => m.userData.part === 'hair'); const b = new THREE.Box3().setFromObject(h), c = b.getCenter(new THREE.Vector3()); return toScreen(new THREE.Vector3(c.x, b.max.y - 0.25, c.z)); });
+        const R = __clayR(), gl = R.getContext(), k = gl.drawingBufferWidth / innerWidth, px = new Uint8Array(100); gl.readPixels(Math.round(q[0] * k) - 2, Math.round(gl.drawingBufferHeight - q[1] * k) - 2, 5, 5, gl.RGBA, gl.UNSIGNED_BYTE, px);
+        let m = 0; for (let j = 0; j < 100; j += 4) m += (px[j] + px[j + 1] + px[j + 2]) / 3; out.push([+(m / 25).toFixed(0), px[0], px[1], px[2], __clayPlayer.state().mode]); if (i > 60 && __clayPlayer.state().mode === 'idle') break; } return out; })()`);
+      r.forEach((x, i) => { n++; if (x[0] > 110) light.push(`${a} frame ${i}: mean ${x[0]} rgb ${x[1]},${x[2]},${x[3]} (${x[4]})`); });
+      console.log(a, 'frames', r.length, 'typical', JSON.stringify(r[Math.floor(r.length / 2)]));
+    }
+    console.log('hairscan: frames', n, 'light crown', light.length); light.slice(0, 20).forEach((l) => console.log('  ' + l));
   } else if (mode === 'shots') {
     const out = args[1]; fs.mkdirSync(out, { recursive: true });
     for (const spec of args[2].split(',')) {
