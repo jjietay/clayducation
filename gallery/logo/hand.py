@@ -57,6 +57,14 @@ xm = (N - 1) / 2; m = sum(L0) / N; b = sum((i - xm) * (l - m) for i, l in enumer
 clampv = lambda v, M: max(-M, min(M, v))
 LIFT = [clampv(l - m - b * (i - xm), MAX_LIFT) for i, l in enumerate(L0)]
 TURN = [clampv(bell(i, 7) * MAX_TURN * 0.55, MAX_TURN) for i in range(N)]
+# Then changes by hand, on top of the random values: (index in "clayducation", lift change, turn change).
+# Lift: + is up (units, 1000 = 1 em). Turn: + is clockwise, - is anticlockwise (degrees). Both stay in the limits.
+HAND = [(4, -35, 0),     # d: a little lower
+        (5, 0, -4),      # u: a little anticlockwise
+        (9, 0, 4),       # i: a little clockwise
+        (10, -45, 0)]    # the pebble (o): a little lower
+for i, dl, dt in HAND:
+    LIFT[i] = clampv(LIFT[i] + dl, MAX_LIFT); TURN[i] = clampv(TURN[i] + dt, MAX_TURN)
 # The sizes, and the shift that keeps the gaps even: a letter that is larger takes more room, and pushes the
 # letters after it along by that much (a letter grows about its middle).
 SC = [1 + (rnd(i, 3) - 0.5) * 0.26 for i in range(N)]
