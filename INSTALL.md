@@ -59,3 +59,17 @@ node engine/make.mjs config --voice chatterbox
 node engine/make.mjs bake
 node engine/make.mjs doctor
 ```
+
+## Make a release (maintainer)
+
+Users install the newest `vX.Y.Z` tag, and the skill tells them about a newer one. Work on `main`
+reaches them only when you tag it:
+
+```bash
+# 1. Set the same version in package.json, then commit and push to main.
+git tag -a v0.4.0 -m "One line about what changed"
+git push origin v0.4.0
+# 2. Optional: release notes on the page that the update notice links to.
+gh release create v0.4.0 --verify-tag --notes "What changed"
+# 3. Only when bin/ changed: npm publish (npx clayducation runs the setup from npm).
+```

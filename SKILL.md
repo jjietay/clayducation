@@ -14,6 +14,16 @@ The engine is in `~/.claude/skills/clayducation/engine/`. In this file, `make` m
 node ~/.claude/skills/clayducation/engine/make.mjs <command> <project-dir>
 ```
 
+## Before step 0: the update check
+
+Run `node ~/.claude/skills/clayducation/bin/update.mjs` first. It prints nothing when the install is
+the newest release, and it asks the network at most once a day. When it prints a newer release, give
+the user its lines in one short sentence before the step 0 questions, and add: "Say 'update
+Clayducation' when you want it." Do not add it to the AskUserQuestion call. Run the
+`update.mjs --apply` command only when the user asks for the update, and never while a video is in
+progress, because the update changes the engine. After the update, start the skill again from this
+file, because the new release can change these steps.
+
 ## Step 0: ask first (every time the skill starts)
 
 Whether the user typed `/clayducation` or asked for a video in words, the first thing you do is

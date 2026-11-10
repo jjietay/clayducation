@@ -106,6 +106,11 @@ The biggest parts are PyTorch for the voice (about 5 GB with CUDA), the Chatterb
 Whisper (1.6 GB), and explainroo with its small models (1 GB). Chrome, Node and ffmpeg add about 0.6 GB if
 they are not installed yet.
 
+**Updates.** The setup installs the newest release (a `vX.Y.Z` tag). Once a day, the skill checks for a
+newer release and tells you about it before a video. Say "update Clayducation" to install it, or run
+`node ~/.claude/skills/clayducation/bin/update.mjs --apply`. Your settings stay. To follow the newest
+work on `main` before it is released, run `npx clayducation --main`.
+
 [`INSTALL.md`](INSTALL.md) has the manual setup.
 
 ## Before it starts
@@ -135,7 +140,7 @@ stops it now, and `make selftest` plants each one and confirms that the engine c
 | Path | What it holds |
 |---|---|
 | `SKILL.md` | the workflow the agent follows, step by step |
-| `bin/`, `package.json` | the setup that `npx clayducation` runs |
+| `bin/`, `package.json` | the setup that `npx clayducation` runs, and the update check (`bin/update.mjs`) |
 | `setup/` | the `/setup-clayducation` skill: voice and GPU |
 | `SOUND.md` | the background music and the sound effects: rules, approved tracks and sounds, levels |
 | `agents/` | the script agent; the install links it into `~/.claude/agents` |

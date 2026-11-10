@@ -3,13 +3,15 @@
 //   npx clayducation            ask the questions, show the plan, then install
 //   npx clayducation --yes      take every default
 //   npx clayducation --dry-run  show the plan and the commands, change nothing
-// Other flags: --dir <path>, --voice chatterbox|kokoro, --no-manim, --no-agents.
-// Run it again at any time: it updates the skill and installs only what is missing.
+// Other flags: --dir <path>, --voice chatterbox|kokoro, --no-manim, --no-agents,
+//   --main (follow the main branch, not the newest release tag).
+// Run it again at any time: it updates the skill to the newest release and installs only what is missing.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline/promises';
+import { moveToTag, newestTag } from './release.mjs';
 
 // CLAYDUCATION_REPO: clone from another place, for example a local copy when you test this file.
 const REPO = process.env.CLAYDUCATION_REPO || 'https://github.com/jjietay/clayducation.git';
@@ -25,7 +27,7 @@ const opt = (k) => {
   if (v === undefined || v.startsWith('-')) stop(`${k} needs a value, for example: ${k} ${k === '--voice' ? 'kokoro' : '~/my/folder'}`);
   return v;
 };
-const YES = flag('--yes') || flag('-y'), DRY = flag('--dry-run');
+const YES = flag('--yes') || flag('-y'), DRY = flag('--dry-run'), MAIN = flag('--main');
 const VOICES = ['chatterbox', 'kokoro'];
 const voiceArg = opt('--voice')?.toLowerCase();
 if (voiceArg && !VOICES.includes(voiceArg)) stop(`--voice must be one of: ${VOICES.join(', ')}`);
@@ -100,9 +102,11 @@ const defVoice = prev?.voice === 'kokoro' ? 'kokoro' : prev?.voice?.startsWith('
 console.log(`\n   chatterbox  natural voice; a 3 to 6 GB download; fast on a GPU, slow on a CPU
    kokoro      small voice model; fast on a CPU; comes with the word-timing tool`);
 const voice = voiceArg || await ask('2. Voice', defVoice, VOICES);
-const manim = flag('--no-manim') ? false : await yesNo('\n3. Install Manim for maths scenes (about 1 GB, needs LaTeX)?', true);
+// On an existing install the defaults are what it has, so "--yes" (as bin/update.mjs runs it) adds nothing new.
+const manim = flag('--no-manim') ? false : await yesNo('\n3. Install Manim for maths scenes (about 1 GB, needs LaTeX)?', prev ? fs.existsSync(at('engine', 'manim', '.venv')) : true);
 const agentsDir = path.join(HOME, '.claude', 'agents');
-const agents = flag('--no-agents') ? false : await yesNo(`4. Link the script agent into ${tilde(agentsDir)}?`, true);
+const agentLinked = () => fs.existsSync(agentsDir) && fs.readdirSync(agentsDir).some((f) => /^video-.*\.md$/.test(f) && fs.lstatSync(path.join(agentsDir, f)).isSymbolicLink());
+const agents = flag('--no-agents') ? false : await yesNo(`4. Link the script agent into ${tilde(agentsDir)}?`, prev ? agentLinked() : true);
 
 // ---------- the plan ----------
 const exr = process.env.EXPLAINROO_HOME || path.join(HOME, '.explainroo');
@@ -112,9 +116,26 @@ if (moveOld) {
   steps.push({ title: `Move the old Kaleidoscope install from ${tilde(oldDir)}`, move: oldDir });
   run('Point the skill at the renamed repository', 'git', ['-C', dir, 'remote', 'set-url', 'origin', REPO]);
 }
+// Users get the newest release tag (vX.Y.Z), so work on main reaches them only when it is released.
+// With --main, or before the first tag, the install follows main as before.
 const isRepo = fs.existsSync(at('.git'));
-if (isRepo) run('Update the skill', 'git', ['-C', dir, 'pull', '--ff-only']);
-else run('Download the skill', 'git', ['clone', '--depth', '1', REPO, dir]);
+// An existing install asks its own remote, so a copy of a fork follows the fork's releases.
+const tag = MAIN ? null : isRepo && !moveOld ? newestTag('origin', base) : newestTag(REPO);
+if (!MAIN && !tag) console.log('  note  No release tag found (no network, or none made yet): the install follows main.\n');
+const onBranch = () => spawnSync('git', ['-C', dir, 'symbolic-ref', '-q', 'HEAD']).status === 0;
+// An install on a release does not change to main only because the tag lookup failed.
+if (isRepo && !tag && !MAIN && !moveOld && spawnSync('git', ['-C', base, 'symbolic-ref', '-q', 'HEAD']).status !== 0) {
+  run('Keep the installed release (no newer release found)', null);
+} else if (isRepo && tag) steps.push({ title: `Update the skill to release ${tag}`, fn: () => moveToTag(dir, tag) });
+else if (isRepo) steps.push({
+  title: 'Update the skill from main',
+  // An install on a release tag has no branch to pull, so it moves to the newest main.
+  fn: () => (onBranch()
+    ? spawnSync('git', ['-C', dir, 'pull', '--ff-only', 'origin', 'main'], { stdio: 'inherit' }).status === 0
+    : spawnSync('git', ['-C', dir, 'fetch', '--quiet', 'origin', 'main'], { stdio: 'inherit' }).status === 0
+      && spawnSync('git', ['-C', dir, '-c', 'advice.detachedHead=false', 'checkout', '--quiet', 'FETCH_HEAD'], { stdio: 'inherit' }).status === 0),
+});
+else run(`Download the skill${tag ? ` (release ${tag})` : ''}`, 'git', ['-c', 'advice.detachedHead=false', 'clone', '--depth', '1', ...(tag ? ['--branch', tag] : []), REPO, dir]);
 // explainroo is installed only when its packages are there too: a failed "npm install" leaves the clone alone.
 const exrCloned = fs.existsSync(path.join(exr, 'bin', 'explainroo.js'));
 if (exrCloned && fs.existsSync(path.join(exr, 'node_modules'))) run('Word timing (explainroo) is installed', null);
@@ -228,6 +249,10 @@ for (const [i, s] of steps.entries()) {
     fs.mkdirSync(path.dirname(skillLink), { recursive: true });
     if (st) fs.rmSync(skillLink);
     fs.symlinkSync(dir, skillLink);
+    continue;
+  }
+  if (s.fn) {
+    if (!s.fn()) { console.log(`\nStep ${i + 1} failed. Fix the error above, then run the setup again: it skips what is done.`); process.exit(1); }
     continue;
   }
   if (!s.cmd) continue;
