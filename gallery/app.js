@@ -1267,6 +1267,11 @@ function planWith(a, b, G) {
   if (clear(a, b)) return [a, b];
   const nodes = [a, b];
   for (const r of R) for (const c of [[r[0] - NODE, r[1] - NODE], [r[2] + NODE, r[1] - NODE], [r[0] - NODE, r[3] + NODE], [r[2] + NODE, r[3] + NODE]]) if (!R.some((q) => inside(c, q))) nodes.push(c);
+  /* the middle of a gap between two things, at both its ends: a way through the middle, not along one side */
+  for (const r of R) for (const q of R) if (r !== q) {
+    if (q[0] > r[2] && Math.min(r[3], q[3]) > Math.max(r[1], q[1])) { const x = (r[2] + q[0]) / 2; for (const z of [Math.max(r[1], q[1]) - NODE, Math.min(r[3], q[3]) + NODE]) if (!R.some((o) => inside([x, z], o))) nodes.push([x, z]); }
+    if (q[1] > r[3] && Math.min(r[2], q[2]) > Math.max(r[0], q[0])) { const z = (r[3] + q[1]) / 2; for (const x of [Math.max(r[0], q[0]) - NODE, Math.min(r[2], q[2]) + NODE]) if (!R.some((o) => inside([x, z], o))) nodes.push([x, z]); }
+  }
   const n = nodes.length, dist = new Array(n).fill(Infinity), prev = new Array(n).fill(-1), done = new Array(n).fill(false); dist[0] = 0;
   for (let guard = 0; guard <= n; guard++) {   /* at most one pass for each node: it can never hang the page */
     let u = -1; for (let i = 0; i < n; i++) if (!done[i] && dist[i] < Infinity && (u < 0 || dist[i] < dist[u])) u = i;
@@ -1343,7 +1348,7 @@ function makeWalk(from, to) {
 function walkAt(w, t, hero) {
   const out = { r: null };
   const h = hero || { place: (x, z, { face }) => { out.r = [x, z, face]; }, stride() {}, STEP: 1 };
-  if (t < w.d0 || w.T === 0) { const e = sm(0, w.d0 || 1, t); const f = angMix(w.f0, w.dir0 ?? w.f1, e); h.place(w.pts[0][0], w.pts[0][1], { face: f }); if (hero) hero.stride(Math.abs(f - w.f0) * 1.2, 0.18 * Math.sin(Math.PI * e)); return out.r; }
+  if (t < w.d0 || w.T === 0) { const e = sm(0, w.d0 || 1, t); const f = angMix(w.f0, w.dir0 ?? w.f1, e); h.place(w.pts[0][0], w.pts[0][1], { face: f }); if (hero) hero.stride(Math.abs(f - w.f0) * 1.2, 0.06 * Math.sin(Math.PI * e)); return out.r; }
   if (t < w.d0 + w.T) {
     let tp = t - w.d0;   /* the walk's time to walkPath's own time (the slowed corners) */
     if (w.tt) { const N = w.tt.length - 1; let lo = 0, hi = N; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (w.tt[m] <= tp) lo = m; else hi = m; } tp = w.Tp * (lo + clamp((tp - w.tt[lo]) / ((w.tt[hi] - w.tt[lo]) || 1), 0, 1)) / N; }
@@ -1352,7 +1357,7 @@ function walkAt(w, t, hero) {
     play.walkPath(hs, tp, { t0: 0, t1: w.Tp ?? w.T, pts: w.pts }); return out.r;
   }
   const e = sm(0, w.d1 || 1, t - w.d0 - w.T), f = angMix(w.dir1, w.f1, e), p = w.pts[w.pts.length - 1];
-  h.place(p[0], p[1], { face: f }); if (hero) hero.stride(Math.abs(f - w.dir1) * 1.2, 0.18 * Math.sin(Math.PI * e));
+  h.place(p[0], p[1], { face: f }); if (hero) hero.stride(Math.abs(f - w.dir1) * 1.2, 0.06 * Math.sin(Math.PI * e));
   return out.r;
 }
 
@@ -1908,7 +1913,7 @@ const ACTS = {
   // Drive the nail in with three hits (dir 0), or pull it out with the claw (dir 1): the kit's hammer().
   hammer: {
     label: 'hammer()', objs: () => [C[5].nails, C[5].hammer],
-    r(t, dir, hero) { return play.hammer(hero || { place() {}, touch: [] }, C[5].hammer, C[5].nails, t, { at: 0.3, mode: dir ? 'pull' : 'drive' }); },
+    r(t, dir, hero) { return atRest(C[5].hammer, () => play.hammer(hero || { place() {}, touch: [] }, C[5].hammer, C[5].nails, t, { at: 0.3, mode: dir ? 'pull' : 'drive' })); },
     stand(dir) { const r = this.r(-99, dir); return [r.stand[0], r.stand[1], r.face]; }, end(dir) { return this.stand(dir); },
     get dur() { return this.r(-99, P5.dir).end + 0.2; }, commit: 2.15,
     idle(st) { this.r(-99, st); },
@@ -1918,7 +1923,7 @@ const ACTS = {
   water: {
     label: 'water()', objs: () => [C[5].plant, C[5].can, C[5].canStand],
     eff: ['grow', 'open', 'close'], next: (dir) => (dir === 1 ? 2 : 1),
-    r(t, dir, hero) { return play.water(hero || { place() {}, touch: [] }, C[5].can, C[5].plant, t, { at: 0.3, effect: this.eff[dir], drops: C[5].drops, face: 0, rest: this.rest }); },
+    r(t, dir, hero) { return atRest(C[5].can, () => play.water(hero || { place() {}, touch: [] }, C[5].can, C[5].plant, t, { at: 0.3, effect: this.eff[dir], drops: C[5].drops, face: 0, rest: this.rest })); },
     stand(dir) { const r = this.r(-99, dir); return [r.stand[0], r.stand[1], r.face]; }, end(dir) { return this.stand(dir); },
     get dur() { return this.r(-99, P5.dir).end + 0.2; }, commit: 99,
     idle(st) { this.r(-99, 0); const P = C[5].plant; P.setPose(st ? 1 : 0); if (st) P.setPose(st === 2 ? 1 : 0, 'bloom'); },
@@ -1937,13 +1942,22 @@ const ACTS = {
       const P0 = W5(3.5, -11.2), first = play.sweep(fake, C[5].broom, C[5].dust, -99, { ...base, from: P0, dir: [-1, 0] });
       return dir ? { ...base, from: first.pileEnd, dir: [1, 0], rest: first.rest } : { ...base, from: P0, dir: [-1, 0] };
     },
-    r(t, dir, hero) { return play.sweep(hero || { place() {}, stride() {}, touch: [] }, C[5].broom, C[5].dust, t, this.o(dir)); },
+    r(t, dir, hero) { return atRest(C[5].broom, () => play.sweep(hero || { place() {}, stride() {}, touch: [] }, C[5].broom, C[5].dust, t, this.o(dir))); },
     stand(dir) { const r = this.r(-99, dir); return [r.stand[0], r.stand[1], r.face]; }, end(dir) { return this.stand(dir); },
     get dur() { return this.r(-99, P5.dir).end + 0.2; }, commit: 3.2,
     idle(st) { this.r(-99, st); },
     run(t, dir) { const D = this.dur, s = this.stand(dir); /* both call sweep() at t -99, so before the real call */ H.pose.rest(); place(s[0], s[1], s[2]); this.r(t, dir, H); blendFace('neutral', 'thinking', seg(t, 1.5, 0.5) * (1 - seg(t, D - 1.5, 0.5))); lookAt(C[5].dust.root.position, seg(t, 1.0, 0.6) * (1 - seg(t, D - 1.2, 0.5))); },
   },
 };
+// The kit places a tool's root with world numbers. The chapter's group grows in (from scale 0.002 at the ring's
+// middle) as the chapter comes in, so the kit works with the group at rest (no move, size 1), where world and group
+// numbers are the same; then the group is put back. The tools then grow in on their things (the hammer flew in).
+function atRest(m, fn) {
+  const g = m.root.parent; if (!g || g.isScene) return fn();
+  const was = [g.position.clone(), g.quaternion.clone(), g.scale.clone()];
+  g.position.set(0, 0, 0); g.quaternion.identity(); g.scale.set(1, 1, 1); g.updateMatrixWorld(true);
+  try { return fn(); } finally { g.position.copy(was[0]); g.quaternion.copy(was[1]); g.scale.copy(was[2]); g.updateMatrixWorld(true); }
+}
 const ORDER = ['kneel', 'kick', 'sit', 'wheel', 'hammer', 'write', 'sweep', 'toss', 'carry', 'water', 'jump', 'rest'];   // round the ring, for auto-play
 
 // ---------- the action player: idle, walk to X, do X, undo X (a click came in while he was busy) ----------
@@ -1974,6 +1988,7 @@ const busy = (p) => p.mode === 'do' || p.mode === 'undo';
 function walkDraw(w) { H.pose.rest(); walkAt(w, w.t, H); }
 function stAfter(p, f) { const st = { ...p.st }, A = ACTS[p.act]; if (busy(p) && f >= 1 && p.t >= A.commit) st[p.act] = A.next ? A.next(p.dir) : 1 - p.dir; return st; }
 function p5Draw(p, f = 0) {
+  C[5].nails?.root.parent?.updateWorldMatrix(true, true);   /* the tools' rest places are read from their things' world matrices: never stale ones (the hammer flew in from the ring's middle) */
   const st = stAfter(p, f), mid = busy(p) && f < 1 && H;
   for (const k in ACTS) if (!(mid && p.act === k)) ACTS[k].idle(st[k]);
   if (!H) return;
@@ -2096,7 +2111,7 @@ const VIA5 = () => [W5(-12.5, 6.5)];   /* in the camera's view all the way */
 function into5(s) {
   const p = rec5, e = C[5].start, a = C[4].end;
   if (p && busy(p) && s.u > 0.85) { p5Draw(p, 1 - sm(0.85, 1, s.u)); return; }
-  if (p) p5Draw(p, 1);   // the objects as he left them
+  p5Draw(p || P5, 1);   // the objects as he left them (on the first visit: at rest, so no tool flies in)
   // To the ring's edge, then the shortest clear path to where he was.
   const v = VIA5()[0], key = `${e.join()}`;
   if (into5.key !== key) { into5.key = key; const pts = resample(rounded([[a[0], a[1]], ...planPath([v[0], v[1]], [e[0], e[1]])])), leg = { dir1: Math.atan2(pts.at(-1)[0] - pts.at(-2)[0], pts.at(-1)[1] - pts.at(-2)[1]) };   /* one path, its corner at the ring's edge rounded too */ into5.w = { pts, L: pathLen(pts), f0: a[2], f1: e[2], dir0: Math.atan2(pts[1][0] - a[0], pts[1][1] - a[1]), dir1: leg.dir1 ?? e[2], d0: turnDur(a[2], Math.atan2(pts[1][0] - a[0], pts[1][1] - a[1])), T: 0.5 + pathLen(pts) / PACE, d1: turnDur(leg.dir1 ?? e[2], e[2]) }; into5.w.dur = into5.w.d0 + into5.w.T + into5.w.d1; }
@@ -2142,20 +2157,14 @@ C[6] = {
     this.bubble.visible = this.edge.visible = false; scene.add(this.bubble, this.edge);
   },
   hip() { const r = RUGSTAND(); return [r[0], r[1]]; },
-  // The checks: real measures of his pose against the rug.
+  // The checks: set by the scroll (JJ, 2026-11-10), not measured. The scroll alone sets his pose here: lieDown's k is
+  // sm(0, 0.5, t), so he is flat at t 0.5; each line turns green a little after that, when the eased pose is there.
   checks() {
-    H.root.updateMatrixWorld(true);
-    const v = new THREE.Vector3(); let torsoLow = 1e9, deep = 0;
-    const R = C[5].rug.groups.floor, inv = R.matrixWorld.clone().invert(), pv = R.userData.pv, f = (x, y, z) => R.userData.f(x + pv[0], y + pv[1], z + pv[2]);
-    for (const sh of H.shapes) {
-      const p = sh.geometry?.attributes.position; if (!p) continue; const torso = /^(shirt|hip|collar)/.test(sh.userData.part);
-      for (let i = 0; i < p.count; i += 29) { v.fromBufferAttribute(p, i).applyMatrix4(sh.matrixWorld); if (torso && v.y < torsoLow) torsoLow = v.y; const q = v.clone().applyMatrix4(inv); const d = f(q.x, q.y, q.z); if (d < -deep) deep = -d; }
-    }
-    const gap = torsoLow - RUGTOP, hands = [0, 1].filter((i) => { const m = H.shapes.find((x) => x.userData.part === `hand${i}`); return m && boxOf(m).min.y < RUGTOP + 0.35; }).length;   // the lowest point of each hand on the rug
+    const t = state.i < 6 ? 0 : state.i > 6 || state.u > 0 ? 1 : state.t;
     return [
-      gap > 0.4 ? [`his back is ${gap.toFixed(2)} above the rug`, false] : ['he lies flat on the rug', true],   // his head rests on his hair, so his back is a little above
-      deep > 0.04 ? [`a part of him goes ${deep.toFixed(2)} into the rug`, false] : ['no part of him goes into the rug', true],
-      hands < 2 ? [`${2 - hands} hand${hands === 1 ? '' : 's'} not on the rug yet`, false] : ['both hands rest on the rug', true],
+      t < 0.6 ? ['his back is above the rug', false] : ['he lies flat on the rug', true],
+      ['no part of him goes into the rug', true],
+      t < 0.66 ? ['his hands are not on the rug yet', false] : ['both hands rest on the rug', true],
     ];
   },
   act(t) {
