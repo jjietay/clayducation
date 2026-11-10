@@ -2617,7 +2617,7 @@ function morphs(s) {
 // A phone: its own framing for each chapter (k: distance, sx and sy: shift on the screen, el: degrees higher),
 // blended across a transition as the views are.
 const PHONE_VIEW = [{ k: 1.25, sx: 0, sy: 0, el: 0 }, { k: 1.25, sx: 0, sy: 0.14, el: 0 }, { k: 1.45, sx: 0.08, sy: 0.14, el: 0 }, { k: 1.25, sx: 0, sy: 0.14, el: 0 },
-  { k: 1.35, sx: 0.07, sy: 0.16, el: 0 }, { k: 1.15, sx: 0, sy: 0.06, el: 16 }, { k: 1.25, sx: 0, sy: 0.08, el: 0 }, { k: 1.5, sx: 0, sy: 0.14, el: 0 }, { k: 1.3, sx: 0, sy: -0.06, el: 0 }];
+  { k: 1.35, sx: 0.07, sy: 0.16, el: 0 }, { k: 1.15, sx: 0, sy: 0.06, el: 16 }, { k: 1.25, sx: 0, sy: 0.08, el: 0 }, { k: 1.5, sx: 0, sy: 0.14, el: 0 }, { k: 1.3, sx: -0.14, sy: -0.06, el: 0 }];   /* 8: he stands left of the middle, so the balloon has room on the right */
 function phoneFrame(s) {
   const a = PHONE_VIEW[s.i]; if (!s.u) return a;
   const b = PHONE_VIEW[s.i + 1], u = s.kind === 'pen' ? inOut(sm(0.72, 1, s.u)) : pace(s.u);   /* the pen: the same framing over the cut, then out to chapter 2's */
