@@ -57,11 +57,21 @@ place him and his hands the same safe way. Call them after `blendPose` (and afte
 | `g.partPoint(model, part, P)` | (no action) | the world point of a model-space point on a part, as it moves now |
 | `g.pointAt(hero, point, { k, hand })` | points with a bent arm below the shoulder, and looks | never a straight raised arm |
 | `g.lookAt(hero, point, k)` | turns his head to a point | after `blendExpression` |
+| `g.sitOn(hero, model, part, { k, face, hands })` | sits on a seat (k 0 standing in front of it, 1 seated), hands resting on the seat beside him | a seat about 0.75 high and at most about 0.8 deep (`bench`); his hips and legs may touch it. Walk him to the returned `stand` point first |
+| `g.reachTo(hero, hand, point, k)` | moves a hand to any point by the safe path | up and out beside his chest, to 0.8 before the point, then onto it as a hold |
+| `g.tap(hero, hand, point, t, { at, count, gap })` | taps a point (a key, a screen) | returns the hit times |
+| `g.typeOn(hero, model, part, t, { at, dur })` | types with both hands on the top of a part | the fingers hover, so it is not a checked hold; a laptop on his knees (`sitOn`) works |
+| `g.trace(hero, hand, pts, u, { k })` | moves a hand along a path of points on a surface: writing, drawing | returns the hand's point; draw the ink to it on a canvas texture |
+| `g.toss(hero, obj, t, { at, dur, to, height })` | an underhand throw of a `g.ball()` to a point | the ball rests on his palm until `at` |
+| `g.handsOnHips(hero, k)` | hands on hips, elbows out | |
+| `hero.legsPose('sit' \| 'crouch' \| 'kneel', k)` | bends his knees and lowers him to the floor | after `place` or `route`, before the hands. `carry` crouches by itself for a thing on the floor |
+| `hero.nod(t, { at, count })`, `hero.shake(t, ...)` | yes and no with his head | after `blendExpression` |
+| `blendPose('rest', 'shrug', k)` | a shrug | |
 
-He cannot sit, kneel or crouch: his legs have a hip and an ankle only. His shoulders are at y 4.52 and his hip joints
+His legs have a hip, a knee and an ankle (the knees were added 2026-11-10), so he can sit, crouch and kneel. His shoulders are at y 4.52 and his hip joints
 at y 2.26: keep holds and knocks below the shoulders, and stands or tables below the hips when he works close to them. Face the object to the camera's side
 (turn the model with `ry`), so the viewer sees him from the side and not from the back. See
-`~/Videos/explainers/mascot-actions-test/scenes.js` for each helper in use.
+`~/Videos/explainers/mascot-actions-test/scenes.js` and `mascot-actions-test-2/scenes.js` for each helper in use.
 
 Three simple props: `g.arrow(color)` returns an arrow for a force or a gap (`a.set(from, to)` each frame),
 `g.post(color, h)` marks a place on the floor, and `g.ball(color, r)` is a pulse or a signal. Use these, and do
@@ -197,6 +207,9 @@ it in the right way. See them in `make clay m-<name>`.
 | `lever` | floor lever; grip the `arm` at [0, 4.1, 0.32] | `arm` tips 0.3 rad back (rest) to 0.3 rad forward (pose) |
 | `handwheel` | wheel on a post, centre (0, 4.2, 0.62), rim radius 1.0; grip `wheel` at [±1.12, 4.2, 0.62] | `wheel` turns a quarter turn per pose step |
 | `bigButton` | button on a post, cap top at y 3.3; `press` it by `cap` | `cap` sinks 0.18 |
+| `bench` | bench 4.8 long, 0.76 deep, seat top at y 0.74: `sitOn` it by `seat` | none |
+| `whiteboard` | whiteboard, face at z 0.09, x -2.5 to 2.5, y 3.1 to 6.0; `trace` on it by `board`, the wave inside x -1.6 to 1.2 | none |
+| `basket` | open basket 1.0 tall, inner radius 0.85: `toss` into it (land at y 0.42) | none |
 
 The rows from `door` down are in `styles/library/clay/models/ipcv-*.js`, and `cat`, `mat` in `models/attention.js`. The head comment and the
 notes of each file give their sizes, joint positions and surface formulas.

@@ -80,6 +80,47 @@ export const MODELS = {
     pose(g) { g.cap.position.y -= 0.18; },
     moving: 'Cap sinks when pressed',
   },
+  // A bench, 4.8 long and 0.76 deep, seat top at y 0.74: sitOn() it, and his feet stay on the floor. It is shallow
+  // on purpose: his thighs are 1.0 long, so a deeper seat would meet his calves.
+  bench: {
+    label: 'Bench',
+    make() {
+      const m = def();
+      m.add('seat', (x, y, z) => rbox(x, y, z, 0, 0.66, 0, 2.4, 0.08, 0.38, 0.06), PAL.wood);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) m.add(`leg${sx}${sz}`, (x, y, z) => rbox(x, y, z, sx * 2.0, 0.3, sz * 0.24, 0.11, 0.31, 0.1, 0.04), C.dark);
+      return m;
+    },
+    moving: 'No moving parts',
+  },
+  // A whiteboard on two posts. The white face is at z 0.09, x from -2.5 to 2.5, y from 3.1 to 6.0: write on it with
+  // trace() between y 3.4 and 5.0 (his shoulders are at 4.52). Draw the ink with a canvas texture in the scene.
+  whiteboard: {
+    label: 'Whiteboard',
+    step: 0.04,
+    make() {
+      const m = def();
+      m.add('board', (x, y, z) => rbox(x, y, z, 0, 4.55, 0, 2.6, 1.55, 0.08, 0.05), '#f4f2ec');
+      m.add('frame', (x, y, z) => smax(rbox(x, y, z, 0, 4.55, 0, 2.66, 1.61, 0.11, 0.05), -rbox(x, y, z, 0, 4.55, 0, 2.52, 1.47, 0.3, 0.03), 0.02), PAL.steel, { mat: 'metal' });
+      m.add('tray', (x, y, z) => rbox(x, y, z, 0, 2.98, 0.16, 2.2, 0.05, 0.13, 0.03), PAL.steel, { mat: 'metal' });
+      for (const sx of [-1, 1]) {
+        m.add(`post${sx}`, (x, y, z) => cone(x, y, z, sx * 2.76, 0.1, 0, sx * 2.76, 6.1, 0, 0.1, 0.1), C.dark);
+        m.add(`foot${sx}`, (x, y, z) => rbox(x, y, z, sx * 2.76, 0.07, 0, 0.14, 0.07, 0.7, 0.04), C.dark);
+      }
+      return m;
+    },
+    moving: 'No moving parts',
+  },
+  // An open basket, 1.0 tall, inner radius 0.85: toss() a ball into it (land at y 0.35 inside).
+  basket: {
+    label: 'Open basket',
+    make() {
+      const m = def();
+      m.add('bin', (x, y, z) => smax(rcyl(x, y, z, 0, 0.5, 0, 'y', 1.0, 0.5, 0.08), -rcyl(x, y, z, 0, 0.62, 0, 'y', 0.85, 0.5, 0.05), 0.03), '#7d9fc4');
+      m.add('rim', (x, y, z) => torus(x, y, z, 0, 1.0, 0, 'y', 0.93, 0.08), PAL.cream);
+      return m;
+    },
+    moving: 'No moving parts',
+  },
 };
 
 export const JOINS = {
@@ -88,4 +129,7 @@ export const JOINS = {
   lever: [['arm', 'base'], ['knob', 'arm']],
   handwheel: [['post', 'foot'], ['hub', 'post'], ['wheel', 'hub']],
   bigButton: [['post', 'foot'], ['housing', 'post'], ['cap', 'housing']],
+  bench: [[/^leg/, 'seat']],
+  whiteboard: [['frame', 'board'], ['tray', 'frame'], [/^post(.*)$/, 'frame'], [/^foot(.*)$/, 'post$1']],
+  basket: [['rim', 'bin']],
 };

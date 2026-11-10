@@ -152,6 +152,7 @@ function allowance(m, g, other, om) {
   const p = g.userData.part;
   if (m.hero) {
     if (/^(shoe|sole)/.test(p) && /^(floor|foot|base|plate)/.test(other.userData.part)) return null;   // he stands on it
+    if (m.hero.seat && m.hero.seat.m === om && m.hero.seat.part === other.userData.part && /^(hip|leg|shin)/.test(p)) return null;   // he sits on it (sitOn)
     // A hand that grips a part closes around it. hold() names the part; reach() only points.
     if (/^(hand|fore)/.test(p)) for (const gr of m.hero.gripped || []) if (gr.i === +p.slice(-1) && gr.m === om) return gr.part === other.userData.part ? null : 0.12;
   }
@@ -173,7 +174,7 @@ function objectHits(models) {
 // His hands and forearms against the rest of his own body.
 function selfHits(m) {
   const P = m.groups, hits = [];
-  for (const i of [0, 1]) for (const a of [`hand${i}`, `fore${i}`]) for (const b of ['shirt', 'head', 'hair', 'hip', 'leg0', 'leg1', 'shoe0', 'shoe1', `hand${1 - i}`, `fore${1 - i}`, `upper${1 - i}`]) {
+  for (const i of [0, 1]) for (const a of [`hand${i}`, `fore${i}`]) for (const b of ['shirt', 'head', 'hair', 'hip', 'leg0', 'leg1', 'shin0', 'shin1', 'shoe0', 'shoe1', `hand${1 - i}`, `fore${1 - i}`, `upper${1 - i}`]) {
     if (P[a] && P[b] && (b < a || !/^(hand|fore)/.test(b)) && shapesMeet(P[a], m, P[b], m, 0.06, 0.06)) hits.push(`mascot ${a} into own ${b}`);
   }
   return hits;
@@ -230,7 +231,7 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
       // The feet, not the body: he must be able to lean and straighten up in place.
       const p = new THREE.Vector3(s._hero.feet[0], 0, s._hero.feet[1]), d = s._walk ? p.clone().sub(s._walk) : null, h = s._hero; s._walk = p;
       // Standing still with the legs apart reads as a frozen walk (the user saw it at 12:41 of the computed torque video).
-      if (d && d.length() < 0.002 && Math.max(...h.legs.map((l) => Math.abs(l.hip.rotation.x))) > 0.15) out.push('mascot stands still with his legs apart, frozen mid-step');
+      if (d && d.length() < 0.002 && !(h.posed > 0.05) && Math.max(...h.legs.map((l) => Math.abs(l.hip.rotation.x))) > 0.15) out.push('mascot stands still with his legs apart, frozen mid-step');
       const f = new THREE.Vector3(0, 0, 1).applyQuaternion(h.root.quaternion); f.y = 0;
       // Holding something, he may walk backwards: he pulls it.
       const side = d && d.length() > 0.012 && !(h.held?.[0] > 0.05 || h.held?.[1] > 0.05) && (d.y = 0, f.angleTo(d) > 1.05);
@@ -294,17 +295,32 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
   s._idPass = (w, h) => idPass(R, scene, camera, models, w, h);
   // A hand on its way to a hold (k from 0 to 1): up in front of his chest, to just in front of the target, then onto it, so
   // the arm never sweeps from his hip through the thing he reaches for (the button and wheel tests, 2026-11-10).
-  const moveHand = (hero, i, target, k) => {
+  // asHold false: the hand only hovers (typing), so it is never checked for contact.
+  const moveHand = (hero, i, target, k, asHold = true) => {
     if (k <= 0) return;
     hero.root.updateMatrixWorld(true);
     const S = hero.arms[i].shoulder.getWorldPosition(new THREE.Vector3()), f = new THREE.Vector3(0, 0, 1).applyQuaternion(hero.root.quaternion);
-    const df = (target[0] - S.x) * f.x + (target[2] - S.z) * f.z, lf = Math.min(1.6, Math.max(0.6, df - 0.9));   // stop short of the target's plane
-    const lift = [S.x + f.x * lf, S.y - 0.8, S.z + f.z * lf], pre = [target[0] - f.x * 0.7, target[1] + 0.35, target[2] - f.z * 0.7];
+    // The first point is in front of the shoulder and 0.35 out to its side, so it is clear of his shirt however near
+    // the target is, and at least 1.0 short of the target's plane (the fist reaches 0.67 beyond the wrist; a lean toward
+    // a board once put it on the board).
+    const df = (target[0] - S.x) * f.x + (target[2] - S.z) * f.z, lf = Math.min(1.6, Math.max(0.6, df - 1.0)), side = lf < 1.0 ? 0.7 : 0.35;
+    const out = new THREE.Vector3(-1, 0, 0).applyQuaternion(hero.root.quaternion).multiplyScalar(i === 0 ? side : -side);   // a near target: further out
+    // The point before the target: 0.8 to 0.9 off it for a hold, so the hand does not touch before it holds. reach() puts
+    // the wrist on a point, and the fist reaches about 0.67 beyond the wrist.
+    const pb = Math.min(0.9, Math.max(0.8, df - 0.8));
+    // Both points are out to the side, so the hand comes in around his body, not through his shirt.
+    const lift = [S.x + f.x * lf + out.x, S.y - 0.8, S.z + f.z * lf + out.z], pre = [target[0] - f.x * pb + out.x, target[1] + 0.35, target[2] - f.z * pb + out.z];
     const mixP = (A, B, u) => { const e = u * u * (3 - 2 * u); return [A[0] + (B[0] - A[0]) * e, A[1] + (B[1] - A[1]) * e, A[2] + (B[2] - A[2]) * e]; };
     if (k < 0.4) hero.reach(i, lift, k / 0.4);                          // up in front of his chest
+    else if (!asHold) hero.reach(i, mixP(lift, target, Math.min(1, (k - 0.4) / 0.6)), 1);   // a hover goes straight on
     else if (k < 0.75) hero.reach(i, mixP(lift, pre, (k - 0.4) / 0.35), 1);   // to just in front of the target, a little above
-    else if (k < 0.999) hero.hold(i, mixP(pre, target, (k - 0.75) / 0.25), 0.94);   // onto it, as a hold (under 0.95: not yet checked for contact)
-    else hero.hold(i, target, 1);
+    else if (k < 0.999) {   // onto it: the hand moves along the path, and the hold is the target (under 0.95: not yet checked for
+      // contact), so the part it is about to hold counts as held while the fist, 0.67 beyond the wrist, reaches it
+      hero.reach(i, mixP(pre, target, (k - 0.75) / 0.25), 1);
+      if (asHold) (hero.holds ??= []).push({ i, point: target, k: 0.94 });
+    }
+    else if (asHold) hero.hold(i, target, 1);
+    else hero.reach(i, target, 1);
   };
   const g = {
     THREE, scene, camera, renderer: R,
@@ -385,7 +401,7 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
     // face is too low to reach well).
     stance(model, part, { side = '-z', y, spread, standOff = 1.85, footR = 1.0 } = {}) {
       const grp = model.groups[part]; if (!grp) throw new Error(`stance: ${model.name} has no part "${part}"`);
-      model.root.updateMatrixWorld(true);
+      for (const m of models) m.root.updateMatrixWorld(true);   // boxes of this frame: frames are drawn out of order
       const b = boxOf(grp, new THREE.Box3()), ax = side[1], sg = side[0] === '-' ? -1 : 1;
       const n = ax === 'x' ? [sg, 0] : [0, sg], d = [-n[0], -n[1]], r = [-d[1], d[0]];
       const cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2;
@@ -471,9 +487,13 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
       const bb = geo.boundingBox, pv = grp.userData.pv, sc = model.root.scale.x;
       const c = [(bb.min.x + bb.max.x) / 2 + pv[0], (bb.min.y + bb.max.y) / 2 + pv[1], (bb.min.z + bb.max.z) / 2 + pv[2]];
       const hx = (bb.max.x - bb.min.x) / 2 * sc, hz = (bb.max.z - bb.min.z) / 2 * sc;
+      // From the floor (the part's centre below 2.6, out of reach), he crouches while the thing is low, and rises as he
+      // lifts it; his knees need 0.2 more room in front of him.
+      const low = rest && rest[1] + c[1] * sc < 2.6, kk = k * k * (3 - 2 * k);
+      if (low && grip > 0) hero.legsPose('crouch', Math.min(1, grip * 2) * (1 - kk));   // the crouch leads the hands
       hero.root.updateMatrixWorld(true);
       const f = new THREE.Vector3(0, 0, 1).applyQuaternion(hero.root.quaternion); f.y = 0; f.normalize();
-      const face = Math.atan2(f.x, f.z), [fx, fz] = hero.feet, ahead = 1.35 + hz + gap;   // his shirt is about 1 deep from his centre, and he leans to lift
+      const face = Math.atan2(f.x, f.z), [fx, fz] = hero.feet, ahead = 1.35 + hz + gap + (low ? 0.2 : 0);   // his shirt is about 1 deep from his centre, and he leans to lift
       // Carried: the part's centre in front of him; the model turned to face the same way he does.
       const cs = Math.cos(face), sn = Math.sin(face), rot = (x, z) => [x * cs + z * sn, -x * sn + z * cs];
       const [ox, oz] = rot(c[0] * sc, c[2] * sc), held = [fx + f.x * ahead - ox, height - c[1] * sc, fz + f.z * ahead - oz];
@@ -508,7 +528,7 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
     // He steps sideways by shift, so the part is in front of the pressing shoulder: a hand that reaches across his body
     // puts the forearm into his shirt. Use the returned x, z as the end of the walk to the button.
     press(hero, model, part, k = 1, { side = '+z', hand = 1, standOff = 1.7, lean = 0.15, shift = 0.9 } = {}) {
-      const st = g.stance(model, part, { side, standOff }), f = [Math.sin(st.face), Math.cos(st.face)], sg = hand === 1 ? 1 : -1;
+      const st = g.stance(model, part, { side, standOff }), f = [Math.sin(st.face), Math.cos(st.face)], sg = hand === 1 ? 1 : -1;   // stance() updates the matrices
       const x = st.x - f[1] * shift * sg, z = st.z + f[0] * shift * sg;
       hero.place(x, z, { face: st.face, lean });
       const b = boxOf(model.groups[part], new THREE.Box3()), top = [(b.min.x + b.max.x) / 2, b.max.y, (b.min.z + b.max.z) / 2];
@@ -535,6 +555,104 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
       const v = hp.parent.worldToLocal(new THREE.Vector3(...point)).sub(hp.position);
       const yaw = clamp(Math.atan2(v.x, v.z), -1.0, 1.0), pitch = clamp(-Math.atan2(v.y, Math.hypot(v.x, v.z)) * 0.6, -0.45, 0.45);
       hp.rotation.y += (yaw - hp.rotation.y) * k; hp.rotation.x += (pitch - hp.rotation.x) * k;
+    },
+    // ---------- sitting, crouching, kneeling and more (the user asked, 2026-11-10) ----------
+    // Legs: hero.legsPose('sit' | 'crouch' | 'kneel', k) bends his legs and lowers him to the floor; call it after place()
+    // or route(). Head: hero.nod(t, { at, count }) and hero.shake(t, ...). Arms: blendPose('rest', 'shrug', k).
+    // Move a hand to a world point by the safe path (up in front of his chest, then on). As a hold when hold is true.
+    reachTo(hero, hand, point, k = 1) { moveHand(hero, hand, point, k); },
+    // Sit on the top of a part (a bench seat: top about 0.75, so his feet stay on the floor, and at most about 0.8 deep,
+    // because his thighs are only 1.0 long and his calves would meet a deeper seat's edge). k 0: he stands in front
+    // of it; 1: seated, his hands resting on the seat beside his hips (hands: 0 to 1, how much; 0 when the arms do
+    // something else). face: the way he looks when seated (default the model's front).
+    // His hips, thighs and shins may touch the seat. Call after blendPose; for the walk to it, end route() at the
+    // returned stand point.
+    sitOn(hero, model, part, { k = 1, face, back = 0.1, hands = true } = {}) {
+      model.root.updateMatrixWorld(true);
+      const b = boxOf(model.groups[part], new THREE.Box3()), cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2, top = b.max.y;
+      face ??= model.root.rotation.y;
+      const fx = Math.sin(face), fz = Math.cos(face), hd = Math.abs(fx) * (b.max.x - b.min.x) / 2 + Math.abs(fz) * (b.max.z - b.min.z) / 2;
+      const stand = [cx + fx * (hd + 1.5), cz + fz * (hd + 1.5)], seat = [cx - fx * back, cz - fz * back], e = k * k * (3 - 2 * k);
+      hero.place(stand[0] + (seat[0] - stand[0]) * e, stand[1] + (seat[1] - stand[1]) * e, { face, lean: 0.3 * Math.sin(Math.PI * e) });
+      if (e > 0) {
+        hero.legsPose('sit', e);
+        // On a seat higher than his knees, his feet leave the floor: the hips rest on the seat.
+        const H = hero.legs[0].hip.getWorldPosition(new THREE.Vector3()), up = top + 0.5 - H.y;
+        if (up > 0) hero.root.position.y += up * e;
+        if (e > 0.15) hero.seat = { m: model, part };
+        // Hands on the seat beside his hips: the arms hang straight, clear of his shirt and legs (hands on the thighs
+        // touch his own legs).
+        const hw = (hands === true ? 1 : +hands || 0) * e;
+        if (hw > 0) {
+          hero.root.updateMatrixWorld(true);
+          const r = new THREE.Vector3(-1, 0, 0).applyQuaternion(hero.root.quaternion), HP = hero.legs[0].hip.getWorldPosition(new THREE.Vector3()).add(hero.legs[1].hip.getWorldPosition(new THREE.Vector3())).multiplyScalar(0.5);
+          for (const i of [0, 1]) { const sg = i === 0 ? 1 : -1; hero.reach(i, [HP.x + r.x * 1.45 * sg, top + 0.5, HP.z + r.z * 1.45 * sg], hw); }
+        }
+      }
+      return { stand, seat };
+    },
+    // Tap a world point with one hand count times, gap s apart, from at: a key, a screen, a sleeping cat. Returns the hit
+    // times for s.sfx. The hand waits lift above the point between taps.
+    tap(hero, hand, point, t, { at = 0, count = 3, gap = 0.3, lift = 0.3 } = {}) {
+      const hits = Array.from({ length: count }, (_, j) => at + j * gap), last = hits[count - 1];
+      const up = clamp((t - (at - 0.6)) / 0.4, 0, 1) * (1 - clamp((t - (last + 0.2)) / 0.4, 0, 1));
+      let h = 0; for (const ht of hits) h = Math.max(h, 1 - Math.abs(t - ht) / (gap * 0.5));
+      h = clamp(h, 0, 1) ** 2;
+      const off = [point[0], point[1] + lift, point[2]];
+      if (up > 0.95 && h > 0.97) hero.hold(hand, point, 1);
+      else if (up > 0) moveHand(hero, hand, [off[0], off[1] - (lift - 0.12) * h, off[2]], up);
+      return { hits };
+    },
+    // Type on the top of a part (a laptop's keys) with both hands, from at for dur s: small alternating taps.
+    typeOn(hero, model, part, t, { at = 0, dur = 2, rate = 5, k = 1 } = {}) {
+      model.root.updateMatrixWorld(true);   // the box of this frame, not of the frame drawn before (frames are drawn out of order)
+      const b = boxOf(model.groups[part], new THREE.Box3()), c = [(b.min.x + b.max.x) / 2, b.max.y, (b.min.z + b.max.z) / 2];
+      hero.root.updateMatrixWorld(true);
+      const f = new THREE.Vector3(0, 0, 1).applyQuaternion(hero.root.quaternion), r = [-f.z, f.x];
+      const on = clamp((t - at) / 0.5, 0, 1) * (1 - clamp((t - (at + dur)) / 0.5, 0, 1)) * k;
+      [0, 1].forEach((i) => {
+        const sg = i === 0 ? 1 : -1, ph = (t - at) * rate * Math.PI + i * Math.PI, hop = Math.max(0, Math.sin(ph)) * 0.16;
+        const P = [c[0] + r[0] * 0.38 * sg, c[1] + 0.38 + hop, c[2] + r[1] * 0.38 * sg];
+        if (on > 0) moveHand(hero, i, P, on, false);   // the fingers hover over the keys: not a hold
+      });
+    },
+    // Move a hand along a path of world points on a surface (writing or drawing on a board): u from 0 to 1 along it.
+    // k brings the hand in and away. Returns the point the hand is at, so the scene can draw the ink to it.
+    trace(hero, hand, pts, u, { k = 1 } = {}) {
+      const L = [0]; for (let i = 1; i < pts.length; i++) L.push(L[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1], pts[i][2] - pts[i - 1][2]));
+      const d = clamp(u, 0, 1) * L[L.length - 1]; let i = 1; while (i < L.length - 1 && L[i] < d) i++;
+      const w = (d - L[i - 1]) / ((L[i] - L[i - 1]) || 1), P = [0, 1, 2].map((j) => pts[i - 1][j] + (pts[i][j] - pts[i - 1][j]) * w);
+      moveHand(hero, hand, P, k);
+      return P;
+    },
+    // Throw a thing (a ball) in an arc to a world point: he holds it on his palm in front of his chest, swings back,
+    // and lets go at at; it lands at to after dur s. Before at, the thing rests on his hand. obj: a mesh (g.ball()).
+    toss(hero, obj, t, { hand = 1, at = 1, dur = 0.9, to, height = 2.5, r = 0.2 } = {}) {
+      hero.root.updateMatrixWorld(true);
+      const S = hero.arms[hand].shoulder.getWorldPosition(new THREE.Vector3()), f = new THREE.Vector3(0, 0, 1).applyQuaternion(hero.root.quaternion); f.y = 0; f.normalize();
+      // An underhand toss: the hand stays 1.4 or more in front of him (his shirt is about 1 deep), so the ball on his
+      // palm never touches his body; the swing goes down and up in front of him.
+      const H = [S.x + f.x * 1.45, S.y - 1.0, S.z + f.z * 1.45], W = [S.x + f.x * 1.5, S.y - 1.75, S.z + f.z * 1.5], R = [S.x + f.x * 1.85, S.y - 0.5, S.z + f.z * 1.85];
+      const lerp3 = (A, B, u) => { const e = u * u * (3 - 2 * u); return [A[0] + (B[0] - A[0]) * e, A[1] + (B[1] - A[1]) * e, A[2] + (B[2] - A[2]) * e]; };
+      let P;
+      if (t < at - 0.7) P = H;
+      else if (t < at - 0.25) P = lerp3(H, W, (t - (at - 0.7)) / 0.45);   // swing back
+      else if (t < at) P = lerp3(W, R, (t - (at - 0.25)) / 0.25);        // and forward
+      else P = lerp3(R, H, clamp((t - at) / 0.6, 0, 1));                  // follow through, then down
+      hero.reach(hand, P, t < at + 0.6 ? 1 : 1 - clamp((t - at - 0.6) / 0.4, 0, 1));
+      if (t < at) obj.position.set(P[0], P[1] + 0.25 + r, P[2]);   // on his palm, not in it
+      else {
+        const u = clamp((t - at) / dur, 0, 1), A = [R[0], R[1] + 0.25 + r, R[2]];
+        obj.position.set(A[0] + (to[0] - A[0]) * u, A[1] + (to[1] - A[1]) * u + 4 * height * u * (1 - u), A[2] + (to[2] - A[2]) * u);
+      }
+      return { landed: at + dur };
+    },
+    // Hands on his hips, elbows out (k from 0 to 1).
+    handsOnHips(hero, k = 1) {
+      if (k <= 0) return;
+      hero.root.updateMatrixWorld(true);
+      const H = new THREE.Vector3(0, -4.25, 0.05).applyMatrix4(hero.root.matrixWorld), r = new THREE.Vector3(-1, 0, 0).applyQuaternion(hero.root.quaternion);
+      for (const i of [0, 1]) { const sg = i === 0 ? 1 : -1; hero.reach(i, [H.x + r.x * 1.55 * sg, H.y + 0.2, H.z + r.z * 1.55 * sg], k); }
     },
     // A plain rounded post, to mark a place on the floor.
     post(color, h = 3, r = 0.12) {
