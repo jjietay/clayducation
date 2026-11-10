@@ -60,9 +60,7 @@ and shrug. Each action is one helper in
 [`styles/library/clay.js`](styles/library/clay.js). The helpers place his hands with the same contact
 measures as the rest of the video, so a hand that misses or goes into a thing is a fault before the render.
 
-<img src="https://raw.githubusercontent.com/jjietay/clayducation/main/gallery/png/actions.png" alt="Twelve frames of the mascot's actions: carry, carry from the floor, sit, kneel, type, write on a board, toss, knock, grip a door handle, press a button, pull a lever, turn a wheel" width="100%">
-
-<img src="https://raw.githubusercontent.com/jjietay/clayducation/main/gallery/png/actions-new.png" alt="Six frames of the newer actions: kick a ball, jump, hammer a nail, sweep with a broom, water a plant, lie down on a rug" width="100%">
+<img src="https://raw.githubusercontent.com/jjietay/clayducation/main/gallery/png/actions.png" alt="Eighteen frames of the mascot's actions: carry, carry from the floor, sit, kneel, type, write on a board, toss, knock, grip a door handle, press a button, pull a lever, turn a wheel, kick a ball, jump, hammer a nail, sweep with a broom, water a plant, lie down on a rug" width="100%">
 
 ### Classic: 29 flat styles
 
