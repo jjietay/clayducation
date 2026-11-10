@@ -22,8 +22,8 @@ objects and movements to make, and the test video folder. Work only in those two
 3. `styles/library/clay.js`: the helpers (`carry`, `grip`, `sitOn`, `typeOn`, `trace`, `toss`), `moveHand` (the
    safe hand path) and `allowance()` (which parts of him may touch which objects).
 4. `styles/library/clay/mascot.js`: `place`, `route`, `stride`, `reach`, `hold`, `legsPose` and `LEGS`, `plant`.
-5. `~/Videos/explainers/mascot-actions-test-2/` (`scenes.js`, `video.json`): a test video of the helpers. Copy
-   its form for your test video.
+5. `~/Videos/explainers/mascot-actions-test-3/` (`scenes.js`, `video.json`): a test video of the newest helpers
+   (kick, jump, hammer, sweep, water, lieDown, walkPath). Copy its form for your test video.
 
 ## A new object
 
@@ -46,6 +46,11 @@ objects and movements to make, and the test video folder. Work only in those two
 - Read this frame's boxes: call `updateMatrixWorld` first, because a render draws frames out of order.
 - `stride()` before the hands, never after, or the arm swing undoes the hold.
 - Draw only from `t`. The same `t` must always give the same frame.
+- Motion is smooth: every value is continuous across phase changes (ease each phase from the end values of the
+  one before), walks use `walkPath` (no stops inside a walk, no fast turns on the spot), and only the intended
+  body parts move. Check with dense frame sequences and a 1/120 s probe, not single stills.
+- Physics is real: a pushed thing moves only while it is touched; a thing at rest is held up by something (a
+  tool never stands up by itself); a ball turns about its own centre.
 - He never raises a straight arm (the salute check). Bend the arm, and keep the hand below the shoulder.
 - If a part of him must touch an object for a moment (a shoe on a ball, his back on a rug), add a rule to
   `allowance()` for that part, that object and those frames. Never loosen a check in general.
@@ -64,8 +69,8 @@ through the heat guard, with the `make.mjs` of the skill folder you work in:
 3. `make build <dir>`: 0 collisions and 0 motion flags.
 4. Read every strip in `build/review/moving.md`. Then `--moving-ok`.
 5. `make final <dir>`.
-6. Shared helpers can break old videos: run `make collide` on `~/Videos/explainers/mascot-actions-test/` and
-   `mascot-actions-test-2/`, and run `make selftest`. All must pass.
+6. Shared helpers can break old videos: run `make collide` on `~/Videos/explainers/mascot-actions-test/`,
+   `mascot-actions-test-2/` and `mascot-actions-test-3/`, and run `make selftest`. All must pass.
 
 Run the steps that do not depend on each other in parallel (for example the two old `make collide` runs and
 `make selftest`), within the heat guard's core limit.
