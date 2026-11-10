@@ -1218,7 +1218,6 @@ const kit = {
     return Hh;
   },
 };
-const walkTime = (a, b) => 0.6 + Math.hypot(b[0] - a[0], b[1] - a[1]) / 3.6;
 // ---------- walks: the shortest clear path on the floor (the user asked, 2026-11-10) ----------
 // Each thing's floor footprint (its box, seen from above) grown by his body (0.6) and a margin (0.3). The path goes
 // from his place to the goal through the corners of the grown footprints (a visibility graph, Dijkstra), each corner
@@ -1238,7 +1237,6 @@ function footprints() {
 }
 const grow = (r, g) => [r[0] - g, r[1] - g, r[2] + g, r[3] + g];
 const inside = (p, r) => p[0] > r[0] && p[0] < r[2] && p[1] > r[1] && p[1] < r[3];
-const boxGap = (p, r) => Math.hypot(Math.max(r[0] - p[0], 0, p[0] - r[2]), Math.max(r[1] - p[1], 0, p[1] - r[3]));
 // Does the segment a-b cross the inside of rect r? (Liang-Barsky)
 function crosses(a, b, r) {
   let t0 = 0, t1 = 1; const dx = b[0] - a[0], dz = b[1] - a[1];
@@ -2006,9 +2004,6 @@ const snap = () => JSON.parse(JSON.stringify({ mode: P5.mode, at: P5.at, face: P
 let rec5 = null;   // the player's state when the scroll left the chapter
 window.__clayPlayer = { click: (n) => p5Click(n), state: () => snap(), acts: () => Object.keys(ACTS), stand: (n) => ACTS[n].stand(P5.st[n]), dur: (n) => ACTS[n].dur,
   reset: (x, z, face = 0) => { p5Init(); Object.assign(P5, { mode: 'idle', at: [x, z], face, next: null, quiet: 0, act: null, w: null }); }, w5: W5,
-  plan: (a, b) => ({ raw: footprints().map((r) => r.map((v) => +v.toFixed(2))), path: planPath(a, b).map((p) => p.map((v) => +v.toFixed(2))) }),
-  face: () => { const w = P5.w; return w ? walkAt(w, w.t)[2] : P5.face; },
-  turnScan: (A, B) => { const w = makeWalk(A, B); let last = null, max = 0, at = '', n = 0; for (let t = 0; t <= w.dur + 1e-6; t += 1 / 60) { const f = walkAt(w, t)[2]; if (last !== null) { const v = Math.abs(Math.atan2(Math.sin(f - last), Math.cos(f - last))) * 60; if (v > 2.5) n++; if (v > max) { max = v; at = t < w.d0 ? 'turn0' : t < w.d0 + w.T ? 'path ' + ((t - w.d0) / w.T).toFixed(2) : 'turn1'; } } last = f; } return { max: +max.toFixed(2), at, n, L: +w.L.toFixed(1), straight: +(w.straight || 0).toFixed(1) }; },   /* test: his turn speed along a walk, without drawing */
   walkTo: (x, z, face) => { P5.w = { ...makeWalk([P5.at[0], P5.at[1], P5.face], [x, z, face]), t: 0 }; P5.act = null; P5.mode = 'walk'; return { L: P5.w.L, straight: P5.w.straight, dur: P5.w.dur }; } };
 
 // ---------- the 12-moves set ----------

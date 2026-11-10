@@ -9,7 +9,13 @@
 //   node engine/test/gallery-check.mjs scroll [--w 1440 --h 900] [--still]   the whole scroll, down and back up
 //   node engine/test/gallery-check.mjs clicks [--w 1440 --h 900] [--still]   chapter 5: each action from 3 start points,
 //                                                                             and a click during each action
+//   node engine/test/gallery-check.mjs walks                                 chapter 5: a walk between every pair of stand points
+//                                                                             (collisions, steps backwards, turns over 2.5 rad/s)
+//   node engine/test/gallery-check.mjs input [--touch]                       hover labels, clicks and taps on every thing
+//   node engine/test/gallery-check.mjs strip <out dir> <action>               pictures of one action, frame by frame
 //   node engine/test/gallery-check.mjs shots <out dir> <spec,...>            pictures: j:t (chapter) or j~u (transition)
+// Options: --shard i/n runs every n-th case (run n shards at once), --acts a,b only these actions, --pairs a>b only
+// these walks.
 // Each fault is one line; the last line gives the counts. Exit code 1 when there are faults.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -248,68 +254,6 @@ try {
       if (r.out.length || r.back || r.fast || ratio > 1.8) console.log(`case ${na}>${nb}: ${r.out.map((f) => f.replace(/[0-9.]+/g, '#')).filter((f, i, a) => a.indexOf(f) === i).join('; ')}${r.back ? ` back ${r.back}` : ''}${r.fast ? ` fast ${r.fast}` : ''} ratio ${ratio.toFixed(2)} (L ${w.L.toFixed(1)}, straight ${w.straight.toFixed(1)})`);
     }
     console.log(`walks: ${n}, frames backwards ${back}, frames turning too fast ${fast}, path / straight: mean ${(sumRatio / n).toFixed(2)}, worst ${worstRatio.toFixed(2)}`);
-  } else if (mode === 'walk1') {
-    // Debug: one walk from action A's stand to action B's stand; logs frames where his facing target jumps.
-    await page.ev(`scrollTo(0, __clayAt(5, 0.5)); for (let i = 0; i < 30; i++) __clayFrame(1 / 60); true`);
-    const r = await page.ev(`(() => { const P = __clayPlayer, A = P.stand('${args[1]}'), B = P.stand('${args[2]}'); P.reset(...A); for (let i = 0; i < 20; i++) __clayFrame(1 / 60);
-      const w = P.walkTo(...B), out = [w]; let lf = null;
-      for (let i = 0; i < 2400; i++) { __clayFrame(1 / 60); const s = P.state(); if (s.mode !== 'walk') break; const f = P.face(); if (lf !== null) { let d = f - lf; d = Math.atan2(Math.sin(d), Math.cos(d)); if (Math.abs(d) > 0.08) out.push({ i, t: +s.w.t.toFixed(3), d: +d.toFixed(3), d0: s.w.d0, T: s.w.T }); } lf = f; }
-      return out; })()`);
-    console.log(JSON.stringify(r).slice(0, 3000));
-  } else if (mode === 'hair') {
-    // Item 6: the colour of his hair in every frame of one action (a pixel read from the 3D canvas at his head's top).
-    await page.ev(`scrollTo(0, __clayAt(5, 0.5)); for (let i = 0; i < 30; i++) __clayFrame(1 / 60); { const s = __clayPlayer.stand('${args[1]}'); __clayPlayer.reset(s[0], s[1], s[2]); __clayPlayer.click('${args[1]}'); } true`);
-    const r = await page.ev(`(() => { const out = [], c = document.createElement('canvas'); c.width = c.height = 1; const g = c.getContext('2d', { willReadFrequently: true });
-      for (let i = 0; i < ${Math.round(+(args[2] || 6) * 60)}; i++) { __clayFrame(1 / 60); const p = __clayProbe(({ H, toScreen }) => { const v = H.head.getWorldPosition(new (H.root.position.constructor)()); v.y += 0.9; return toScreen(v); });
-        const cv = document.querySelector('canvas.world'), k = cv.width / innerWidth; g.clearRect(0, 0, 1, 1); g.drawImage(cv, p[0] * k, p[1] * k, 1, 1, 0, 0, 1, 1); const d = g.getImageData(0, 0, 1, 1).data; const info = __clayProbe(({ H, THREE, cam }) => { const h = H.shapes.find((m) => m.userData.part === 'hair'); h.updateMatrixWorld(true); const fr = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse)); const bs = h.geometry.boundingSphere.clone().applyMatrix4(h.matrixWorld); let vis = true; for (let q = h; q; q = q.parent) if (!q.visible) vis = false; return [vis, +h.getWorldScale(new THREE.Vector3()).x.toFixed(3), fr.intersectsSphere(bs), +bs.radius.toFixed(2), h.frustumCulled]; }); out.push([i, d[0], d[1], d[2], d[3], ...info]); }
-      return out; })()`);
-    const brown = r.filter(([, R, G, B, A]) => A > 200 && R - B > 40);
-    console.log('frames', r.length, 'brownish', brown.length, JSON.stringify(brown.slice(0, 12)), 'typical', JSON.stringify(r.slice(60, 63)));
-  } else if (mode === 'film') {
-    // One click on action args[2] from the scene's start, then a full picture every args[3] frames for args[4] s, tiled.
-    const out = args[1], act = args[2], every = +(args[3] || 30), secs = +(args[4] || 16); fs.mkdirSync(out, { recursive: true });
-    await page.ev(`scrollTo(0, __clayAt(5, 0.5)); for (let i = 0; i < 60; i++) __clayFrame(1 / 60); __clayPlayer.click('${act}'); true`);
-    let n = 0;
-    for (let f = 0; f < secs * 60; f += every) {
-      await page.ev(`for (let k = 0; k < ${every}; k++) __clayFrame(1 / 60); true`);
-      await new Promise((r) => setTimeout(r, 120));
-      fs.writeFileSync(path.join(out, `f-${String(n++).padStart(3, '0')}.jpg`), Buffer.from((await page.send('Page.captureScreenshot', { format: 'jpeg', quality: 70 })).data, 'base64'));
-    }
-    spawnSync('ffmpeg', ['-y', '-v', 'error', '-pattern_type', 'glob', '-i', path.join(out, 'f-*.jpg'), '-vf', 'scale=360:-1,tile=6x6:padding=3', '-frames:v', '1', path.join(out, 'sheet.jpg')]);
-    console.log('film', n, 'frames');
-  } else if (mode === 'eval') {
-    // Debug: at chapter 5, click args[1], step args[2] seconds, print the value of args[3].
-    await page.ev(`scrollTo(0, __clayAt(5, 0.5)); for (let i = 0; i < 30; i++) __clayFrame(1 / 60); { const s = __clayPlayer.stand('${args[1]}'); __clayPlayer.reset(s[0], s[1], s[2]); } __clayPlayer.click('${args[1]}'); for (let i = 0; i < ${Math.round(+args[2] * 60)}; i++) __clayFrame(1 / 60); true`);
-    console.log(JSON.stringify(await page.ev(args[3])));
-  } else if (mode === 'trace') {
-    // Debug: scroll from chapter args[1] u args[2] to u args[3] (its transition when args[5] is "~") in args[4] frames; print each frame.
-    const tr = args[5] === '~', N = +args[4];
-    const y0 = await page.ev(`__clayAt(${args[1]}, ${args[2]}, ${tr})`), y1 = await page.ev(`__clayAt(${args[1]}, ${args[3]}, ${tr})`);
-    await page.ev(`scrollTo(0, ${y0}); for (let i = 0; i < 60; i++) __clayFrame(1 / 60); __chkReset(); __chk(); true`);
-    for (let f = 1; f <= N; f++) {
-      const r = await page.ev(`scrollTo(0, ${y0 + (y1 - y0) * f / N}); __clayFrame(1 / 60); (() => { const c = __chk(), H = __clayHero(), e = new H.root.rotation.constructor().setFromQuaternion(H.root.quaternion, 'YXZ'); return { ...c, p: H.root.position.toArray().map((v) => +v.toFixed(2)), ry: +e.y.toFixed(3), rx: +e.x.toFixed(3), rz: +e.z.toFixed(3), x: ${JSON.stringify(args[6] || 'null')} ? eval(${JSON.stringify(args[6] || 'null')}) : '' }; })()`);
-      console.log(r.s, 'pic', r.diff.toFixed(1), 'root', r.p.join(','), 'turn', r.ry, r.rx, r.rz, JSON.stringify(r.x), r.out.join(' | '));
-    }
-  } else if (mode === 'hairscan') {
-    // His hair's colour on every frame of five actions (a synced 5x5 read at the crown of the hair mesh, as seen).
-    await page.ev(`scrollTo(0, __clayAt(5, 0.5)); for (let i = 0; i < 60; i++) __clayFrame(1 / 60); true`);
-    let n = 0, light = [];
-    for (const a of (args[1] || 'toss,kick,jump,carry,hammer').split(',')) {
-      await page.ev(`__clayPlayer.click('${a}'); true`);
-      const r = await page.ev(`(() => { const out = []; for (let i = 0; i < 60 * 14; i++) { __clayFrame(1 / 60); const q = __clayProbe(({ H, THREE, toScreen }) => { const h = H.shapes.find((m) => m.userData.part === 'hair'); const b = new THREE.Box3().setFromObject(h), c = b.getCenter(new THREE.Vector3()); return toScreen(new THREE.Vector3(c.x, b.max.y - 0.25, c.z)); });
-        const R = __clayR(), gl = R.getContext(), k = gl.drawingBufferWidth / innerWidth, px = new Uint8Array(100); gl.readPixels(Math.round(q[0] * k) - 2, Math.round(gl.drawingBufferHeight - q[1] * k) - 2, 5, 5, gl.RGBA, gl.UNSIGNED_BYTE, px);
-        let m = 0; for (let j = 0; j < 100; j += 4) m += (px[j] + px[j + 1] + px[j + 2]) / 3; out.push([+(m / 25).toFixed(0), px[0], px[1], px[2], __clayPlayer.state().mode]); if (i > 60 && __clayPlayer.state().mode === 'idle') break; } return out; })()`);
-      r.forEach((x, i) => { n++; if (x[0] > 110) light.push(`${a} frame ${i}: mean ${x[0]} rgb ${x[1]},${x[2]},${x[3]} (${x[4]})`); });
-      console.log(a, 'frames', r.length, 'typical', JSON.stringify(r[Math.floor(r.length / 2)]));
-    }
-    console.log('hairscan: frames', n, 'light crown', light.length); light.slice(0, 20).forEach((l) => console.log('  ' + l));
-  } else if (mode === 'turns') {
-    // Debug: his turn speed along every walk, from the walk's own numbers (no drawing).
-    await page.ev(`scrollTo(0, __clayAt(5, 0.5)); for (let i = 0; i < 30; i++) __clayFrame(1 / 60); true`);
-    const r = await page.ev(`(() => { const P = __clayPlayer, pts = P.acts().map((a) => [a, P.stand(a)]); pts.push(['start', [...P.w5(-6.5, 5.5), Math.PI / 2]], ['middle', [...P.w5(0, 2.5), 0]]); const out = []; for (const [na, A] of pts) for (const [nb, B] of pts) if (na !== nb) out.push([na + '>' + nb, P.turnScan(A, B)]); return out; })()`);
-    const bad = r.filter(([, x]) => x.n > 0); const ph = {}; bad.forEach(([, x]) => { const k = x.at.split(' ')[0]; ph[k] = (ph[k] || 0) + 1; });
-    console.log('walks', r.length, 'with a turn faster than 2.5 rad/s:', bad.length, 'peak phase', JSON.stringify(ph), 'worst ratio', Math.max(...r.map(([, x]) => x.straight > 0.5 ? x.L / x.straight : 1)).toFixed(2));
-    bad.sort((a, b) => b[1].max - a[1].max).slice(0, +(opt('top', 15))).forEach(([k, x]) => console.log(' ', k, JSON.stringify(x)));
   } else if (mode === 'shots') {
     const out = args[1]; fs.mkdirSync(out, { recursive: true });
     for (const spec of args[2].split(',')) {
