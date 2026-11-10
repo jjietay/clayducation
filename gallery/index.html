@@ -115,9 +115,9 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 .folder.open { transform: none; cursor: auto; box-shadow: 0 -14px 34px -18px rgba(20, 20, 30, .75), 0 0 0 100vmax rgba(14, 15, 22, .6); }
 .folder .tab { position: absolute; left: 5vw; bottom: calc(100% - 1px); height: var(--tab); padding: 0 66px; border: 0; background: #1f1e24; color: var(--paper); cursor: pointer;
   clip-path: polygon(34px 0, calc(100% - 34px) 0, 100% 100%, 0 100%); border-radius: 10px 10px 0 0; font: 700 15px/1 'Plus Jakarta Sans', sans-serif; letter-spacing: .01em; font-size: 16px; }
-.folder .tab:not(.manim) { width: 232px; padding: 0; }
-.folder .tab.manim { left: calc(5vw + 204px); z-index: -1; width: 176px; padding: 0 0 0 22px; background: #e0453a; color: #fff; }   /* a divider tab, behind the first one */
-.folder .tab.manim:hover { filter: brightness(1.08); }
+/* A slanted red tag beside a heading in the folder. */
+.folder .tag { display: inline-block; margin-left: 14px; padding: 6px 20px; vertical-align: 5px; background: #e0453a; color: #fff; font-size: 14px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%); }
 .folder .tab span { display: inline-block; margin-left: 8px; transition: transform .45s ease; }
 .folder.open .tab span { transform: rotate(180deg); }
 .folder .sheet { position: relative; height: 100%; overflow: hidden; overscroll-behavior: contain; padding: 22px max(5vw, 32px) 36px; scrollbar-color: #4a4752 transparent; }
@@ -230,9 +230,8 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
     </div>
     <div class="folder" role="region" aria-label="More styles">
       <button class="tab" type="button" aria-expanded="false">More styles <span aria-hidden="true">↑</span></button>
-      <button class="tab manim" type="button">Manim</button>
       <div class="sheet" tabindex="-1">
-        <h3 id="manim">Manim, inside the clay videos</h3>
+        <h3>Manim, inside the clay videos<span class="tag">New</span></h3>
         <p>For a curve, a plot or a formula that changes step by step, the video changes to Manim and back.</p>
         <div class="grid">
           <figure><img src="png/manim/gains.jpg" width="1280" height="720" loading="lazy" alt="A Manim scene: gains from the poles."><figcaption><b>Gains from the poles.</b> Computed torque: the damping and the frequency give k<sub>v</sub> and k<sub>p</sub>.</figcaption></figure>
