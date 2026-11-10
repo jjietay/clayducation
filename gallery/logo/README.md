@@ -2,7 +2,7 @@
 
 The word "clayducati_n", hand-set: each letter with its own random lift (up to 0.11 em), turn (up to 9 degrees)
 and size, on one straight line. `MAX_LIFT` and `MAX_TURN` at the top of `hand.py` set the limits.
-The o is a pebble of clay with a play button pressed into it (a video, made of clay), and the dot on the i is
+The o is a pebble of clay with a play button and a fingerprint pressed into it (a video, made of clay), and the dot on the i is
 a ball of coral clay. The pebble alone is the mark and the icon.
 
 | File | Use |

@@ -22,6 +22,8 @@ def contours(cmds):
     return out
 PEB = "M100 10C150 7 191 41 193 95c3 55-34 96-90 98C48 196 8 160 8 103 7 49 47 13 100 10Z"
 PLAY = "M72 58Q72 46 83 52L146 89Q157 96 146 103L83 141Q72 147 72 135Z"
+# The fingerprint: the rings of a thumb pressed into the clay, low on the left (as on the mark).
+RINGS = '<g clip-path="url(#peb)" fill="none" stroke="#fff3e8" stroke-opacity=".2" stroke-width="2.6">' + "".join(f'<ellipse cx="62" cy="150" rx="{22 + 10 * k}" ry="{17 + 9 * k}"/>' for k in range(4)) + '</g>'
 DEFS = '''<defs>
 <filter id="clay" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
 <feGaussianBlur in="SourceAlpha" stdDeviation="5" result="b"/>
@@ -40,6 +42,7 @@ DEFS = '''<defs>
 </filter>
 <radialGradient id="cf" cx="38%" cy="30%" r="80%"><stop offset="0" stop-color="#e4a37c"/><stop offset=".6" stop-color="#cd8358"/><stop offset="1" stop-color="#a95f3c"/></radialGradient>
 <radialGradient id="hole" cx="40%" cy="35%" r="75%"><stop offset="0" stop-color="#a65a35"/><stop offset="1" stop-color="#8a4528"/></radialGradient>
+<clipPath id="peb"><path d="M100 10C150 7 191 41 193 95c3 55-34 96-90 98C48 196 8 160 8 103 7 49 47 13 100 10Z"/></clipPath>
 <radialGradient id="pop" cx="38%" cy="30%" r="80%"><stop offset="0" stop-color="#ff8a7f"/><stop offset="1" stop-color="#e2433a"/></radialGradient>
 </defs>'''
 # The bounce and the turn: each letter up or down, and turned, by a random amount from a bell curve (most
@@ -71,7 +74,7 @@ def build(ink):
         x = g["x"] * 1000 + g["adv"] * 500 + SHIFT[i]     # the letter's middle
         if g["ch"] == "o":
             D = XH * 1000 * 1.2; cx, cy = x, -XH * 500 - lift
-            parts.append(f'<g transform="translate({cx - D/2:.1f} {cy - D/2:.1f}) rotate({rot:.1f} {D/2:.1f} {D/2:.1f}) scale({D/200:.4f})"><path d="{PEB}" fill="url(#cf)" filter="url(#clay)"/><path d="{PLAY}" fill="url(#hole)" filter="url(#press)"/></g>')
+            parts.append(f'<g transform="translate({cx - D/2:.1f} {cy - D/2:.1f}) rotate({rot:.1f} {D/2:.1f} {D/2:.1f}) scale({D/200:.4f})"><path d="{PEB}" fill="url(#cf)" filter="url(#clay)"/>{RINGS}<path d="{PLAY}" fill="url(#hole)" filter="url(#press)"/></g>')
             continue
         cs = contours(g["path"])
         if g["ch"] == "i":
