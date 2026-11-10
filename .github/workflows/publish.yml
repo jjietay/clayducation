@@ -14,6 +14,11 @@ on:
       tag:
         description: 'Make the release page of this tag too (for example v0.5.1)'
         required: false
+# Runs started close together wait for each other: two runs published one version at the same time, and
+# the second failed with "409 Conflict" (2026-11-10).
+concurrency:
+  group: publish
+  cancel-in-progress: false
 permissions:
   contents: write   # the release page
   id-token: write   # trusted publishing: npm checks GitHub's OIDC token
@@ -43,9 +48,15 @@ jobs:
           awk -v h="## $TAG" '$0 == h { f = 1; next } /^## v/ { if (f) exit } f' RELEASES.md > notes.md
           if ! grep -q '[^[:space:]]' notes.md; then echo "RELEASES.md has no \"## $TAG\" section"; exit 1; fi
           gh release create "$TAG" --verify-tag --title "$TAG" --notes-file notes.md
-      # npm refuses a version that is already published; then there is nothing to do.
+      # npm refuses a version that is already published; then there is nothing to do. npm lists a new version
+      # only some minutes after it takes it, so its "409 ... previously staged / published" counts as done too.
       - name: Publish, unless this version is on npm already
         run: |
           v=$(node -p "require('./package.json').version")
           if npm view "clayducation@$v" version >/dev/null 2>&1; then echo "clayducation@$v is on npm already"; exit 0; fi
-          npm publish --provenance --access public
+          set +e
+          npm publish --provenance --access public 2>&1 | tee publish.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ne 0 ] && grep -qE 'E409|previously (staged|published)' publish.log; then echo "clayducation@$v is on npm already"; exit 0; fi
+          exit "$status"
