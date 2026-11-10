@@ -5,7 +5,7 @@ The public page (GitHub Pages publishes this folder). `DESIGN.md` says what each
 | File | What it is |
 |---|---|
 | `index.html` | the chapters, their statements and the styles |
-| `app.js` | the clay world: scroll model, camera, mascot and the eight sets |
+| `app.js` | the clay world: scroll model, camera, mascot and the nine sets |
 | `world/` | three.js, the clay kit and the packed shapes, made by `engine/gallery-export.mjs`; do not edit |
 | `world.json` | the models that the sets use |
 | `film/` | 8 s muted 1080p clips (the end fades into the start, so the loop has no jump) and their first frames, from six finished videos |

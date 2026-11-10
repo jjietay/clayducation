@@ -1,4 +1,4 @@
 {
   "out": "world",
-  "models": ["book", "table", "cart"]
+  "models": ["book", "table", "cart", "parcel", "pedestal", "bench", "laptop", "strawberry", "whiteboard", "basket", "handwheel"]
 }

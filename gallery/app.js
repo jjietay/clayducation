@@ -25,17 +25,20 @@ const cont = (u) => 1 - flow(1 - u);
 const pace = (u) => { const a = 0.15, v = 1 / (1 - a); return u < a ? v * u * u / (2 * a) : u > 1 - a ? 1 - v * (1 - u) ** 2 / (2 * a) : v * (u - a / 2); };
 const D = Math.PI / 180, PI2 = Math.PI / 2;
 const $ = (s, el = document) => el.querySelector(s);
-const now = () => performance.now();
+// ?check: the page's own checks step each frame with a fixed dt (window.__clayFrame), on a clock of their own.
+const TESTING = new URLSearchParams(location.search).has('check');
+let clockMs = 0;
+const now = () => (TESTING ? clockMs : performance.now());
 let dt = 1 / 60, lastT = now();
 const damp = (a, b, rate) => a + (b - a) * (1 - Math.exp(-rate * dt));
 
 // ---------- the world layout: where each set stands ----------
-const S1 = [10, 0], S2 = [34, 2.4], WX0 = 50, WX1 = 72, WZ = 1.2, Z3 = WZ - 2.8, CX = 82, KK = 2.4, FX = 92, S7 = [116, 0];
+const S1 = [10, 0], S2 = [34, 2.4], WX0 = 50, WX1 = 72, WZ = 1.2, Z3 = WZ - 2.8, CX = 82, KK = 2.4, FX = CX + 56, S7 = [FX + 24, 0];
 const FACE = CX + (0.3 + 0.82) * KK + 0.04;   // the +x face of the cart body at rest
 
 // ---------- the timeline ----------
 const chs = [...document.querySelectorAll('.ch')];
-const ACT = [3.2, 3.6, 3.6, 3.0, 3.4, 1.8, 4.6, 2.8];   // scroll of each chapter, in screen heights
+const ACT = [3.2, 3.6, 3.6, 3.0, 3.4, 2.4, 2.6, 4.6, 2.8];   // scroll of each chapter, in screen heights
 const WALK = 9;                                          // world units walked for each screen height of scroll
 let segs = [], total = 0;
 const C = [];                                            // the chapters' sets, below
@@ -44,7 +47,7 @@ function plan() {
   for (let j = 0; j < chs.length; j++) {
     segs.push({ j, kind: 'act', y, len: ACT[j] }); y += ACT[j];
     if (j === chs.length - 1) break;
-    const kind = C[j].next || 'walk', len = kind === 'pen' ? 2.6 : C[j].cont ? route(j).total / (1 - 0.075) / C[j].speed : Math.max(1.3, route(j).total / WALK);   // cont: the walk starts at the chapter's own pace
+    const kind = C[j].next || 'walk', len = kind === 'pen' ? 2.6 : kind === 'rug' ? 2.2 : kind === 'dream' ? 2.6 : kind === 'in5' ? Math.max(1.3, route(j).total / WALK) / 0.85 : C[j].cont ? route(j).total / (1 - 0.075) / C[j].speed : Math.max(1.3, route(j).total / WALK);   // cont: the walk starts at the chapter's own pace
     segs.push({ j, kind, y, len }); y += len;
   }
   total = y;
@@ -90,7 +93,7 @@ function glide() {
   if (Math.abs(cur - goal) < 0.5) { cur = goal; gliding = false; }
   scrollTo(0, cur);
 }
-// More styles (chapter 7): a folder at the bottom of the screen. A click on it slides it up to a quarter of the
+// More styles (chapter 8): a folder at the bottom of the screen. A click on it slides it up to a quarter of the
 // screen; a click on its tab, a click on the dark page above it, or Escape slides it back down.
 const folderEl = $('.folder'), tabEl = $('.tab', folderEl), sheetEl = $('.sheet', folderEl);
 const stylesOpen = () => folderEl.classList.contains('open');
@@ -243,6 +246,7 @@ function settle() {
   const f = want.face || EXPRESSIONS.neutral;
   ease.face = ease.face ? mixVal(ease.face, f, 1 - Math.exp(-6 * dt)) : mixVal(f, f, 0);
   realSetExpression(ease.face);
+  want.gest?.(H);   // a nod or a blink, on top of the expression
   // The head: towards the point or the pointer, through a damped spring.
   const L = want.look || { point: null, k: 0 }, head = H.headPivot, at = head.getWorldPosition(new THREE.Vector3());
   let target = L.point;
@@ -254,12 +258,12 @@ function settle() {
   const b = (now() / 1000) % 4.1; if (b < 0.16) H.blink(Math.sin(b / 0.16 * Math.PI));
   // Arms, legs and the body's turn: each eases from its last angle to the new one. These are the poses only:
   // a hand that holds something is put on it below, after the body has eased.
-  const parts = [...H.arms.flatMap((a) => [a.shoulder, a.elbow, a.wrist]), ...H.legs.flatMap((l) => [l.hip, l.ankle]), H.root];
+  const parts = [...H.arms.flatMap((a) => [a.shoulder, a.elbow, a.wrist]), ...H.legs.flatMap((l) => [l.hip, l.knee, l.ankle]), H.root];
   const k = 1 - Math.exp(-14 * dt);
   for (const o of parts) { const q = o.quaternion.clone(), was = ease.q.get(o); if (was) o.quaternion.copy(was).slerp(q, o === H.root ? 1 - Math.exp(-9 * dt) : k); ease.q.set(o, o.quaternion.clone()); }
   // His body's place too (a lean moves it): eased, except a real jump of the scene, which it follows at once.
   const p = H.root.position.clone();
-  if (ease.p && ease.p.distanceTo(p) < 2) H.root.position.copy(ease.p.lerp(p, 1 - Math.exp(-16 * dt)));
+  if (ease.p && ease.p.distanceTo(p) < 3) H.root.position.copy(ease.p.lerp(p, 1 - Math.exp(-16 * dt)));
   ease.p = H.root.position.clone();
   // The hands: each one reaches from the eased body to what it holds, so it stays on the book or the cart
   // while the body moves. How firmly it holds eases; a hold point that jumps (another thing to hold) glides.
@@ -276,7 +280,7 @@ function settle() {
     h.face = w ? w.face : h.face; h.hint = w ? w.hint : h.hint;
     if (h.k > 0.002 && h.p) palmReach(i, h);
   });
-  want.face = null; want.look = null; want.hands = [null, null];
+  want.face = null; want.look = null; want.hands = [null, null]; want.gest = null;
 }
 // A hand on its point. With a palm direction (face), the palm (the hand's +z, where the thumb is) turns that
 // way and the fingers go on from the forearm, so the hand lies on the thing it holds; the wrist moves so that
@@ -1047,7 +1051,7 @@ function cartX(s) {                           // the cart's offset (model units)
   const u = s - REL; return -AMP * Math.exp(-0.32 * u) * Math.cos(2.4 * u);
 }
 C[4] = {
-  start: [FACE + 1.75, 0, -PI2], end: [FACE + 3.4, 0, -PI2],
+  start: [FACE + 1.75, 0, -PI2], end: [FACE + 3.4, 0, -PI2], next: 'in5', get via() { return VIA5(); },
   build() {
     this.c = model('cart', { x: CX, k: KK });
     const G = this.c.groups; this.b0 = G.body.position.x;
@@ -1102,70 +1106,524 @@ C[4] = {
   shot(t) { return { at: [CX + 2.5, 3.6, 0], dist: 30, az: -14 + 3 * pn.x, el: 9 - 2 * pn.y, sx: -0.08, sy: 0.14 }; },
 };
 
-// 5. Nothing renders until the checks pass: the same cart, closer. With the scroll, hand 1 comes down from
-// above the cart onto it, and the hold checks of the clay kit run on every frame, with their messages.
-const consoleEl = $('.console'), msgEl = $('.console .msg'), ringEl = $('.ring');
-C[5] = {
-  start: [FACE + 1.75, 0, -PI2], end: [FACE + 1.75, 0, -PI2], via: [[FACE + 2.2, 4.2], [FX + 6, 4.2], [FX + 13, 2.5]],   // round the spool
-  build() { this.body = C[4].c.groups.body.userData.f; this.box = new THREE.Box3().setFromObject(C[4].c.groups.body); this.target = new THREE.Vector3(FACE + 1.1, 3.9, 1.3); this.ok = null; this.ring = null; msgEl.textContent = 'hand 1 holds nothing'; },
-  act(t) {
-    const F = FACE, live = state.i === 5 && state.u === 0;
-    C[4].setCart(0);
-    // The hand moves in the plane of its shoulder (z = HZ). It goes back behind him only to a set angle, forward
-    // and up as far as the arm reaches (fully out), never through the floor, and never into the cart: a hand
-    // that comes down onto the cart stops on its side or its top, which brings it in closer to him.
-    const HZ = 1.3, sh = new THREE.Vector3(F + 1.75, 4.5, HZ);
-    const limit = (p) => {
-      const d = p.clone().sub(sh); d.z = 0;
-      // Near the shoulder the way to the pointer is not clear: keep the last way, and keep the hand out a little.
-      let a = d.length() > 0.9 ? Math.atan2(-d.x, -d.y) : (this.lastA ?? 0), L = clamp(d.length(), 0.9, 2.6);   // a: 0 down, +90 forward (to the cart), -90 back
-      this.lastA = a;
-      a = clamp(a, -40 * D, 100 * D);   // back to 40 degrees; forward up to just over level (higher, the elbow looks wrong)
-      // Along the arm's way from the shoulder, the hand stops where it would go into the cart (its skin, plus
-      // the hand's half-thickness), so a hand that comes down onto the cart comes in closer to him.
-      // The cart's own surface (its distance field), so the hand stops with its palm on it: the check passes.
-      const ux = -Math.sin(a), uy = -Math.cos(a), at = (l) => new THREE.Vector3(sh.x + ux * l, sh.y + uy * l, HZ);
-      const skin = (l) => { const q = C[4].c.root.worldToLocal(at(l)); return this.body(q.x, q.y, q.z) * KK - 0.27; };   // < 0: the palm is in the cart
-      for (let l = 0.6; l <= L; l += 0.05) if (skin(l) < 0) { let lo = l - 0.05, hi = l; for (let k = 0; k < 12; k++) { const m = (lo + hi) / 2; if (skin(m) < 0) hi = m; else lo = m; } L = lo; break; }
-      const q = at(L); q.y = Math.max(0.6, q.y); return q;
-    };
-    // Over most of the scroll: from above the cart, clear of it, straight down onto its top.
-    const on = sm(0.06, 0.8, t), want = limit(new THREE.Vector3(F - 0.55 + 0.05 * on, lerp(4.75, 2.2, on), HZ));   // the arm out over the cart's middle, then down onto its top
-    this.target.x = damp(this.target.x, want.x, 12); this.target.y = damp(this.target.y, want.y, 12); this.target.z = HZ;
-    const [sx, sy] = toScreen(this.target);
-    this.ring ??= [sx, sy]; this.ring[0] = damp(this.ring[0], sx, 14); this.ring[1] = damp(this.ring[1], sy, 14);
-    ringEl.style.transform = `translate(${this.ring[0]}px, ${this.ring[1]}px)`; ringEl.style.opacity = live ? sm(0.02, 0.12, t) : 0;
-    // The console is at his hand: above it and to its left, so it never covers him; always on the screen.
-    const bw = consoleEl.offsetWidth, bh = consoleEl.offsetHeight;
-    const bx = clamp(this.ring[0] - bw - 28, 16, innerWidth - bw - 16), by = clamp(this.ring[1] - bh - 28, 16, innerHeight - bh - 16);
-    consoleEl.style.transform = `translate(${bx.toFixed(1)}px, ${by.toFixed(1)}px)`;
-    if (!H) return;
-    H.pose.rest(); place(F + 1.75, 0, -PI2, { lean: 0.1 });
-    const grip = sm(0, 0.06, t);   // his hands come onto the cart, not in one frame
-    H.hold(0, [F + 0.02, 2.6, -0.62], grip, null, ELBOW_BACK); H.hold(1, this.target.toArray(), grip, null, ELBOW_BACK);
-    const reach = (H.grips || []).filter((g) => g.i === 1).reduce((a, g) => Math.max(a, g.gap), 0);
-    const l = C[4].c.root.worldToLocal(this.target.clone()), gap = Math.max(0, this.body(l.x, l.y, l.z) * KK - 0.25);
-    let text, ok = false;
-    if (reach > 0.3) text = `hand 1 misses what it holds, by ${reach.toFixed(1)}`;
-    else if (gap > 0.8) text = 'hand 1 holds nothing';
-    else if (gap > 0.04) text = `hand 1 does not touch the cart body that it holds (gap ${gap.toFixed(2)})`;
-    else { text = 'no faults: both hands touch the cart'; ok = true; }
-    // A new kind of message fades in; a new number in the same message does not (it changes on every frame).
-    const kind = text.replace(/[0-9.]+/g, '#');
-    if (msgEl.textContent !== text) { msgEl.textContent = text; if (kind !== this.kind) { this.kind = kind; msgEl.getAnimations().forEach((a) => a.cancel()); msgEl.animate([{ opacity: 0.15 }, { opacity: 1 }], { duration: 240, easing: 'ease-out' }); } }
-    if (ok !== this.ok) { this.ok = ok; consoleEl.classList.toggle('ok', ok); ringEl.classList.toggle('ok', ok); }
-    H.blendExpression('neutral', ok ? 'smile' : 'worried', 0.8);
-  },
-  shot(t) { return { at: [FACE + 0.6, 3.6, 0], dist: 21, az: -22 + 3 * pn.x, el: 8 - 2 * pn.y, sx: 0.18, sy: 0.1 }; },
-};
+// 5. Click anything, and he does one of his 12 moves. A ring of objects; a click (or a tap) on one sends him there
+// to use it. The scroll only moves the story on: inside the chapter the actions run on time (the player below).
+// Each action is one entry of ACTS: where he stands, how long it is, and run(t, dir), which sets him and its objects
+// from its own time t only. dir is the object's state (0 or 1): each use changes it (the box goes to the stand, then
+// back). The six new actions of Phase C go in the free places of FREE.
+const SC = [CX + 24, 0];
+const W5 = (x, z) => [SC[0] + x, SC[1] + z];                 // ring coordinates to world
+const PED = 2.2, BR = 0.28;                                   // the stand's top; the ball's radius
+const RING = { berry: [-12, 3], bench: [-14.5, -1.5], wheel: [-8, -6.8], board: [-0.5, -9.4], basket: [8, -10.4], rack: [8, -4.6],
+  parcel: [13.5, 2.5], stand: [13.5, -2.5], rug: [0, 5.8] };
+const FREE = { water: [-9.5, 8], hammer: [-4.5, -9], sweep: [13, -7.5], kick: [6.5, 3.6], jump: [0, 0] };   // kept for Phase C
+const angMix = (a, b, k) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * k;
+const seg = (t, a, d) => sm(a, a + d, t);                    // 0 to 1 from time a, over d
 
-// 6. The result is a real MP4: a film strip rolls out of his hands, from the title card of the visitor's own
+// ---------- the kit's helpers, for the page (styles/library/clay.js): they place him and his hands only ----------
+const meshOf = (g) => (g.isMesh ? g : g.children.find((c) => c.isMesh));
+const boxOf = (g, b = new THREE.Box3()) => { const geo = meshOf(g).geometry; geo.boundingBox ?? geo.computeBoundingBox(); return b.copy(geo.boundingBox).applyMatrix4(g.matrixWorld); };
+const kit = {
+  fwd() { H.root.updateMatrixWorld(true); const f = new THREE.Vector3(0, 0, 1).applyQuaternion(H.root.quaternion); f.y = 0; return f.normalize(); },
+  partPoint(m, part, P) { const g = m.groups[part]; m.root.updateMatrixWorld(true); const pv = g.userData.pv; return g.localToWorld(new THREE.Vector3(P[0] - pv[0], P[1] - pv[1], P[2] - pv[2])).toArray(); },
+  // A hand on its way to a hold: up in front of his chest, to just before the target, then onto it (moveHand in clay.js).
+  moveHand(i, target, k, asHold = true) {
+    if (k <= 0) return;
+    H.root.updateMatrixWorld(true);
+    const S = H.arms[i].shoulder.getWorldPosition(new THREE.Vector3()), f = new THREE.Vector3(0, 0, 1).applyQuaternion(H.root.quaternion);
+    const df = (target[0] - S.x) * f.x + (target[2] - S.z) * f.z, lf = Math.min(1.6, Math.max(0.6, df - 1.0)), side = 0.35 + 0.35 * clamp((1.15 - lf) / 0.3);   // smooth (Phase A: it jumped 0.35 to 0.7)
+    const out = new THREE.Vector3(-1, 0, 0).applyQuaternion(H.root.quaternion).multiplyScalar(i === 0 ? side : -side);
+    const pb = Math.min(0.9, Math.max(0.8, df - 0.8));
+    const lift = [S.x + f.x * lf + out.x, S.y - 0.8, S.z + f.z * lf + out.z], pre = [target[0] - f.x * pb + out.x, target[1] + 0.35, target[2] - f.z * pb + out.z];
+    const mixP = (A, B, u) => { const e = u * u * (3 - 2 * u); return [A[0] + (B[0] - A[0]) * e, A[1] + (B[1] - A[1]) * e, A[2] + (B[2] - A[2]) * e]; };
+    if (k < 0.4) H.reach(i, lift, k / 0.4);
+    else if (!asHold) H.reach(i, mixP(lift, target, Math.min(1, (k - 0.4) / 0.6)), 1);
+    else if (k < 0.75) H.reach(i, mixP(lift, pre, (k - 0.4) / 0.35), 1);
+    else if (k < 0.999) { H.reach(i, mixP(pre, target, (k - 0.75) / 0.25), 1); (H.holds ??= []).push({ i, point: target, k: 0.94 }); }
+    else H.hold(i, target, 1);
+  },
+  grip(m, part, points, { k = 1, standOff, dir = [0, 0, 1], lean = 0.1 } = {}) {
+    const P = points.map((p) => kit.partPoint(m, part, p));
+    const c = P.reduce((a, p) => [a[0] + p[0] / P.length, a[1] + p[1] / P.length, a[2] + p[2] / P.length], [0, 0, 0]), L = Math.hypot(dir[0], dir[2]) || 1;
+    const at = [c[0] + dir[0] / L * standOff, c[2] + dir[2] / L * standOff];
+    place(at[0], at[1], Math.atan2(-dir[0], -dir[2]), { lean });
+    if (k > 0) { const f = kit.fwd(), r = [-f.z, f.x], sd = (p) => p[0] * r[0] + p[2] * r[1], [a, b] = sd(P[0]) >= sd(P[1]) ? [P[0], P[1]] : [P[1], P[0]]; kit.moveHand(0, a, k); kit.moveHand(1, b, k); }
+    return at;
+  },
+  // Carry a model by a part: k 0 at rest (root at rest, turned restRy), k 1 in his hands in front of him.
+  carry(m, part, { k = 1, grip = 1, rest, restRy = 0, height = 3.6 } = {}) {
+    const grp = m.groups[part], geo = meshOf(grp).geometry; geo.boundingBox ?? geo.computeBoundingBox();
+    const bb = geo.boundingBox, pv = grp.userData.pv, sc = m.root.scale.x;
+    const c = [(bb.min.x + bb.max.x) / 2 + pv[0], (bb.min.y + bb.max.y) / 2 + pv[1], (bb.min.z + bb.max.z) / 2 + pv[2]];
+    const hx = (bb.max.x - bb.min.x) / 2 * sc, hz = (bb.max.z - bb.min.z) / 2 * sc;
+    const low = rest && rest[1] + c[1] * sc < 2.6, kk = k * k * (3 - 2 * k);   // (low: from the floor, he crouches)
+    if (low && grip > 0) H.legsPose('crouch', Math.min(1, grip * 2) * (1 - kk));
+    const f = kit.fwd(), face = Math.atan2(f.x, f.z), [fx, fz] = H.feet, ahead = 1.35 + hz + 0.2;   // one distance for the floor and the stand, so nothing jumps when the rest place changes
+    const cs = Math.cos(face), sn = Math.sin(face), ox = c[0] * sc * cs + c[2] * sc * sn, oz = -c[0] * sc * sn + c[2] * sc * cs;
+    const held = [fx + f.x * ahead - ox, height - c[1] * sc, fz + f.z * ahead - oz], from = rest || held, e = kk;
+    let d = face - restRy; d = Math.atan2(Math.sin(d), Math.cos(d));
+    m.root.position.set(lerp(from[0], held[0], e), lerp(from[1], held[1], e) + 0.35 * Math.sin(Math.PI * e), lerp(from[2], held[2], e));
+    m.root.rotation.y = restRy + d * e;
+    if (m.shadow) { m.shadow.position.x = m.root.position.x; m.shadow.position.z = m.root.position.z; m.shadow.visible = m.root.position.y < 0.05; }
+    const C2 = kit.partPoint(m, part, c), r = [-f.z, f.x], dd = d * (1 - e), hw = Math.abs(hx * Math.cos(dd)) + Math.abs(hz * Math.sin(dd));
+    const hy = C2[1] + 0.3;   // above the middle: the fist hangs 0.67 below the wrist, and must stay above a stand's top
+    if (grip > 0) { kit.moveHand(0, [C2[0] + r[0] * hw, hy, C2[2] + r[1] * hw], grip); kit.moveHand(1, [C2[0] - r[0] * hw, hy, C2[2] - r[1] * hw], grip); }
+  },
+  // aside: he comes from the side (that far along the seat, 0.8 in front of it), when something stands in front of it.
+  sitOn(m, part, { k = 1, back = 0.1, hands = 1, aside = 0 } = {}) {
+    m.root.updateMatrixWorld(true);
+    const b = boxOf(m.groups[part]), cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2, top = b.max.y, face = m.root.rotation.y;
+    const fx = Math.sin(face), fz = Math.cos(face), hd = Math.abs(fx) * (b.max.x - b.min.x) / 2 + Math.abs(fz) * (b.max.z - b.min.z) / 2;
+    const ax = Math.cos(face), az = -Math.sin(face), fo = aside ? 0.8 : hd + 1.5;
+    const stand = [cx + fx * fo + ax * aside, cz + fz * fo + az * aside], seat = [cx - fx * back, cz - fz * back], e = k * k * (3 - 2 * k);
+    if (k < 0) return { stand, face };
+    place(lerp(stand[0], seat[0], e), lerp(stand[1], seat[1], e), face, { lean: 0.3 * Math.sin(Math.PI * e) });
+    if (e > 0) {
+      H.legsPose('sit', e);
+      const HP = H.legs[0].hip.getWorldPosition(new THREE.Vector3()), up = top + 0.5 - HP.y;
+      if (up > 0) H.root.position.y += up * e;
+      if (e > 0.15) H.seat = { m, part };
+      const hw = hands * e;
+      if (hw > 0) {
+        H.root.updateMatrixWorld(true);
+        const r = new THREE.Vector3(-1, 0, 0).applyQuaternion(H.root.quaternion), M = H.legs[0].hip.getWorldPosition(new THREE.Vector3()).add(H.legs[1].hip.getWorldPosition(new THREE.Vector3())).multiplyScalar(0.5);
+        for (const i of [0, 1]) { const sg = i === 0 ? 1 : -1; H.reach(i, [M.x + r.x * 1.45 * sg, top + 0.5, M.z + r.z * 1.45 * sg], hw); }
+      }
+    }
+    return { stand, face };
+  },
+  typeOn(m, part, t, { at = 0, dur = 2, rate = 5 } = {}) {
+    m.root.updateMatrixWorld(true);
+    const b = boxOf(m.groups[part]), c = [(b.min.x + b.max.x) / 2, b.max.y, (b.min.z + b.max.z) / 2], f = kit.fwd(), r = [-f.z, f.x];
+    const on = clamp((t - at) / 0.5) * (1 - clamp((t - (at + dur)) / 0.5));
+    [0, 1].forEach((i) => { const sg = i === 0 ? 1 : -1, hop = Math.max(0, Math.sin((t - at) * rate * Math.PI + i * Math.PI)) * 0.16;
+      if (on > 0) kit.moveHand(i, [c[0] + r[0] * 0.38 * sg - f.x * 0.3, c[1] + 0.38 + hop, c[2] + r[1] * 0.38 * sg - f.z * 0.3], on, false); });   // 0.3 nearer to him: clear of the lid
+  },
+  pointAt(point, k) {
+    const f = kit.fwd(), [fx, fz] = H.feet, hand = (point[0] - fx) * -f.z + (point[2] - fz) * f.x > 0 ? 0 : 1;
+    const S = H.arms[hand].shoulder.getWorldPosition(new THREE.Vector3()), d = new THREE.Vector3(...point).sub(S).normalize();
+    const T = S.clone().add(d.multiplyScalar(2.3)); T.y = Math.min(T.y, S.y - 0.75);
+    if (k > 0) H.reach(hand, T.toArray(), k);
+  },
+  // An underhand toss of a ball to a point: on his palm before at, in the air for dur after it.
+  toss(ball, t, { hand = 1, at = 1, dur = 0.9, to, height = 2.5 }) {
+    const S = H.arms[hand].shoulder.getWorldPosition(new THREE.Vector3()), f = kit.fwd();
+    const Hh = [S.x + f.x * 1.45, S.y - 1.0, S.z + f.z * 1.45], Wb = [S.x + f.x * 1.5, S.y - 1.75, S.z + f.z * 1.5], Rf = [S.x + f.x * 1.85, S.y - 0.5, S.z + f.z * 1.85];
+    const l3 = (A, B, u) => { const e = u * u * (3 - 2 * u); return [A[0] + (B[0] - A[0]) * e, A[1] + (B[1] - A[1]) * e, A[2] + (B[2] - A[2]) * e]; };
+    const P = t < at - 0.7 ? Hh : t < at - 0.25 ? l3(Hh, Wb, (t - (at - 0.7)) / 0.45) : t < at ? l3(Wb, Rf, (t - (at - 0.25)) / 0.25) : l3(Rf, Hh, clamp((t - at) / 0.6));
+    H.reach(hand, P, t < at + 0.6 ? 1 : 1 - clamp((t - at - 0.6) / 0.4));
+    if (t < at) ball.position.set(P[0], P[1] + 0.25 + BR, P[2]);
+    else { const u = clamp((t - at) / dur), A = [Rf[0], Rf[1] + 0.25 + BR, Rf[2]]; ball.position.set(lerp(A[0], to[0], u), lerp(A[1], to[1], u) + 4 * height * u * (1 - u), lerp(A[2], to[2], u)); }
+    return Hh;
+  },
+};
+// A walk from a to b ([x, z]) at u (0 to 1, already eased), turning from face f0 to the way he walks and to f1.
+function walkAlong(a, b, u, f0, f1) {
+  const d = Math.hypot(b[0] - a[0], b[1] - a[1]), dir = d > 0.3 ? Math.atan2(b[0] - a[0], b[1] - a[1]) : f1;
+  const face = d > 0.3 ? angMix(angMix(f0, dir, sm(0, 0.12, u)), f1, sm(0.88, 1, u)) : angMix(f0, f1, u);
+  H.pose.rest(); place(lerp(a[0], b[0], u), lerp(a[1], b[1], u), face);
+  H.stride(u * d * H.STEP, 0.5 * Math.min(1, d / 1.5) * sm(0, 0.06, u) * (1 - sm(0.94, 1, u)));
+  return face;
+}
+const walkTime = (a, b) => 0.5 + Math.hypot(b[0] - a[0], b[1] - a[1]) / 4.2;
+// A straight walk from a to b is clear when it keeps 3.4 from the middle of every thing in the ring.
+function clearOf(a, b) {
+  for (const [n, p] of Object.entries(RING)) {
+    if (n === 'rug') continue; const [x, z] = W5(...p), dx = b[0] - a[0], dz = b[1] - a[1], L2 = dx * dx + dz * dz || 1;
+    const u = clamp(((x - a[0]) * dx + (z - a[1]) * dz) / L2), d = Math.hypot(a[0] + dx * u - x, a[1] + dz * u - z);
+    if (d < 3.4 && u > 0.02 && u < 0.98) return false;
+  }
+  return true;
+}
+// The point and the way he faces at u along a path of points.
+function ptAlong(pts, u) {
+  const L = pts.slice(1).map((p, k) => Math.hypot(p[0] - pts[k][0], p[1] - pts[k][1])), T = L.reduce((x, y) => x + y, 0);
+  let d = u * T, k = 0; while (k < L.length - 1 && d > L[k]) { d -= L[k]; k++; }
+  const a = pts[k], b = pts[k + 1], f = L[k] ? d / L[k] : 0;
+  return [lerp(a[0], b[0], f), lerp(a[1], b[1], f), Math.atan2(b[0] - a[0], b[1] - a[1])];
+}
+
+// ---------- the actions: one entry each ----------
+const WAVE = Array.from({ length: 25 }, (_, i) => [-1.6 + 2.8 * i / 24, 4.15 + 0.55 * Math.sin(i / 24 * Math.PI * 2), 0.09]);
+const A0W = -35 * D, STEPW = 70 * D, RIM = [-1, 1].map((sx) => [sx * 1.12 * Math.cos(A0W), 4.2 + sx * 1.12 * Math.sin(A0W), 0.62]);
+const ACTS = {
+  // Carry the box from the floor to the stand (dir 0), or back (dir 1).
+  carry: {
+    label: 'carry()', objs: () => [C[5].parcel, C[5].stand],
+    ends() { const P = W5(...RING.parcel), S = W5(...RING.stand); return [[P[0] - 2.6, P[1], PI2], [S[0] - 2.7, S[1], PI2]]; /* room for his knees when he crouches */ },
+    stand(dir) { return this.ends()[dir]; }, end(dir) { return this.ends()[1 - dir]; }, dur: 4.9, commit: 4.2,
+    approach: (dir) => (dir ? W5(9.6, 0.6) : null),   // to the stand: round the ball's stand
+    rests() { const P = W5(...RING.parcel), S = W5(...RING.stand); return [[P[0], 0, P[1]], [S[0], PED, S[1]]]; },
+    idle(st) { const R = this.rests()[st], m = C[5].parcel; m.root.position.set(...R); m.root.rotation.y = PI2; if (m.shadow) { m.shadow.position.set(R[0], 0.01, R[2]); m.shadow.visible = st === 0; } },
+    run(t, dir) {
+      const [a, b] = [this.stand(dir), this.end(dir)], R = this.rests(), k = seg(t, 0.6, 1.0) * (1 - seg(t, 3.4, 0.8)), grip = seg(t, 0, 0.6) * (1 - seg(t, 4.2, 0.7));
+      const ln = 0.22 * grip * (1 - k), lnA = R[dir][1] > 0 ? ln : 0, lnB = R[1 - dir][1] > 0 ? ln : 0;   // a lean to reach the box where it rests (it comes and goes with the hands)
+      if (t < 1.6) { H.pose.rest(); place(a[0], a[1], a[2], { lean: lnA }); }
+      else if (t < 3.4) walkAlong([a[0], a[1]], [b[0], b[1]], pace(seg(t, 1.6, 1.8)), a[2], b[2]);
+      else { H.pose.rest(); place(b[0], b[1], b[2], { lean: lnB }); }
+      kit.carry(C[5].parcel, 'box', { k, grip, rest: t < 2.5 ? R[dir] : R[1 - dir], restRy: PI2 });
+      blendFace('neutral', 'thinking', grip);
+    },
+  },
+  // Sit on the bench; a laptop grows on his knees (as the sets grow out of the floor), he types, it goes, he stands up.
+  sit: {
+    label: 'sitOn() · typeOn()', objs: () => [C[5].bench],
+    stand() { const s = kit.sitOn(C[5].bench, 'seat', { k: -1 }); return [s.stand[0], s.stand[1], s.face]; }, end(d) { return this.stand(d); }, dur: 5.6, commit: 99,
+    idle() { C[5].laptop.root.scale.setScalar(1e-4); C[5].laptop.root.visible = false; },
+    run(t) {
+      const sitK = seg(t, 0, 1.1) * (1 - seg(t, 4.6, 1.0)), L = C[5].laptop;
+      kit.sitOn(C[5].bench, 'seat', { k: sitK, hands: 1 - seg(t, 1.6, 0.4) + seg(t, 4.1, 0.4) * (1 - seg(t, 4.6, 0.3)) });
+      H.root.updateMatrixWorld(true);
+      const f = kit.fwd(), M = H.legs[0].hip.getWorldPosition(new THREE.Vector3()).add(H.legs[1].hip.getWorldPosition(new THREE.Vector3())).multiplyScalar(0.5);
+      const on = seg(t, 1.1, 0.5) * (1 - seg(t, 4.1, 0.5)), k = on <= 0 ? 1e-4 : 0.7 * (on >= 1 ? 1 : back(on));
+      L.root.position.set(M.x + f.x * 1.45, M.y + 0.58, M.z + f.z * 1.45); L.root.rotation.y = Math.atan2(f.x, f.z) + Math.PI;
+      L.root.scale.setScalar(k); L.root.visible = on > 0;
+      kit.typeOn(L, 'keys', t, { at: 1.8, dur: 2.3 });
+      blendFace('neutral', 'thinking', seg(t, 1.8, 0.5) * (1 - seg(t, 3.9, 0.5)));
+      lookAt(L.root.position, seg(t, 1.1, 0.5) * (1 - seg(t, 4.2, 0.5)));
+    },
+  },
+  // Kneel by the strawberry, point at it, nod.
+  kneel: {
+    label: "legsPose('kneel') · pointAt()", objs: () => [C[5].berry],
+    stand() { const B = W5(...RING.berry); return [B[0] + 3.5, B[1] + 0.6, -1.3]; }, end(d) { return this.stand(d); }, dur: 4.4, commit: 99,
+    idle() {},
+    run(t) {
+      const s = this.stand(), B = W5(...RING.berry), P = [B[0], 1.4, B[1]];
+      H.pose.rest(); place(s[0], s[1], s[2]); H.legsPose('kneel', seg(t, 0, 0.9) * (1 - seg(t, 3.5, 0.9)));
+      kit.pointAt(P, seg(t, 1.2, 0.5) * (1 - seg(t, 3.0, 0.5)));
+      blendFace('neutral', 'smile', seg(t, 1.6, 0.4) * (1 - seg(t, 3.6, 0.5)));
+      want.gest = (h) => h.nod(t, { at: 2.0, count: 2 });
+      lookAt(new THREE.Vector3(...P), seg(t, 0.4, 0.5) * (1 - seg(t, 3.4, 0.5)));
+    },
+  },
+  // Write a wave on the whiteboard (dir 0), or wipe it off along the same line (dir 1).
+  write: {
+    label: 'trace()', objs: () => [C[5].board],
+    pen(u) { const L = WAVE.length - 1, f = clamp(u) * L, i = Math.min(L - 1, Math.floor(f)), w = f - i, B = W5(...RING.board); return [B[0] + lerp(WAVE[i][0], WAVE[i + 1][0], w), lerp(WAVE[i][1], WAVE[i + 1][1], w), B[1] + 0.09]; },
+    Z() { return W5(...RING.board)[1] + 0.09 + 1.75; },
+    stand(dir) { return [this.pen(dir)[0] + 1.3, this.Z(), Math.PI]; }, end(dir) { return this.stand(1 - dir); }, dur: 5.1, commit: 4.3,
+    idle(st) { C[5].ink(st ? 1 : 0); },
+    run(t, dir) {
+      const u = seg(t, 0.7, 3.6), uu = dir ? 1 - u : u, k = seg(t, 0, 0.7) * (1 - seg(t, 4.3, 0.8)), P = this.pen(uu);
+      H.pose.rest(); place(P[0] + 1.3, this.Z(), Math.PI, { lean: 0.06 }); H.stride((P[0] + 1.3) * H.STEP, 0.25 * seg(t, 0.7, 0.3) * (1 - seg(t, 4.0, 0.3)));
+      const scrub = dir ? 0.22 * Math.sin(t * 14) * seg(t, 0.7, 0.3) * (1 - seg(t, 4.0, 0.3)) : 0;
+      if (k > 0) kit.moveHand(1, [P[0], P[1] + scrub, P[2]], k);
+      C[5].ink(uu);
+      blendFace('neutral', 'thinking', k);
+      lookAt(new THREE.Vector3(...P), k);
+    },
+  },
+  // Take the ball from the low stand and toss it into the basket (dir 0); take it out and toss it back (dir 1).
+  toss: {
+    label: 'toss()', objs: () => [C[5].basketStand, C[5].basket, C[5].rack, C[5].ball],
+    spots() { const R = W5(...RING.rack), K = W5(...RING.basket); return [[R[0], PED + BR, R[1]], [K[0], PED + 0.5 * 0.12 + BR, K[1]]]; },
+    stand(dir) { const R = W5(...RING.rack), K = W5(...RING.basket); return dir ? [K[0], K[1] + 3.0, Math.PI] : [R[0], R[1] - 3.0, 0]; },
+    approach: (dir) => W5(5, RING[dir ? 'basket' : 'rack'][1] + (dir ? 3.0 : -3.0)),   // from the side: the stand points are between the two stands
+    end(dir) { const s = this.stand(dir); return [s[0], s[1], s[2] + Math.PI]; }, dur: 4.2, commit: 2.9,   // he ends facing the way he threw
+    idle(st) { C[5].ball.position.set(...this.spots()[st]); },
+    run(t, dir) {
+      const s = this.stand(dir), from = this.spots()[dir], to = this.spots()[1 - dir], ball = C[5].ball;
+      const turn = seg(t, 1.3, 0.8), face = angMix(s[2], s[2] + Math.PI, turn);
+      H.pose.rest(); place(s[0], s[1], face, { lean: 0.32 * seg(t, 0, 0.6) * (1 - seg(t, 0.9, 0.4)) }); H.stride(turn * 2.2, 0.18 * Math.sin(Math.PI * turn));
+      const top = [from[0], from[1] + BR, from[2]], grab = seg(t, 0, 0.8), lift = seg(t, 0.8, 0.5);
+      if (t < 1.3) {
+        if (lift <= 0) { kit.moveHand(1, top, grab); ball.position.set(...from); }
+        else { const S = H.arms[1].shoulder.getWorldPosition(new THREE.Vector3()), f = kit.fwd(), up = [S.x + f.x * 1.45, S.y - 1.0, S.z + f.z * 1.45];
+          const p = [lerp(top[0], up[0], lift), lerp(top[1], up[1], lift) + 0.3 * Math.sin(Math.PI * lift), lerp(top[2], up[2], lift)]; H.hold(1, p, 1); /* he holds the ball as he lifts it */ ball.position.set(p[0], p[1] + lerp(-BR, 0.25 + BR, lift), p[2]); }
+      } else kit.toss(ball, t, { at: 2.9, dur: 0.9, to, height: 1.6 });
+      blendFace('neutral', 'smile', seg(t, 3.6, 0.4));
+      lookAt(ball.position, seg(t, 0, 0.4) * (1 - seg(t, 3.8, 0.4)));
+    },
+  },
+  // Turn the hand wheel a step clockwise (dir 0) or back (dir 1), with both hands on its rim.
+  wheel: {
+    label: 'grip()', objs: () => [C[5].wheel],
+    dir3() { const ry = C[5].wheel.root.rotation.y; return [Math.sin(ry), 0, Math.cos(ry)]; },
+    stand() { const m = C[5].wheel, P = RIM.map((p) => kit.partPoint(m, 'wheel', p)), d = this.dir3(); const c = [(P[0][0] + P[1][0]) / 2, (P[0][2] + P[1][2]) / 2]; return [c[0] + d[0] * 2.0, c[1] + d[2] * 2.0, Math.atan2(-d[0], -d[2])]; },
+    end(d) { return this.stand(d); }, dur: 2.8, commit: 1.0,
+    idle(st) { C[5].wheel.setPose(st * STEPW / PI2); },
+    run(t, dir) {
+      const a = (dir ? 1 - seg(t, 0.7, 1.4) : seg(t, 0.7, 1.4)) * STEPW, k = seg(t, 0, 0.6) * (1 - seg(t, 2.3, 0.5));
+      C[5].wheel.setPose(a / PI2); H.pose.rest();
+      kit.grip(C[5].wheel, 'wheel', RIM, { k, standOff: 2.0, dir: this.dir3(), lean: 0.08 });
+      blendFace('neutral', 'thinking', k);
+    },
+  },
+};
+const ORDER = ['kneel', 'sit', 'wheel', 'write', 'toss', 'carry'];   // round the ring, for auto-play
+
+// ---------- the action player: idle, walk to X, do X, undo X (a click came in while he was busy) ----------
+// Time only: it reads dt, never the scroll. snap() gives what the transitions out of the chapter play back.
+const P5 = { mode: 'idle', at: null, face: PI2, act: null, dir: 0, t: 0, w: null, next: null, quiet: 0, last: null, st: {} };
+function p5Init() { if (!P5.at) { P5.at = [W5(-6.5, 5.5)[0], W5(-6.5, 5.5)[1]]; P5.face = PI2; for (const k in ACTS) P5.st[k] = 0; } }
+function p5Click(name) { P5.next = name; P5.quiet = 0; if (P5.mode === 'do') P5.mode = 'undo'; }
+function p5Step(dt) {
+  p5Init();
+  if (P5.mode === 'idle') {
+    P5.quiet += dt;
+    if (!P5.next && !still && P5.quiet > 4) { const i = (ORDER.indexOf(P5.last) + 1) % ORDER.length; P5.next = ORDER[i]; }
+    if (P5.next) { const A = ACTS[P5.next], s = A.stand(P5.st[P5.next]), ap = A.approach?.(P5.st[P5.next]), via = ap ? (clearOf(P5.at, ap) ? [ap] : [W5(0, -0.5), ap]) : clearOf(P5.at, s) ? [] : [W5(0, -0.5)]; const bk = P5.atThing ? [P5.at[0] - Math.sin(P5.face) * 1.4, P5.at[1] - Math.cos(P5.face) * 1.4] : null;
+      P5.w = { from: [...P5.at], f0: P5.face, back: bk, to: s, via, t: 0, dur: walkTime(P5.at, s) + (via.length ? 1.2 : 0) + (bk ? 0.8 : 0) }; P5.atThing = false; P5.act = P5.next; P5.next = null; P5.mode = 'walk'; }
+  } else if (P5.mode === 'walk') {
+    if (P5.next && P5.next !== P5.act) { const e = p5Exit(P5); P5.at = [e[0], e[1]]; P5.face = e[2]; P5.mode = 'idle'; return p5Step(0); }
+    P5.next = null; P5.w.t += dt;
+    if (P5.w.t >= P5.w.dur) { P5.mode = 'do'; P5.t = 0; P5.dir = P5.st[P5.act]; P5.at = [P5.w.to[0], P5.w.to[1]]; P5.face = P5.w.to[2]; }
+  } else if (P5.mode === 'do' || P5.mode === 'undo') {
+    const A = ACTS[P5.act], back = P5.mode === 'undo' && P5.t < A.commit;
+    P5.t += (P5.mode === 'undo' ? 2 : 1) * dt * (back ? -1 : 1);
+    if (back && P5.t <= 0) { P5.t = 0; const s = A.stand(P5.dir); P5.at = [s[0], s[1]]; P5.face = s[2]; P5.mode = 'idle'; P5.quiet = 0; P5.atThing = true; }
+    else if (!back && P5.t >= A.dur) { const e = A.end(P5.dir); P5.st[P5.act] = 1 - P5.dir; P5.at = [e[0], e[1]]; P5.face = e[2]; P5.last = P5.act; P5.mode = 'idle'; P5.quiet = 0; P5.atThing = true; }
+  }
+}
+// Draw him and every object from a state of the player (live, or a snapshot played back by the scroll).
+// f (0 to 1): how far the clean ending of a busy action has got (undo, as for a click).
+const busy = (p) => p.mode === 'do' || p.mode === 'undo';
+// A walk: first a step back from the thing he used (facing it still), then along its points.
+function walkDraw(w) {
+  const ub = w.back ? 0.8 / w.dur : 0, u = clamp(w.t / w.dur);
+  if (u < ub) { const e = sm(0, ub, u); H.pose.rest(); place(lerp(w.from[0], w.back[0], e), lerp(w.from[1], w.back[1], e), w.f0); H.stride(e * 1.4 * H.STEP, 0.15 * Math.sin(Math.PI * e)); return; }
+  walkPts([w.back || w.from, ...(w.via || []), [w.to[0], w.to[1]]], pace(clamp((u - ub) / (1 - ub))), w.f0, w.to[2], Math.min(0.3, 0.6 / (w.dur * (1 - ub))));   // a turn takes 0.6 s
+}
+function stAfter(p, f) { const st = { ...p.st }; if (busy(p) && f >= 1 && p.t >= ACTS[p.act].commit) st[p.act] = 1 - p.dir; return st; }
+function p5Draw(p, f = 0) {
+  const st = stAfter(p, f), mid = busy(p) && f < 1 && H;
+  for (const k in ACTS) if (!(mid && p.act === k)) ACTS[k].idle(st[k]);
+  if (!H) return;
+  if (mid) { const A = ACTS[p.act], tt = p.t < A.commit ? lerp(p.t, 0, f) : lerp(p.t, A.dur, f); A.run(clamp(tt, 0, A.dur - 1e-3), p.dir); }
+  else if (p.mode === 'walk') walkDraw(p.w);
+  else { const e = p5Exit(p); H.pose.rest(); place(e[0], e[1], e[2]); }
+}
+// Where he ends up after the clean ending of a snapshot: [x, z, face].
+function p5Exit(p) {
+  if (p.mode === 'do' || p.mode === 'undo') { const A = ACTS[p.act]; return p.t < A.commit ? A.stand(p.dir) : A.end(p.dir); }
+  if (p.mode === 'walk') { const w = p.w, ub = w.back ? 0.8 / w.dur : 0, u = clamp(w.t / w.dur); if (u < ub) { const e = sm(0, ub, u); return [lerp(w.from[0], w.back[0], e), lerp(w.from[1], w.back[1], e), w.f0]; } const P = ptAlong([w.back || w.from, ...(w.via || []), [w.to[0], w.to[1]]], pace(clamp((u - ub) / (1 - ub)))); return [P[0], P[1], P[2]]; }
+  return [p.at[0], p.at[1], p.face];
+}
+const snap = () => JSON.parse(JSON.stringify({ mode: P5.mode, at: P5.at, face: P5.face, act: P5.act, dir: P5.dir, t: P5.t, w: P5.w, st: P5.st }));
+let rec5 = null;   // the player's state when the scroll left the chapter
+window.__clayPlayer = { click: (n) => p5Click(n), state: () => snap(), acts: () => Object.keys(ACTS), stand: (n) => ACTS[n].stand(P5.st[n]),
+  reset: (x, z, face = 0) => { p5Init(); Object.assign(P5, { mode: 'idle', at: [x, z], face, next: null, quiet: 0, act: null, w: null, atThing: true }); }, w5: W5 };
+
+// ---------- the 12-moves set ----------
+const labelEl = $('.act-label');
+C[5] = {
+  get start() { const e = rec5 ? p5Exit(rec5) : [W5(-6.5, 5.5)[0], W5(-6.5, 5.5)[1], PI2]; return e; },
+  end: [0, 0, 0], next: 'rug',
+  build() {
+    const at = (n, o = {}) => { const [x, z] = W5(...RING[n]); return { x, z, ...o }; };
+    this.berry = model('strawberry', at('berry', { k: 0.8 }));
+    this.bench = model('bench', at('bench', { ry: PI2 }));
+    this.laptop = model('laptop', { ...at('bench'), k: 0.7, floor: false }); this.laptop.setPose(0);
+    this.wheel = model('handwheel', at('wheel', { ry: Math.atan2(-RING.wheel[0], -RING.wheel[1]) }));
+    this.board = model('whiteboard', at('board'));
+    this.basketStand = model('pedestal', at('basket')); this.basket = model('basket', { ...at('basket'), y: PED, k: 0.5, floor: false });
+    this.rack = model('pedestal', at('rack'));
+    this.parcel = model('parcel', at('parcel', { ry: PI2 })); this.stand = model('pedestal', at('stand'));
+    this.ball = new THREE.Mesh(new THREE.SphereGeometry(BR, 32, 20), new THREE.MeshPhysicalMaterial({ color: '#cf4f45', roughness: 0.5, sheen: 0.2 })); put(this.ball);
+    Object.assign(this.ball.userData, { part: 'ball', pv: [0, 0, 0], f: (x, y, z) => Math.hypot(x, y, z) - BR });
+    // The rug of chapter 6 (9.6 by 3.8, as in Phase A's draft): he lies on it there.
+    const rc = document.createElement('canvas'); rc.width = 512; rc.height = 204; const rg = rc.getContext('2d');
+    rg.fillStyle = '#c9a27e'; rg.fillRect(0, 0, 512, 204); rg.fillStyle = '#8a5a44'; for (const y of [22, 170]) rg.fillRect(0, y, 512, 12);
+    const rt = new THREE.CanvasTexture(rc); rt.colorSpace = THREE.SRGBColorSpace;
+    this.rug = new THREE.Mesh(new THREE.BoxGeometry(9.6, 0.08, 3.8), new THREE.MeshPhysicalMaterial({ map: rt, roughness: 0.9, sheen: 0.4, sheenRoughness: 0.8 }));
+    const [rx, rz] = W5(...RING.rug); this.rug.position.set(rx, 0.04, rz); put(this.rug);
+    Object.assign(this.rug.userData, { part: 'rug', pv: [0, 0, 0], f: (x, y, z) => { const q = [Math.abs(x) - 4.8, Math.abs(y) - 0.04, Math.abs(z) - 1.9]; return Math.hypot(...q.map((v) => Math.max(v, 0))) + Math.min(Math.max(...q), 0); } });
+    // The ink on the whiteboard: a canvas on its face, drawn up to the pen.
+    const c = document.createElement('canvas'); c.width = 1040; c.height = 600; this.inkC = c;
+    this.inkT = new THREE.CanvasTexture(c); this.inkT.colorSpace = THREE.SRGBColorSpace;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(5.2, 3.0), new THREE.MeshBasicMaterial({ map: this.inkT, transparent: true, depthWrite: false }));
+    m.position.set(0, 4.55, 0.0815); this.board.groups.board.add(m); this.inkU = -1;
+    // Which action each thing starts (a click on it), for the hover label and the hit test.
+    this.things = [];
+    for (const [name, A] of Object.entries(ACTS)) for (const o of A.objs()) this.things.push({ name, o: o.root || o });
+    p5Init();
+  },
+  ink(u) {
+    if (Math.abs(u - this.inkU) < 1e-4) return; this.inkU = u;
+    const x = this.inkC.getContext('2d'); x.clearRect(0, 0, 1040, 600); x.strokeStyle = '#2b4c9b'; x.lineWidth = 14; x.lineCap = x.lineJoin = 'round';
+    const N = Math.floor(u * 400); x.beginPath();
+    for (let j = 0; j <= N; j++) { const q = ACTS.write.pen(j / 400), B = W5(...RING.board); const X = (q[0] - B[0] + 2.6) / 5.2 * 1040, Y = (1 - (q[1] - 3.05) / 3.0) * 600; j ? x.lineTo(X, Y) : x.moveTo(X, Y); }
+    if (N > 0) x.stroke(); this.inkT.needsUpdate = true;
+  },
+  // The 11 other things sink into the floor before he lies down (k 1 shown, 0 gone); the rug stays.
+  sink(k) {
+    const e = k * k * (3 - 2 * k);   // no overshoot: a stand that grew past its size would go into the ball
+    for (const th of this.things) { const o = th.o; o.userData.home ??= o.position.clone(); }
+    for (const o of [this.berry, this.bench, this.wheel, this.board, this.basketStand, this.basket, this.rack, this.parcel, this.stand].map((m) => m.root).concat(this.ball)) {
+      o.scale.setScalar(Math.max(e, 0.002) * (o.userData.k0 ??= o.scale.x)); o.visible = e > 0.002;
+    }
+    for (const m of [this.berry, this.bench, this.wheel, this.board, this.basketStand, this.basket, this.rack, this.parcel, this.stand]) if (m.shadow) m.shadow.material.opacity = 0.4 * e;
+  },
+  // The thing under a screen point: screen boxes of each thing, 24 px larger, at least 48 by 48.
+  pick(x, y) {
+    let best = null, bd = 1e9; const b = new THREE.Box3(), v = new THREE.Vector3();
+    for (const th of this.things) {
+      th.o.updateMatrixWorld(true); b.setFromObject(th.o); if (b.isEmpty()) continue;
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      for (let i = 0; i < 8; i++) { const [sx, sy] = toScreen(v.set(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y : b.min.y, i & 4 ? b.max.z : b.min.z)); x0 = Math.min(x0, sx); x1 = Math.max(x1, sx); y0 = Math.min(y0, sy); y1 = Math.max(y1, sy); }
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, hw = Math.max(24, (x1 - x0) / 2 + 24), hh = Math.max(24, (y1 - y0) / 2 + 24);
+      if (Math.abs(x - cx) <= hw && Math.abs(y - cy) <= hh) { const d = Math.hypot(x - cx, y - cy); if (d < bd) { bd = d; best = { ...th, top: [cx, y0] }; } }
+    }
+    return best;
+  },
+  act(t) {
+    const live = state.i === 5 && state.u === 0;
+    if (live) { if (H) { p5Step(dt); p5Draw(P5); rec5 = snap(); } else p5Draw(P5); }
+    else if (!(state.i === 5 && state.u > 0)) p5Draw(rec5 || P5, 1);
+    this.sink(1);
+  },
+  shot(t) { return { at: [SC[0] + 0.5, 3.2, SC[1] - 1.5], dist: 50, az: -4 + 3 * pn.x, el: 24 - 2 * pn.y, sx: 0.1, sy: 0.16 }; },
+};
+// The walk in from the cart (4 to 5): to where the player left him, then his action plays back to where it was.
+const VIA5 = () => [W5(-16, 10)];
+function walkPts(pts, u, f0, f1, ft = 0.06) {
+  const L = pts.slice(1).map((p, k) => Math.hypot(p[0] - pts[k][0], p[1] - pts[k][1])), T = L.reduce((x, y) => x + y, 0);
+  let d = u * T, k = 0; while (k < L.length - 1 && d > L[k]) { d -= L[k]; k++; }
+  const a = pts[k], b = pts[k + 1], f = L[k] ? d / L[k] : 0, dir = Math.atan2(b[0] - a[0], b[1] - a[1]);
+  const face = angMix(angMix(f0, dir, sm(0, ft, u)), f1, sm(1 - ft, 1, u));
+  H.pose.rest(); place(lerp(a[0], b[0], f), lerp(a[1], b[1], f), face);
+  H.stride(u * T * H.STEP, 0.5 * sm(0, 0.04, u) * (1 - sm(0.96, 1, u)));
+}
+function into5(s) {
+  const p = rec5, e = C[5].start, a = C[4].end;
+  if (p && busy(p) && s.u > 0.85) { p5Draw(p, 1 - sm(0.85, 1, s.u)); return; }
+  if (p) p5Draw(p, 1);   // the objects as he left them
+  walkPts([[a[0], a[1]], ...VIA5(), [e[0], e[1]]], pace(Math.min(1, s.u / 0.85)), a[2], e[2]);
+  blendFace('neutral', 'smile', 0.5);
+}
+// From the ring to the rug (5 to 6): he ends what he does, walks to the rug, and yawns.
+const RUGSTAND = () => { const [x, z] = W5(1.6, RING.rug[1]); return [x, z, PI2]; };
+function outOf5(s) {
+  const p = rec5 || snap(), e = p5Exit(p), r = RUGSTAND(), k = 1 - sm(0.3, 0.7, s.u);
+  if (s.u < 0.25 && busy(p)) { p5Draw(p, s.u / 0.25); C[5].sink(k); return; }
+  p5Draw({ ...p, mode: 'idle', st: stAfter(p, 1), at: [e[0], e[1]], face: e[2] }, 1); C[5].sink(k);
+  if (s.u < 0.8) walkAlong([e[0], e[1]], [r[0], r[1]], pace(sm(0.25, 0.8, s.u)), e[2], r[2]);
+  else { H.pose.rest(); place(r[0], r[1], r[2]); }
+  blendFace('neutral', 'sleepy', sm(0.8, 1, s.u));
+}
+
+// 6. Nothing renders until the checks pass: he lies down on the rug, and the console of "make look" checks his pose
+// on every frame, with its real measures; when they pass, he falls asleep. The way out is his dream (chapter 7).
+// The lie-down pose: Phase A's proved helper replaces this function (clay-kit worktree, lie down). k 0 standing, 0.5
+// sitting on the floor with straight legs, 1 flat on his back. From the body sizes in styles/clay.md.
+function lieDown(x, z, face, k, floorY) {
+  const s1 = sm(0, 0.5, k), s2 = sm(0.5, 1, k);
+  H.pose.rest(); place(x, z, face);
+  for (const l of H.legs) { l.hip.rotation.x = -PI2 * s1; l.knee.rotation.x = 0.9 * Math.sin(Math.PI * s1); l.ankle.rotation.x = 0; }
+  if (s2 > 0) {
+    H.root.updateMatrixWorld(true);
+    const P = H.legs[0].hip.getWorldPosition(new THREE.Vector3()).add(H.legs[1].hip.getWorldPosition(new THREE.Vector3())).multiplyScalar(0.5);
+    const ax = new THREE.Vector3(1, 0, 0).applyQuaternion(H.root.quaternion), q = new THREE.Quaternion().setFromAxisAngle(ax, -PI2 * s2);
+    H.root.position.sub(P).applyQuaternion(q).add(P); H.root.quaternion.premultiply(q);
+    for (const l of H.legs) l.hip.rotation.x += PI2 * s2;
+  }
+  H.posed = Math.max(H.posed || 0, sm(0, 0.1, k));
+  plantAll(floorY);
+  // Hands rest on the rug beside his hips.
+  const hk = sm(0.42, 0.62, k);
+  if (hk > 0) {
+    H.root.updateMatrixWorld(true);
+    const M = H.legs[0].hip.getWorldPosition(new THREE.Vector3()).add(H.legs[1].hip.getWorldPosition(new THREE.Vector3())).multiplyScalar(0.5);
+    const r = new THREE.Vector3(Math.cos(face), 0, -Math.sin(face)), f = new THREE.Vector3(Math.sin(face), 0, Math.cos(face));
+    for (const i of [0, 1]) { const sg = i === 0 ? -1 : 1, p = M.clone().addScaledVector(r, 1.35 * sg).addScaledVector(f, -0.3 * (1 - s2)); p.y = floorY + 0.12; H.hold(i, p.toArray(), hk, [0, -1, 0]); }
+  }
+}
+// Lift or lower him so the lowest point of his whole body is at y (the kit's plant() looks at his legs only).
+function plantAll(y) {
+  H.root.updateMatrixWorld(true); let lo = 1e9; const v = new THREE.Vector3();
+  for (const sh of H.shapes) { const p = sh.geometry?.attributes.position; if (!p) continue; for (let i = 0; i < p.count; i += 23) { v.fromBufferAttribute(p, i).applyMatrix4(sh.matrixWorld); if (v.y < lo) lo = v.y; } }
+  H.root.position.y += y - lo;
+}
+const consoleEl = $('.console'), lineEls = [...document.querySelectorAll('.console .line')];
+const RUGTOP = 0.08;
+C[6] = {
+  get start() { return RUGSTAND(); }, end: [0, 0, 0], next: 'dream',
+  build() {
+    this.msgs = ['', '', '']; this.oks = [null, null, null];
+    // The dream: three puffs and a round bubble in chapter 7's colour, with film frames in it (in the scene, not a set).
+    const clay = new THREE.MeshPhysicalMaterial({ color: '#f0e7d6', roughness: 0.6, sheen: 0.3 });
+    this.puffs = [0.22, 0.34, 0.5].map((r) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 32, 20), clay); m.visible = false; scene.add(m); return m; });
+    this.bubble = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 40), new THREE.MeshBasicMaterial({ color: chs[7].dataset.bg, side: THREE.DoubleSide, toneMapped: false }));
+    this.edge = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 40), new THREE.MeshPhysicalMaterial({ color: '#f0e7d6', roughness: 0.6, side: THREE.BackSide }));
+    // Drawn over the world: as it grows, it covers him and then the whole screen.
+    this.bubble.material.depthTest = false; this.bubble.renderOrder = 12; this.edge.material.depthTest = false; this.edge.renderOrder = 11;
+    this.bubble.visible = this.edge.visible = false; scene.add(this.bubble, this.edge);
+    this.frames = [];
+  },
+  hip() { const r = RUGSTAND(); return [r[0], r[1]]; },
+  // The checks: real measures of his pose against the rug.
+  checks() {
+    H.root.updateMatrixWorld(true);
+    const v = new THREE.Vector3(); let torsoLow = 1e9, deep = 0;
+    const R = C[5].rug, inv = R.matrixWorld.clone().invert(), f = R.userData.f;
+    for (const sh of H.shapes) {
+      const p = sh.geometry?.attributes.position; if (!p) continue; const torso = /^(shirt|hip|collar)/.test(sh.userData.part);
+      for (let i = 0; i < p.count; i += 29) { v.fromBufferAttribute(p, i).applyMatrix4(sh.matrixWorld); if (torso && v.y < torsoLow) torsoLow = v.y; const q = v.clone().applyMatrix4(inv); const d = f(q.x, q.y, q.z); if (d < -deep) deep = -d; }
+    }
+    const gap = torsoLow - RUGTOP, hands = (H.holds || []).filter((h) => h.k > 0.95).length;
+    return [
+      gap > 0.4 ? [`his back is ${gap.toFixed(2)} above the rug`, false] : ['he lies flat on the rug', true],   // his head rests on his hair, so his back is a little above
+      deep > 0.04 ? [`a part of him goes ${deep.toFixed(2)} into the rug`, false] : ['no part of him goes into the rug', true],
+      hands < 2 ? [`${2 - hands} hand${hands === 1 ? '' : 's'} not on the rug yet`, false] : ['both hands rest on the rug', true],
+    ];
+  },
+  act(t) {
+    const live = state.i === 6 && state.u === 0;
+    const p = rec5 || snap(); p5Draw({ ...p, mode: 'idle', st: stAfter(p, 1), at: [0, 0], face: 0 }, 1);
+    C[5].sink(0);
+    if (!H) return;
+    const [x, z] = this.hip();
+    lieDown(x, z, PI2, sm(0, 0.5, t), RUGTOP);
+    const sleep = sm(0.82, 0.95, t);
+    blendFace('sleepy', 'sleepy', 1);
+    if (sleep > 0) { want.gest = (h) => h.blink(sleep); if (!still) H.root.position.y += 0.03 * (1 + Math.sin(now() / 700)) * sleep; }
+    lookAt(null, 0);
+    // The console, at the top right of the set, over everything.
+    const res = this.checks(), bw = consoleEl.offsetWidth, [hx, hy] = toScreen(H.head.getWorldPosition(new THREE.Vector3()));
+    const bx = clamp(hx + 60, 16, innerWidth - bw - 16), by = clamp(hy - consoleEl.offsetHeight - 80, 90, innerHeight - consoleEl.offsetHeight - 16);
+    consoleEl.style.transform = `translate(${bx.toFixed(1)}px, ${by.toFixed(1)}px)`;
+    res.forEach(([text, ok], i) => {
+      const el = lineEls[i], msg = $('.msg', el);
+      if (msg.textContent !== text) { const kind = text.replace(/[0-9.]+/g, '#'); msg.textContent = text; if (kind !== this.msgs[i]) { this.msgs[i] = kind; msg.getAnimations().forEach((a) => a.cancel()); msg.animate([{ opacity: 0.15 }, { opacity: 1 }], { duration: 240, easing: 'ease-out' }); } }
+      if (ok !== this.oks[i]) { this.oks[i] = ok; el.classList.toggle('ok', ok); }
+    });
+    consoleEl.classList.toggle('ok', res.every((r) => r[1]));
+    if (!live) consoleEl.classList.toggle('ok', false);
+  },
+  // The dream at u (0 to 1 of the transition to chapter 7): puffs, then a bubble that grows round the camera.
+  bubbleAt(u) {
+    const head = H ? H.head.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(this.hip()[0] - 4, 0.6, this.hip()[1]);
+    const c = head.clone().add(new THREE.Vector3(-1.2, 4.6, 0.6)), r = 0.05 + 2.4 * sm(0.12, 0.32, u) + 60 * sm(0.4, DREAM_CUT, u) ** 2;
+    return { head, c, r };
+  },
+  dream(u) {
+    const on = u > 0 && u < DREAM_CUT, { head, c, r } = this.bubbleAt(u);
+    this.puffs.forEach((m, i) => { const k = sm(0.02 + i * 0.05, 0.08 + i * 0.05, u) * (1 - sm(0.34, 0.4, u)); m.visible = on && k > 0.01; m.scale.setScalar(Math.max(k, 0.01)); m.position.copy(head).lerp(c, 0.18 + i * 0.22); m.position.y += 0.3 * i; });
+    this.bubble.visible = on && r > 0.06; this.bubble.position.copy(c); this.bubble.scale.setScalar(r);
+    this.edge.visible = this.bubble.visible && u < 0.42; this.edge.position.copy(c); this.edge.scale.setScalar(r * 1.035);
+    // Film frames from chapter 7 drift in the bubble, on its front, facing the camera.
+    if (!this.frames.length && C[7].pics) this.frames = C[7].pics.slice(1, 4).map((p) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.9), new THREE.MeshBasicMaterial({ map: p.material.map, toneMapped: false, depthTest: false })); m.renderOrder = 13; m.visible = false; scene.add(m); return m; });
+    const T = now() / 1000;
+    this.frames.forEach((m, i) => {
+      const k = sm(0.2 + i * 0.03, 0.3 + i * 0.03, u); m.visible = on && k > 0.01 && u < 0.5;
+      const off = new THREE.Vector3(((i - 1) * 0.75 + 0.15 * Math.sin(T * 0.5 + i)) * r / 2.45, ((i % 2) - 0.4) * 0.6 * r / 2.45, 0);
+      m.quaternion.copy(cam.quaternion); off.applyQuaternion(cam.quaternion);
+      const toCam = cam.position.clone().sub(c).normalize();
+      m.position.copy(c).add(off).addScaledVector(toCam, r * 1.02); m.scale.setScalar(k * r / 2.45);
+    });
+  },
+  shot(t) { const [x, z] = this.hip(); return { at: [x - 1.6, 1.8, z], dist: 26, az: 4 + 3 * pn.x, el: 26 - 2 * pn.y, sx: 0.14, sy: 0.12 }; },
+};
+const DREAM_CUT = 0.62;   // the dream's cut: the camera is inside the bubble, so the screen is chapter 7's colour
+
+// 7. The result is a real MP4: a film strip rolls out of his hands, from the title card of the visitor's own
 // topic to frames of six finished videos. A click brings a frame to the camera and plays it.
 const CLIPS = ['bayes', 'ruler', 'knn', 'robot', 'lever', 'servo'];
 const FW = 7.2, FH = 4.05, GAP = 8.1;
 // He holds a film spool by its rim, and the strip comes out of it. He stands behind the end of the strip.
 const SPOOL = [FX + 9.0, 4.6, 0], STAND = [FX + 11.0, -1.0], SFACE = Math.atan2(SPOOL[0] - STAND[0], SPOOL[2] - STAND[1]);
-C[6] = {
+C[7] = {
   start: [...STAND, SFACE], end: [...STAND, SFACE],
   build() {
     film = this;
@@ -1230,7 +1688,7 @@ C[6] = {
     });
     // The roll gets thinner as the film comes out. The cut is in world units: the set grows and sinks (morph).
     const rc = still ? 0.4 : 0.55 - 0.27 * clamp(roll / RMAX); this.spool.scale.set(rc, 1, rc);   // fat again as the film goes back in
-    const live = state.i === 6 && state.u === 0;
+    const live = state.i === 7 && state.u === 0;
     // The balloon: in from the right, it bobs at the top right; the gust takes it off to the left.
     const B = this.balloon, gust = clamp((t - 0.79) / 0.11), bIn = sm(0.62, 0.76, t);
     B.root.visible = live && t > 0.62 && gust < 1;
@@ -1274,11 +1732,11 @@ C[6] = {
   shot(t) { return { at: [FX + 3.5, 4.6, 0.5], dist: 30, az: -4 + 4 * pn.x, el: 4 - 2 * pn.y, sx: 0.0, sy: 0.14 }; },
 };
 
-// 7. Install it with one command. The balloon and the roll that the wind took come back from the right: the
+// 8. Install it with one command. The balloon and the roll that the wind took come back from the right: the
 // string of the balloon catches on the command, and he catches the roll. Then he points at the command; a copy
 // makes him wave. The pointer can push the balloon; it swings back.
 const termEl = $('.term');
-// The string of the balloon in chapter 7 is drawn on a canvas over the page (#ink), so it can lie on the black
+// The string of the balloon in chapter 8 is drawn on a canvas over the page (#ink), so it can lie on the black
 // bar of the command. It is a rope of points with one length and its own weight, tied to the knot. The bar is
 // solid to it, and its top holds the string by friction: as the balloon floats in from the right, the end of
 // the string meets the side of the bar, is pulled up over its corner, and stays caught on its top. Nothing pins it.
@@ -1306,7 +1764,7 @@ const TURN7 = (t) => -0.42 * (still ? 1 : sm(0.6, 0.74, t));
 function turn7(v, a, point = true) { const c = Math.cos(a), sn = Math.sin(a), x = v.x - (point ? S7[0] : 0), z = v.z - (point ? S7[1] : 0); v.x = x * c + z * sn + (point ? S7[0] : 0); v.z = -x * sn + z * c + (point ? S7[1] : 0); return v; }
 const GRIP7 = 0.61;                                         // from the middle of the palm to the axis
 const CARRY7 = new THREE.Vector3(S7[0] + RIGHT7[0] * 1.66 + FWD7[0] * 0.1, 4.52 - 2.56, S7[1] + RIGHT7[1] * 1.66 + FWD7[1] * 0.1);
-C[7] = {
+C[8] = {
   start: [S7[0], S7[1], F7], end: [S7[0], S7[1], F7],
   build() {
     // Not in the set's group: they come in from off the screen, not out of the floor.
@@ -1315,7 +1773,7 @@ C[7] = {
     this.off = [0, 0]; this.vel = [0, 0]; this.rope = null;
   },
   act(t) {
-    const live = state.i === 7 && state.u === 0, B = this.balloon;
+    const live = state.i === 8 && state.u === 0, B = this.balloon;
     if (!live) { inkClear(); this.rope = null; }
     B.root.visible = live && t > 0.03; this.roll.visible = live && t > 0.1;
     if (live) {
@@ -1417,6 +1875,11 @@ function shotAt(s) {
   if (!s.u) return a;
   const b = C[s.i + 1].shot(0);
   if (s.kind === 'pen') return s.u < 0.5 ? a : b;   // the cut is behind the pen's blue, which fills the frame
+  if (s.kind === 'dream') {   // into the bubble; the cut is inside it, where the screen is all chapter 7's colour
+    if (s.u >= DREAM_CUT) return b;
+    const A = C[s.i].shot(1), { c } = C[6].bubbleAt(s.u), e = still ? 0 : sm(0.3, DREAM_CUT, s.u);
+    return { ...A, at: A.at.map((v, i) => lerp(v, c.getComponent(i), e)), dist: lerp(A.dist, 6, e), sx: A.sx * (1 - e), sy: A.sy * (1 - e) };
+  }
   const u = pace(s.u), lift = still ? 0 : Math.sin(Math.PI * s.u), mid = (k) => lerp(a[k], b[k], u);
   return { at: a.at.map((v, i) => lerp(v, b.at[i], u)), dist: mid('dist') * (1 + 0.35 * lift), az: mid('az') - 18 * lift, el: mid('el') + 16 * lift, sx: mid('sx'), sy: mid('sy') };
 }
@@ -1484,6 +1947,7 @@ function colours(s) {
   if (!(s.u > 0) || !chs[s.i + 1]) { bgEl.style.background = chs[s.i].dataset.bg; return; }
   // From the book to the files there is no blob: the pen's blue fills the frame, and the cut is behind it.
   if (s.kind === 'pen') { bgEl.style.background = chs[s.u < 0.5 ? s.i : s.i + 1].dataset.bg; return; }
+  if (s.kind === 'dream') { bgEl.style.background = chs[s.u < DREAM_CUT ? s.i : s.i + 1].dataset.bg; return; }
   bgEl.style.background = chs[s.i].dataset.bg;
   let cx = innerWidth / 2, cy = innerHeight / 2;
   if (H && cam) { [cx, cy] = toScreen(H.root.getWorldPosition(new THREE.Vector3())); cx = clamp(cx, 0, innerWidth); cy = clamp(cy, 0, innerHeight); }
@@ -1494,8 +1958,8 @@ function colours(s) {
 
 // ---------- the morph: a set that the camera leaves sinks into the floor like soft clay, and the next one grows
 // out of it. Each set shrinks and grows about its own middle on the floor; nothing appears or goes in one frame.
-const MIDDLE = () => [[0, 0.6], S1, [S2[0] - 10.7, -0.8], [(WX0 + WX1) / 2, WZ], [CX, 0], [CX, 0], [FX, 0], S7];
-const setOf = (j) => (j === 5 ? 4 : j);
+const MIDDLE = () => [[0, 0.6], S1, [S2[0] - 10.7, -0.8], [(WX0 + WX1) / 2, WZ], [CX, 0], SC, SC, [FX, 0], S7];
+const setOf = (j) => (j === 6 ? 5 : j);   // the rug chapter is in the ring's set
 function morph(g, k, [cx, cz]) {
   if (!g) return;
   g.visible = k > 0.002; g.scale.setScalar(Math.max(k, 0.002)); g.position.set(cx * (1 - k), 0, cz * (1 - k));
@@ -1504,6 +1968,7 @@ function morphs(s) {
   const mid = MIDDLE(), k = {};
   if (!(s.u > 0)) k[setOf(s.i)] = 1;
   else if (s.kind === 'pen') k[s.u < 0.5 ? s.i : s.i + 1] = 1;
+  else if (s.kind === 'dream') { if (s.u < DREAM_CUT) k[setOf(s.i)] = 1; else k[s.i + 1] = still ? 1 : back(sm(DREAM_CUT, 1, s.u)); }
   else {
     const a = setOf(s.i), b = setOf(s.i + 1);
     if (a === b) k[a] = 1;
@@ -1528,9 +1993,21 @@ function aim(v) {
 
 // ---------- hover and click: pages (chapter 2) and film frames (chapter 6) ----------
 let hovered = null;
-function pickables() { return state.u === 0 && state.i === 2 && C[2].ready ? C[2].pages : state.u === 0 && state.i === 6 && C[6].ready ? C[6].pics : []; }
+function pickables() { return state.u === 0 && state.i === 2 && C[2].ready ? C[2].pages : state.u === 0 && state.i === 7 && C[7].ready ? C[7].pics : []; }
+const in5 = () => state.u === 0 && state.i === 5 && C[5].ready && !focus.obj;
+let labelFor = null;
 function hover() {
   hovered = null;
+  // Chapter 5: the thing under the pointer shows the name of its helper, beside it, never over the statement.
+  const pk = in5() && ptr.mouse ? C[5].pick(ptr.x, ptr.y) : null;
+  if (pk) {
+    if (labelFor !== pk.name) { labelFor = pk.name; labelEl.textContent = ACTS[pk.name].label; }
+    const say = $('#c5 .say').getBoundingClientRect(), lw = labelEl.offsetWidth, lh = labelEl.offsetHeight;
+    let x = clamp(pk.top[0] - lw / 2, 8, innerWidth - lw - 8), y = pk.top[1] - lh - 10;
+    if (x < say.right && x + lw > say.left && y < say.bottom && y + lh > say.top) y = say.bottom + 8;
+    labelEl.style.transform = `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px)`; labelEl.classList.add('on'); document.body.style.cursor = 'pointer'; return;
+  }
+  labelEl.classList.remove('on'); labelFor = null;
   if (!ptr.mouse || focus.obj) { document.body.style.cursor = focus.obj ? 'zoom-out' : ''; return; }
   const list = pickables(); if (!list.length) { document.body.style.cursor = ''; return; }
   const h = rayAt().intersectObjects(list)[0]; hovered = h ? h.object : null;
@@ -1549,13 +2026,14 @@ addEventListener('click', (e) => {
     });
     return;
   }
+  if (in5()) { const pk = C[5].pick(e.clientX, e.clientY); if (pk) { p5Click(pk.name); return; } }
   if (H && rayAt(e.clientX, e.clientY).intersectObject(H.root, true).length) happyAt = now();
 });
 
 // ---------- the frame loop ----------
 let state = { i: 0, t: 0, u: 0, kind: 'act' }, built = false;
 function frame() {
-  requestAnimationFrame(frame);
+  if (!TESTING) requestAnimationFrame(frame);
   if (document.hidden) return;
   const tNow = now(); dt = Math.min(0.1, (tNow - lastT) / 1000); lastT = tNow;
   glide();
@@ -1563,10 +2041,10 @@ function frame() {
   pn.sx = damp(pn.sx, ptr.x / innerWidth * 2 - 1, 9); pn.sy = damp(pn.sy, 1 - ptr.y / innerHeight * 2, 9);
   state = where(scrollY);
   words(state);
-  // The console and the ring of chapter 5 are outside the chapter (on the top layer): they fade with it.
-  consoleEl.style.opacity = chs[5].style.opacity; consoleEl.style.visibility = chs[5].style.visibility;
-  if (state.i !== 5 || state.u > 0) ringEl.style.opacity = 0;
-  if (state.i !== 7 || state.u > 0) inkClear();   // the balloon string of chapter 7
+  // The console of chapter 6 is outside the chapter (on the top layer): it fades with it.
+  consoleEl.style.opacity = chs[6].style.opacity; consoleEl.style.visibility = chs[6].style.visibility;
+  if (!in5()) labelEl.classList.remove('on');
+  if (state.i !== 8 || state.u > 0) inkClear();   // the balloon string of chapter 8
   [...dots.children].forEach((d, j) => d.classList.toggle('on', j === (state.u > 0.5 ? state.i + 1 : state.i)));
   if (state.i !== 1 || state.u > 0) document.querySelectorAll('.fly').forEach((f) => { f.style.display = 'none'; });
   if (!built) { colours(state); return; }
@@ -1585,30 +2063,35 @@ function frame() {
     if (state.kind === 'pen') {
       // He stays at the book until the cut, and is at the files after it.
       if (H) { if (state.u < 0.5) C[1].act(1); else C[2].act(0); }
-    } else walkBetween(state);
+    } else if (state.kind === 'in5') { if (H) into5(state); }
+    else if (state.kind === 'rug') { if (H) outOf5(state); }
+    else if (state.kind === 'dream') { if (H) { if (state.u < DREAM_CUT) C[6].act(1); else C[7].act(0); } }
+    else walkBetween(state);
   } else walkFace = null;
   morphs(state);
   settle();
   aim(shotAt(state));
+  if (C[6].ready) C[6].dream(state.kind === 'dream' && state.i === 6 ? state.u : 0);
   if (state.kind === 'pen' && state.u > 0 && C[2].ready) penFlight(state); else if (cam.near !== NEAR) { cam.near = NEAR; cam.updateProjectionMatrix(); }
   stepFocus();
   // The world goes in front of the words while a page or a frame is open, and while the roll and the balloon
   // fly off at the end of chapter 6 (they cross the statement there).
-  const front = focus.obj || (state.i === 6 && (state.u > 0 ? state.u < 0.3 : state.t > 0.7));
+  const front = focus.obj || (state.i === 7 && (state.u > 0 ? state.u < 0.3 : state.t > 0.7));
   if (canvas.style.zIndex !== (front ? '3' : '')) canvas.style.zIndex = front ? '3' : '';
   colours(state);
   R.render(scene, cam);
 }
+window.__clayFrame = (s = 1 / 60) => { clockMs += s * 1000; frame(); };
 
 async function boot() {
   plan();
   addEventListener('resize', () => { plan(); R?.setSize(innerWidth, innerHeight, false); });
-  requestAnimationFrame(frame);
+  if (!TESTING) requestAnimationFrame(frame);
   try {
     if (!canvas.getContext('webgl2') || typeof DecompressionStream === 'undefined') throw new Error('no WebGL 2');
     R = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     R.setClearColor(0, 0); R.setPixelRatio(Math.min(devicePixelRatio, 2)); R.setSize(innerWidth, innerHeight, false);
-    R.outputColorSpace = THREE.SRGBColorSpace; R.toneMapping = THREE.NoToneMapping; R.localClippingEnabled = true;   // the film roll (chapter 6)
+    R.outputColorSpace = THREE.SRGBColorSpace; R.toneMapping = THREE.NoToneMapping; R.localClippingEnabled = true;   // the film roll (chapter 7)
     scene = new THREE.Scene(); studio(THREE, R, scene);
     cam = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.1, 800);
     document.body.prepend(canvas);
@@ -1627,7 +2110,7 @@ async function boot() {
     m.shadow = shadow(3.8, 2.4, 0, 0.6, 0.45); H = m; heroReady = true;
     realSetExpression = m.setExpression; m.blendExpression = blendFace; wrapHands(m);
     C[0].sculpt();
-    for (const name of ['table', 'book', 'cart']) await load(name);
+    for (const name of ['table', 'book', 'cart', 'parcel', 'pedestal', 'bench', 'laptop', 'strawberry', 'whiteboard', 'basket', 'handwheel']) await load(name);
     for (let j = 1; j < C.length; j++) { group(j); C[j].build(); C[j].ready = true; }
     plan();
     // Compile every material now, also of things that are hidden until later (the balloons, the rolls), so no

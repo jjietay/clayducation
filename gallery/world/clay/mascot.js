@@ -110,10 +110,18 @@ const handSdf = (x, y, z) => {
   return d;
 };
 const hipSdf = (x, y, z) => smin(ell(x, y, z, 0, -4.15, -0.02, 1.15, 0.62, 0.74), cone(Math.abs(x), y, z, 0.55, -4.4, 0, 0.56, -4.7, 0, 0.56, 0.54), 0.2);
+// The leg is a thigh (hip to knee) and a shin (knee to ankle), so he can sit, crouch and kneel (the user asked,
+// 2026-11-10). Each piece is a round-ended cone, so the knee stays closed when it bends, as the elbow does.
+const KNEE = 1.0;
 const legSdf = (x, y, z) => {
-  let d = cone(x, y, z, 0, 0, 0, 0, -2.05, 0, 0.56, 0.47);
-  d = smax(d, -2.06 - y, 0.05);
+  let d = cone(x, y, z, 0, 0, 0, 0, -KNEE, 0, 0.56, 0.52);
   d += Math.sin(y * 5.5 + x * 3) * 0.006;
+  return d;
+};
+const shinSdf = (x, y, z) => {
+  let d = cone(x, y, z, 0, 0, 0, 0, -1.05, 0, 0.52, 0.47);
+  d = smax(d, -1.06 - y, 0.05);
+  d += Math.sin((y - KNEE) * 5.5 + x * 3) * 0.006;
   return d;
 };
 const shoeSdf = (x, y, z) => {
@@ -295,7 +303,8 @@ export function createMascot(THREE, opts = {}) {
   };
   const shoeC = c3(THREE, '#f5f3ee'), shoeD = c3(THREE, '#a8a39a'), soleC = c3(THREE, '#cfcac0');
   const legParts = {
-    leg: bake(THREE, 'leg', legSdf, [[-0.75, -2.2, -0.75], [0.75, 0.65, 0.75]], bodyStep, null, shadeCloth(pantA, pantB)),
+    leg: bake(THREE, 'thigh', legSdf, [[-0.75, -1.65, -0.75], [0.75, 0.65, 0.75]], bodyStep, null, shadeCloth(pantA, pantB)),
+    shin: bake(THREE, 'shin', shinSdf, [[-0.7, -1.2, -0.7], [0.7, 0.62, 0.7]], bodyStep, null, shadeCloth(pantA, pantB)),
     shoe: bake(THREE, 'shoe', shoeSdf, [[-0.62, -0.4, -0.7], [0.62, 0.35, 1.1]], fine * 1.6, soleSdf, (x, y, z, n, A, o) => lerp3(o, shoeD, shoeC, A)),
     sole: bake(THREE, 'sole', soleSdf, [[-0.62, -0.45, -0.75], [0.62, -0.05, 1.15]], fine * 1.6, null, (x, y, z, n, A, o) => lerp3(o, soleC, soleC, 1)),
   };
@@ -313,18 +322,29 @@ export function createMascot(THREE, opts = {}) {
   const legs = [-1, 1].map((sx, li) => {
     const hip = new THREE.Group(); hip.position.set(sx * 0.57, -4.56, 0); body.add(hip);
     hip.add(tag('leg' + li, legSdf, new THREE.Mesh(legParts.leg, pantMat)));
-    const ankle = new THREE.Group(); ankle.position.y = -1.95; hip.add(ankle);
+    const knee = new THREE.Group(); knee.position.y = -KNEE; hip.add(knee);
+    knee.add(tag('shin' + li, shinSdf, new THREE.Mesh(legParts.shin, pantMat)));
+    const ankle = new THREE.Group(); ankle.position.y = -1.95 + KNEE; knee.add(ankle);
     ankle.add(tag('shoe' + li, shoeSdf, new THREE.Mesh(legParts.shoe, clothWhite)), tag('sole' + li, soleSdf, new THREE.Mesh(legParts.sole, clothWhite)));
-    return { sx, hip, ankle };
+    return { sx, hip, knee, ankle };
   });
 
   // ---------- the rig ----------
   const pose = {
-    rest() { for (const a of arms) { a.shoulder.rotation.set(0, 0, a.sx * 0.2); a.elbow.rotation.set(-0.12, 0, 0); a.wrist.rotation.set(0, 0, 0); } for (const l of legs) { l.hip.rotation.set(0, 0, 0); l.ankle.rotation.set(0, 0, 0); } },
+    rest() { for (const a of arms) { a.shoulder.rotation.set(0, 0, a.sx * 0.2); a.elbow.rotation.set(-0.12, 0, 0); a.wrist.rotation.set(0, 0, 0); } for (const l of legs) { l.hip.rotation.set(0, 0, 0); l.knee.rotation.set(0, 0, 0); l.ankle.rotation.set(0, 0, 0); } },
     wave() { pose.rest(); const a = arms[1]; a.shoulder.rotation.set(0, 0, 1.9); a.elbow.rotation.set(-0.15, 0, 1.3); },
     // A bent arm below the shoulder, the hand open to the side: a straight raised arm can read as a salute.
     point() { pose.rest(); const a = arms[1]; a.shoulder.rotation.set(-0.35, 0, 1.0); a.elbow.rotation.set(-0.95, 0, 0.1); },
     think() { pose.rest(); const a = arms[1]; a.shoulder.rotation.set(-1.35, -0.75, 0); a.elbow.rotation.set(-1.95, 0, 0); a.wrist.rotation.set(-0.15, 0, 0); },
+    // Both forearms forward and a little out, elbows at his sides: "who knows?".
+    shrug() { pose.rest(); for (const a of arms) { a.shoulder.rotation.set(-0.15, 0, a.sx * 0.45); a.elbow.rotation.set(-1.45, a.sx * -0.5, 0); } },
+  };
+  // Leg poses for sit, crouch and kneel: [hip, knee, ankle] rotations about x for leg 0 and leg 1 (negative hip = the
+  // thigh forward, positive knee = the shin back), and the extra forward lean of his body.
+  const LEGS = {
+    sit: { j: [[-1.5, 1.35, 0.15], [-1.5, 1.35, 0.15]], lean: 0 },   // shins a little forward, clear of the seat's edge
+    crouch: { j: [[-1.3, 2.35, -1.05], [-1.3, 2.35, -1.05]], lean: 0.6 },
+    kneel: { j: [[-1.2, 1.2, 0], [0.05, 1.5, -0.55]], lean: 0.08 },
   };
   function setExpression(e) {
     const p = typeof e === 'string' ? EXPRESSIONS[e] : e;
@@ -348,7 +368,7 @@ export function createMascot(THREE, opts = {}) {
     for (const key of Object.keys(A.m)) m[key] = mix(A.m[key] || 0, B.m[key] || 0, k);
     setExpression({ lid: mixArr(A.lid, B.lid, k), tilt: mixArr(A.tilt, B.tilt, k), low: mixArr(A.low, B.low, k), look: mixArr(A.look, B.look, k), pupil: mix(A.pupil, B.pupil, k), m, head: mixArr(A.head, B.head, k) });
   }
-  const joints = () => [...arms.flatMap((a) => [a.shoulder, a.elbow, a.wrist]), ...legs.flatMap((l) => [l.hip, l.ankle])];
+  const joints = () => [...arms.flatMap((a) => [a.shoulder, a.elbow, a.wrist]), ...legs.flatMap((l) => [l.hip, l.knee, l.ankle])];
   function blendPose(a, b, k) {
     pose[a](); const A = joints().map((j) => [j.rotation.x, j.rotation.y, j.rotation.z]);
     pose[b](); const B = joints().map((j) => [j.rotation.x, j.rotation.y, j.rotation.z]);
@@ -357,13 +377,13 @@ export function createMascot(THREE, opts = {}) {
   // Blink: 0 open, 1 closed, on top of the expression that was set last.
   function blink(k) { for (const E of eyes) E.upper.rotation.x = mix(E.upper.rotation.x, 1.45, k); }
   // ---------- moving around, so he does the work and never only stands and watches ----------
-  const api = { shapes, root, head, headPivot, arms, legs, pose, setExpression, blendExpression, blendPose, blink, place, stride, route, reach, hold };
+  const api = { shapes, root, head, headPivot, arms, legs, pose, setExpression, blendExpression, blendPose, blink, place, stride, route, reach, hold, legsPose, plant, nod, shake };
   const eul = new THREE.Euler(), up = new THREE.Vector3();
   // Legs that swing 0.55 rad take a step of about 2.5 units, so this much phase for each unit walked.
   const STEP = 1.25; api.STEP = STEP;
   // Feet at (x, z) on the floor. face: 0 looks at +z, Math.PI / 2 looks at +x, -Math.PI / 2 looks at -x. lean: + forward, - back.
   function place(x, z = 0, { face = 0, lean = 0, y = 0 } = {}) {
-    api.held = [0, 0]; api.grips = []; api.holds = []; api.feet = [x, z];   // reach() and hold() fill them: a hand that holds something may touch it
+    api.held = [0, 0]; api.grips = []; api.holds = []; api.feet = [x, z]; api.seat = null; api.posed = 0;   // sitOn() sets the seat, legsPose() posed, after place()   // reach() and hold() fill them: a hand that holds something may touch it
     eul.set(lean, face, 0, 'YXZ'); root.quaternion.setFromEuler(eul);
     up.set(0, 6.82, 0).applyEuler(eul); root.position.set(x + up.x, up.y + y, z + up.z);
     if (api.shadow) { api.shadow.position.x = x; api.shadow.position.z = z; }
@@ -425,6 +445,41 @@ export function createMascot(THREE, opts = {}) {
       (api.holds ??= []).push({ i, point, k });
     }
     reach(i, point, k);
+  }
+  // Bend the legs to sit, crouch or kneel (k from 0, as they are now, to 1), then lower him so the lowest part of his
+  // legs (a sole, or a knee when he kneels) is on the floor at y (default 0). Call it after place() or route(), and
+  // before reach() and hold(): his shoulders come down with him.
+  function legsPose(name, k = 1, { y = 0 } = {}) {
+    const L = LEGS[name]; if (!L) throw new Error(`legsPose: no leg pose "${name}". Poses: ${Object.keys(LEGS).join(', ')}`);
+    if (k <= 0) return;
+    api.posed = Math.max(api.posed || 0, k);   // bent legs are a pose, not a frozen step
+    legs.forEach((l, i) => { const [h, kn, an] = L.j[i]; l.hip.rotation.x = mix(l.hip.rotation.x, h, k); l.knee.rotation.x = mix(l.knee.rotation.x, kn, k); l.ankle.rotation.x = mix(l.ankle.rotation.x, an, k); });
+    // The lean turns his upper body about his hips; the thighs turn back by the same angle, so his legs stay where
+    // they are (a lean about the root, at his neck, swung his feet far behind him).
+    if (L.lean) {
+      root.updateMatrixWorld(true);
+      const P = legs[0].hip.getWorldPosition(new THREE.Vector3()).add(legs[1].hip.getWorldPosition(new THREE.Vector3())).multiplyScalar(0.5);
+      const fx = new THREE.Vector3(1, 0, 0).applyQuaternion(root.quaternion), q = new THREE.Quaternion().setFromAxisAngle(fx, L.lean * k);
+      root.position.sub(P).applyQuaternion(q).add(P); root.quaternion.premultiply(q);
+      for (const l of legs) l.hip.rotation.x -= L.lean * k;
+    }
+    plant(y);
+  }
+  // Move him up or down so the lowest point of his legs is at y. Feet stay where place() put them.
+  const lowBox = new THREE.Box3(), tmpBox = new THREE.Box3();
+  function plant(y = 0) {
+    root.updateMatrixWorld(true); lowBox.makeEmpty();
+    for (const sh of shapes) if (/^(sole|shoe|shin|leg)/.test(sh.userData.part)) { const g = sh.geometry; g.boundingBox ?? g.computeBoundingBox(); lowBox.union(tmpBox.copy(g.boundingBox).applyMatrix4(sh.matrixWorld)); }
+    root.position.y += y - lowBox.min.y;
+  }
+  // Head gestures on top of the expression (call after blendExpression): count nods (yes) or shakes (no) from at.
+  function nod(t, { at = 0, count = 2, gap = 0.45, amp = 0.22 } = {}) {
+    const u = (t - at) / (count * gap); if (u < 0 || u > 1) return;
+    headPivot.rotation.x += amp * Math.sin(Math.PI * 2 * count * u) ** 2 * Math.sin(Math.PI * u);
+  }
+  function shake(t, { at = 0, count = 2, gap = 0.5, amp = 0.32 } = {}) {
+    const u = (t - at) / (count * gap); if (u < 0 || u > 1) return;
+    headPivot.rotation.y += amp * Math.sin(Math.PI * 2 * count * u) * Math.sin(Math.PI * u);
   }
   pose.rest(); setExpression('neutral');
   return api;
