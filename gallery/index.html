@@ -160,6 +160,13 @@ html { overflow-x: clip; }   /* the page never scrolls sideways (a statement was
   .cmd { top: auto; bottom: 8vh; transform: none; right: 5vw; }
   .dots { right: 8px; }
   .still { width: 90vw; top: 58%; }
+  /* A phone: the scroll alone plays the page. No hints to press, type or point; the topic and the graph only show. */
+  .hint { display: none; } #c0 .hint { display: block; }
+  .js .ch .prompt, .js .ch .graph { pointer-events: none; }
+  .prompt .topic { border-bottom: 0; }
+  .graph { left: 5vw; right: 5vw; top: 25vh; width: 90vw; height: 40vw; }
+  .console { width: calc(100vw - 32px); font-size: 13px; }
+  .cmd { bottom: 128px; }   /* clear of the folder's tab */
 }
 @media (prefers-reduced-motion: reduce) { .cue::after { animation: none; } }
 </style>

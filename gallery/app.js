@@ -45,7 +45,8 @@ const C = [];                                            // the chapters' sets, 
 function plan() {
   segs = []; let y = 0;
   for (let j = 0; j < chs.length; j++) {
-    segs.push({ j, kind: 'act', y, len: ACT[j] }); y += ACT[j];
+    const la = j === 5 && phone() ? 3.6 : ACT[j];   /* a phone: chapter 5 is one scrolled action, so it gets more scroll */
+    segs.push({ j, kind: 'act', y, len: la }); y += la;
     if (j === chs.length - 1) break;
     const kind = C[j].next || 'walk', len = kind === 'pen' ? 2.6 : kind === 'rug' ? 2.2 : kind === 'dream' ? 2.6 : kind === 'in5' ? Math.max(1.3, route(j).total / WALK) / 0.85 : C[j].cont ? route(j).total / (1 - 0.075) / C[j].speed : Math.max(1.3, route(j).total / WALK);   // cont: the walk starts at the chapter's own pace
     segs.push({ j, kind, y, len }); y += len;
@@ -104,6 +105,8 @@ addEventListener('click', (e) => { if (stylesOpen() && !e.target.closest('.folde
 const jump = (y) => { goal = clamp(y, 0, scrollMax()); cur = scrollY; gliding = !still; if (still) scrollTo(0, goal); };
 
 // ---------- words: one statement per chapter, in place on the screen; nothing floats between chapters ----------
+// A phone has no clicks in chapter 5: the scroll plays one of his moves, so its statement says that.
+if (matchMedia('(max-width: 760px)').matches) document.querySelector('#c5 .say').innerHTML = 'Scroll, and he does one of his <b>12 moves</b>.';
 for (const say of document.querySelectorAll('.say')) {
   [...say.childNodes].forEach((c) => {
     if (c.nodeType === 3) { const f = document.createDocumentFragment(); c.textContent.split(/(\s+)/).forEach((p) => { if (!p) return; if (/^\s+$/.test(p)) f.append(p); else { const s = document.createElement('span'); s.className = 'w'; s.textContent = p; f.append(s); } }); c.replaceWith(f); }
@@ -136,7 +139,9 @@ chs.forEach((c, j) => {
 
 // ---------- the pointer: the raw one, and a damped copy for the camera and the head ----------
 const ptr = { x: innerWidth / 2, y: innerHeight / 2, at: -1e9, mouse: false, pressed: false };
-addEventListener('pointermove', (e) => Object.assign(ptr, { x: e.clientX, y: e.clientY, at: now(), mouse: e.pointerType === 'mouse' }), { passive: true });
+// A phone (the same width as the CSS rule): the scroll alone plays the page; the pointer does nothing in the world.
+const PHONE_MQ = matchMedia('(max-width: 760px)'), phone = () => PHONE_MQ.matches;
+addEventListener('pointermove', (e) => !phone() && Object.assign(ptr,{ x: e.clientX, y: e.clientY, at: now(), mouse: e.pointerType === 'mouse' }), { passive: true });
 document.documentElement.addEventListener('mouseleave', () => { ptr.mouse = false; });
 const pn = { x: 0, y: 0, sx: 0, sy: 0 };
 
@@ -1980,6 +1985,22 @@ function p5Step(dt) {
     else if (!back && P5.t >= A.dur) { const e = A.end(P5.dir); P5.st[P5.act] = A.next ? A.next(P5.dir) : 1 - P5.dir; P5.at = [e[0], e[1]]; P5.face = e[2]; P5.last = P5.act; P5.mode = 'idle'; P5.quiet = 0; }
   }
 }
+// A phone: the player's state is a function of the scroll t of chapter 5 (it plays backwards on a scroll up).
+// At rest at the start, a short walk to the strawberry (the nearest thing), the action, and the walk back, so the
+// walk to the rug starts where it always did.
+let phoneWalk = null, phoneBack = null;
+const PHONE_ACT = 'kneel';
+function p5Phone(t) {
+  p5Init(); const A = ACTS[PHONE_ACT], home = W5(-6.5, 5.5);
+  P5.next = null; P5.quiet = 0; P5.last = null; for (const k in ACTS) P5.st[k] = 0; P5.dir = 0;
+  phoneWalk ??= makeWalk([home[0], home[1], PI2], A.stand(0)); phoneBack ??= makeWalk(A.end(0), [home[0], home[1], PI2]);
+  const done = A.next ? A.next(0) : 1;
+  if (t < 0.05) Object.assign(P5, { mode: 'idle', act: null, w: null, t: 0, at: [home[0], home[1]], face: PI2 });
+  else if (t < 0.25) Object.assign(P5, { mode: 'walk', act: PHONE_ACT, t: 0, w: { ...phoneWalk, t: sm(0.05, 0.25, t) * phoneWalk.dur } });
+  else if (t < 0.75) Object.assign(P5, { mode: 'do', act: PHONE_ACT, w: null, t: Math.min(sm(0.26, 0.74, t) * A.dur, A.dur - 1e-3), at: [phoneWalk.to[0], phoneWalk.to[1]], face: phoneWalk.to[2] });
+  else if (t < 0.95) { P5.st[PHONE_ACT] = done; Object.assign(P5, { mode: 'walk', act: null, t: 0, w: { ...phoneBack, t: sm(0.75, 0.95, t) * phoneBack.dur } }); }
+  else { P5.st[PHONE_ACT] = done; Object.assign(P5, { mode: 'idle', act: null, w: null, t: 0, at: [home[0], home[1]], face: PI2 }); }
+}
 // Draw him and every object from a state of the player (live, or a snapshot played back by the scroll).
 // f (0 to 1): how far the clean ending of a busy action has got (undo, as for a click).
 const busy = (p) => p.mode === 'do' || p.mode === 'undo';
@@ -2072,6 +2093,8 @@ C[5] = {
   },
   act(t) {
     const live = state.i === 5 && state.u === 0;
+    // A phone: no clicks and no clock. The scroll plays one action: he walks to the strawberry, kneels and points at it.
+    if (live && phone()) { if (H) { p5Phone(t); p5Draw(P5); rec5 = snap(); } else p5Draw(P5); this.sink(1); if (H) this.phoneCam(t); return; }
     if (live) { if (H) { p5Step(dt); p5Draw(P5); rec5 = snap(); } else p5Draw(P5); }
     else if (!(state.i === 5 && state.u > 0)) p5Draw(rec5 || P5, 1);
     this.sink(1);
@@ -2094,6 +2117,11 @@ C[5] = {
     if (this.zoom < 0.002) { this.zoom = 0; if (!want) this.cv = null; }
     // The statement fades while the camera is close, so it never sits over the action.
     if (this.zoom > 0) { const op = +chs[5].style.opacity * (1 - 0.9 * sm(0, 0.6, this.zoom)); chs[5].style.opacity = op; }
+  },
+  // A phone: the camera eases in to him and the plant, and out again, set by the scroll alone.
+  phoneCam(t) {
+    this.zoom = still ? 0 : sm(0.24, 0.34, t) * (1 - sm(0.72, 0.8, t)); this.cv = this.zoom > 0 ? this.close() : null;
+    if (this.zoom > 0) chs[5].style.opacity = +chs[5].style.opacity * (1 - 0.9 * sm(0, 0.6, this.zoom));
   },
   shot(t) {
     const w = this.wide(), c = this.cv, z = this.zoom * this.zoom * (3 - 2 * this.zoom);
@@ -2182,6 +2210,7 @@ C[6] = {
     const bh = consoleEl.offsetHeight, gap = Math.max(140, innerWidth * 0.11), right = hx + gap + bw < innerWidth - 16;
     let bx = clamp(right ? hx + gap : hx - gap - bw, 16, innerWidth - bw - 16), by = clamp(hy - bh - 60, 90, innerHeight - bh - 16);
     if (innerWidth > 700) { bx = innerWidth - bw - 70; by = innerHeight - bh - 60; }   /* wide: the bottom right, below his feet, clear of him and of the statement */
+    if (phone()) { bx = 16; by = innerHeight - bh - 24; }   /* a phone: along the bottom, under the set */
     consoleEl.style.transform = `translate(${bx.toFixed(1)}px, ${by.toFixed(1)}px)`;
     res.forEach(([text, ok], i) => {
       const el = lineEls[i], msg = $('.msg', el);
@@ -2585,10 +2614,20 @@ function morphs(s) {
 }
 
 // ---------- the camera ----------
+// A phone: its own framing for each chapter (k: distance, sx and sy: shift on the screen, el: degrees higher),
+// blended across a transition as the views are.
+const PHONE_VIEW = [{ k: 1.25, sx: 0, sy: 0, el: 0 }, { k: 1.25, sx: 0, sy: 0.14, el: 0 }, { k: 1.45, sx: 0.08, sy: 0.14, el: 0 }, { k: 1.25, sx: 0, sy: 0.14, el: 0 },
+  { k: 1.35, sx: 0.07, sy: 0.16, el: 0 }, { k: 1.15, sx: 0, sy: 0.06, el: 16 }, { k: 1.25, sx: 0, sy: 0.08, el: 0 }, { k: 1.5, sx: 0, sy: 0.14, el: 0 }, { k: 1.3, sx: 0, sy: -0.06, el: 0 }];
+function phoneFrame(s) {
+  const a = PHONE_VIEW[s.i]; if (!s.u) return a;
+  const b = PHONE_VIEW[s.i + 1], u = s.kind === 'pen' ? inOut(sm(0.72, 1, s.u)) : pace(s.u);   /* the pen: the same framing over the cut, then out to chapter 2's */
+  return { k: lerp(a.k, b.k, u), sx: lerp(a.sx, b.sx, u), sy: lerp(a.sy, b.sy, u), el: lerp(a.el, b.el, u) };
+}
 function aim(v) {
-  const W = innerWidth, Hh = innerHeight, aspect = W / Hh, narrow = aspect < 1;
-  const dist = v.dist * (narrow ? 1.25 / Math.max(aspect, 0.45) : 1), sx = narrow ? 0 : v.sx, sy = narrow ? 0.14 : v.sy;
-  const A = v.az * D, E = v.el * D, T = new THREE.Vector3(...v.at);
+  const W = innerWidth, Hh = innerHeight, aspect = W / Hh, narrow = aspect < 1, f = phone() ? phoneFrame(state) : null;
+  let dist = v.dist * (narrow ? 1.25 / Math.max(aspect, 0.45) : 1), sx = narrow ? 0 : v.sx, sy = narrow ? 0.14 : v.sy, el = v.el;
+  if (f) { dist = v.dist * f.k / Math.max(aspect, 0.45); sx = f.sx; sy = f.sy; el = v.el + f.el; }
+  const A = v.az * D, E = el * D, T = new THREE.Vector3(...v.at);
   cam.aspect = aspect; cam.fov = 30;
   cam.position.set(T.x + dist * Math.sin(A) * Math.cos(E), T.y + dist * Math.sin(E), T.z + dist * Math.cos(A) * Math.cos(E));
   cam.lookAt(T);
@@ -2619,7 +2658,7 @@ function hover() {
   document.body.style.cursor = hovered ? 'zoom-in' : '';
 }
 addEventListener('click', (e) => {
-  if (!built || e.target.closest('a, button, [contenteditable], .graph, .folder')) return;
+  if (!built || phone() || e.target.closest('a, button, [contenteditable], .graph, .folder')) return;
   if (focus.obj) { closeFocus(); return; }
   const list = pickables(), h = list.length ? rayAt(e.clientX, e.clientY).intersectObjects(list)[0] : null;
   if (h) {
@@ -2712,7 +2751,7 @@ async function boot() {
     document.body.prepend(canvas);
     dim = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshBasicMaterial({ color: '#14161f', transparent: true, opacity: 0, depthTest: false, depthWrite: false }));
     dim.renderOrder = 19; dim.visible = false; scene.add(dim);
-    addEventListener('pointerdown', (e) => { if (!e.target.closest('a, button, [contenteditable], .graph')) ptr.pressed = true; });
+    addEventListener('pointerdown', (e) => { if (!phone() && !e.target.closest('a, button, [contenteditable], .graph')) ptr.pressed = true; });
     addEventListener('pointerup', () => { ptr.pressed = false; });
     await document.fonts?.ready;
     const group = (j) => { C[j].g = new THREE.Group(); scene.add(C[j].g); put = (...o) => C[j].g.add(...o); };

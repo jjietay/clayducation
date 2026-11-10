@@ -47,4 +47,11 @@ holding hand is on its point.
 
 Motion rules: the head and the camera follow the pointer through damped springs, never in steps. With
 reduced motion, nothing moves by itself; the scroll still plays each chapter. On a narrow screen the set
-goes below the statement and the camera steps back. Without WebGL 2, three chapters show a still frame.
+goes below the statement and the camera steps back. On a phone (at most 760 px wide; `phone()` in `app.js` and the same
+`@media` rule in `index.html`) the scroll alone plays the page: the pointer does nothing in the world, the hints
+that ask for a press, a tap or the pointer are hidden, and the topic and the graph only show. Each chapter has its
+own phone framing (`PHONE_VIEW` in `app.js`: distance, shift and height of the camera). In chapter 5 the statement
+says "Scroll", and the scroll plays one action (`p5Phone()`): he walks to the strawberry, kneels and points, and
+walks back, so the walk to the rug starts where it always did. The console of chapter 6 goes along the bottom,
+the graph of chapter 4 below the statement, and the command of chapter 8 above the folder's tab. A wider
+screen does not use any of this. Without WebGL 2, three chapters show a still frame.
