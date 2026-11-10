@@ -1224,7 +1224,7 @@ const walkTime = (a, b) => 0.6 + Math.hypot(b[0] - a[0], b[1] - a[1]) / 3.6;
 // from his place to the goal through the corners of the grown footprints (a visibility graph, Dijkstra), each corner
 // rounded with an arc. He turns on the spot toward the path, walks it forward (the kit's walkPath: one pace, eased only
 // at its two ends, facing along the path), and turns on the spot to face the thing.
-const GROW = 1.8, NODE = 1.2, ARC = 1.8, TURN = 2.3, PACE = 2.7;   /* GROW: his fists reach about 1.7 from his middle as he walks, plus a margin */
+const GROW = 2.1, NODE = 1.4, ARC = 1.8, TURN = 2.3, PACE = 2.7;   /* GROW: his fists reach about 1.7 from his middle as he walks, plus 0.4 */
 function footprints() {
   const out = [], b = new THREE.Box3(), seen = new Set();
   const add = (o) => {
@@ -1282,7 +1282,7 @@ function rounded(pts) {
     const [a, n, c] = [pts[i - 1], pts[i], pts[i + 1]], l1 = Math.hypot(n[0] - a[0], n[1] - a[1]), l2 = Math.hypot(c[0] - n[0], c[1] - n[1]);
     const d1 = [(n[0] - a[0]) / l1, (n[1] - a[1]) / l1], d2 = [(c[0] - n[0]) / l2, (c[1] - n[1]) / l2], th = Math.acos(clamp(d1[0] * d2[0] + d1[1] * d2[1], -1, 1));
     if (th < 0.05) { out.push(n); continue; }
-    const Rmax = Math.min(ARC, (NODE - 0.1) / (1 / Math.cos(th / 2) - 1));   /* an arc cuts in by R (1 / cos(th / 2) - 1): keep it inside the nodes' margin */
+    const Rmax = Math.min(ARC, (NODE - 0.4) / (1 / Math.cos(th / 2) - 1));   /* an arc cuts in by R (1 / cos(th / 2) - 1): keep it inside the nodes' margin */
     const tl = Math.min(Rmax * Math.tan(th / 2), 0.45 * l1, 0.45 * l2), rr = tl / Math.tan(th / 2);
     const p0 = [n[0] - d1[0] * tl, n[1] - d1[1] * tl], side = d1[0] * d2[1] - d1[1] * d2[0] > 0 ? 1 : -1, nrm = [-d1[1] * side, d1[0] * side], cen = [p0[0] + nrm[0] * rr, p0[1] + nrm[1] * rr];
     const a0 = Math.atan2(p0[1] - cen[1], p0[0] - cen[0]);
@@ -1602,7 +1602,7 @@ const play = (() => {
         hero.stride(walked * hero.STEP, 0.4 * moving);
         holdTool(hero, 1, V3(kit.partPoint(broom, 'handle', G[0])), grip);
         // The right hand comes to the lower grip from his right side (a path across his chest goes into his shirt).
-        const k1 = ease(span(t, a - 0.6, 0.6)) * (1 - ease(span(t, b0 + w2, 0.6)));
+        const k1 = ease(span(t, a - 0.2, 0.6)) * (1 - ease(span(t, b0 + w2 - 0.4, 0.6)));   /* page: 0.4 s later than the kit, when the broom is out of its hook */
         if (k1 > 0) {
           const L = kit.partPoint(broom, 'handle', G[1]), M = Hp(t).addScaledVector(f, 2.0).addScaledVector(r, 1.3).setY(3.2).toArray();
           if (k1 < 0.5) hero.reach(0, M, ease(k1 / 0.5));
@@ -1890,8 +1890,23 @@ const ACTS = {
     idle(st) { this.r(-99, 0); const P = C[5].plant; P.setPose(st ? 1 : 0); if (st) P.setPose(st === 2 ? 1 : 0, 'bloom'); },
     run(t, dir) { const D = this.dur, s = this.stand(dir); H.pose.rest(); place(s[0], s[1], s[2]); this.r(t, dir, H); blendFace('neutral', 'smile', seg(t, 4, 0.5) * (1 - seg(t, D - 1.5, 0.5))); lookAt(C[5].plant.root.position, seg(t, 1.5, 0.6) * (1 - seg(t, D - 1.2, 0.5))); },
   },
+  // Sweep the dust pile to the left with the broom (dir 0), and back to the right (dir 1): the kit's sweep(). The broom
+  // leans into its stand, where he takes it and puts it back.
+  sweep: {
+    label: 'sweep()', objs: () => [C[5].dust, C[5].broom, C[5].broomStand],
+    o(dir) {
+      const fake = { place() {}, stride() {}, touch: [] }, base = { at: 0.3, dur: 4, strokes: 4, dist: 2.4, face: 0, stand: C[5].broomStand };
+      const P0 = W5(3.5, -11.2), first = play.sweep(fake, C[5].broom, C[5].dust, -99, { ...base, from: P0, dir: [-1, 0] });
+      return dir ? { ...base, from: first.pileEnd, dir: [1, 0], rest: first.rest } : { ...base, from: P0, dir: [-1, 0] };
+    },
+    r(t, dir, hero) { return play.sweep(hero || { place() {}, stride() {}, touch: [] }, C[5].broom, C[5].dust, t, this.o(dir)); },
+    stand(dir) { const r = this.r(-99, dir); return [r.stand[0], r.stand[1], r.face]; }, end(dir) { return this.stand(dir); },
+    get dur() { return this.r(-99, P5.dir).end + 0.2; }, commit: 3.2,
+    idle(st) { this.r(-99, st); },
+    run(t, dir) { const D = this.dur, s = this.stand(dir); /* both call sweep() at t -99, so before the real call */ H.pose.rest(); place(s[0], s[1], s[2]); this.r(t, dir, H); blendFace('neutral', 'thinking', seg(t, 1.5, 0.5) * (1 - seg(t, D - 1.5, 0.5))); lookAt(C[5].dust.root.position, seg(t, 1.0, 0.6) * (1 - seg(t, D - 1.2, 0.5))); },
+  },
 };
-const ORDER = ['kneel', 'kick', 'sit', 'wheel', 'hammer', 'write', 'toss', 'carry', 'water', 'jump', 'rest'];   // round the ring, for auto-play
+const ORDER = ['kneel', 'kick', 'sit', 'wheel', 'hammer', 'write', 'sweep', 'toss', 'carry', 'water', 'jump', 'rest'];   // round the ring, for auto-play
 
 // ---------- the action player: idle, walk to X, do X, undo X (a click came in while he was busy) ----------
 // Time only: it reads dt, never the scroll. snap() gives what the transitions out of the chapter play back.
@@ -1961,6 +1976,7 @@ C[5] = {
     Object.assign(this.ball.userData, { part: 'ball', pv: [0, 0, 0], f: (x, y, z) => Math.hypot(x, y, z) - BR });
     this.rug = model('rug', at('rug'));
     this.nails = model('nailboard', at('nails', { ry: -PI2 }));   /* he works side on to the camera, so the hammer shows */ this.hammer = model('hammer', { ...at('nails'), floor: false });
+    this.dust = model('dust', at('board')); this.broomStand = model('broomStand', at('board')); this.broom = model('broom', { ...at('board'), floor: false });   /* sweep() places all three */
     this.plant = model('plant', at('plant', { ry: 0.63 }));   /* a gap between two petals faces his hand */ this.can = model('wateringCan', { ...at('plant'), floor: false });
     this.drops = Array.from({ length: 6 }, () => { const d = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 8), new THREE.MeshPhysicalMaterial({ color: '#7fb3e0', roughness: 0.2 })); d.scale.setScalar(1e-4); put(d); return d; });
     { const ra = ACTS.water.r(-99, 0).restAt; ACTS.water.rest = [ra[0], ra[1], ra[2] + 0.3]; this.canStand = model('pedestal', { x: ra[0], z: ra[2] + 0.3 }); }   /* 0.3 further: room for his right hand as he arrives */
@@ -1988,10 +2004,10 @@ C[5] = {
   sink(k) {
     const e = k * k * (3 - 2 * k);   // no overshoot: a stand that grew past its size would go into the ball
     for (const th of this.things) { const o = th.o; o.userData.home ??= o.position.clone(); }
-    for (const o of [this.kickball, this.nails, this.hammer, this.plant, this.can, this.canStand, this.berry, this.bench, this.wheel, this.board, this.basketStand, this.basket, this.rack, this.parcel, this.stand].map((m) => m.root).concat(this.ball, this.spot)) {
+    for (const o of [this.kickball, this.nails, this.hammer, this.plant, this.can, this.canStand, this.dust, this.broom, this.broomStand, this.berry, this.bench, this.wheel, this.board, this.basketStand, this.basket, this.rack, this.parcel, this.stand].map((m) => m.root).concat(this.ball, this.spot)) {
       o.scale.setScalar(Math.max(e, 0.002) * (o.userData.k0 ??= o.scale.x)); o.visible = e > 0.002;
     }
-    for (const m of [this.kickball, this.nails, this.plant, this.canStand, this.berry, this.bench, this.wheel, this.board, this.basketStand, this.basket, this.rack, this.parcel, this.stand]) if (m.shadow) m.shadow.material.opacity = 0.4 * e;
+    for (const m of [this.kickball, this.nails, this.plant, this.canStand, this.dust, this.broomStand, this.berry, this.bench, this.wheel, this.board, this.basketStand, this.basket, this.rack, this.parcel, this.stand]) if (m.shadow) m.shadow.material.opacity = 0.4 * e;
   },
   // The thing under a screen point: screen boxes of each thing, 24 px larger, at least 48 by 48.
   pick(x, y) {

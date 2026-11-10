@@ -151,7 +151,7 @@ try {
     const acts = await page.ev('__clayPlayer.acts()'), W5 = (x, z) => page.ev(`__clayPlayer.w5(${x}, ${z})`);
     const starts = [await W5(0, 0), await page.ev(`__clayPlayer.stand('${acts[0]}')`), await page.ev(`__clayPlayer.stand('${acts[3]}')`)];
     const SHOTS = process.env.FAULT_SHOTS; if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
-    const run = async (label, max = 30 * 60) => {
+    const run = async (label, max = 60 * 60) => {
       for (let i = 0; i < max; i++) {
         const r = await page.ev('__clayFrame(1 / 60); Object.assign(__chk(), { p: __clayPlayer.state().mode, t: __clayPlayer.state().t })');
         const fresh = r.out.filter((f) => !faults.has(f.replace(/[0-9.]+/g, '#')));
