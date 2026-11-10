@@ -1,7 +1,7 @@
-# Build the Clayducation logo files (direction A, "pressed play") from one source.
-import json, sys, os
-J, out = sys.argv[1], sys.argv[2]
-w = json.load(open(f"{J}/word.json"))
+# The Clayducation mark (a pebble of clay with a play button pressed into it) and the favicon.
+# Usage: python3 logo.py <output folder>  ->  mark.svg and favicon.svg
+import sys, os
+out = sys.argv[1]
 os.makedirs(out, exist_ok=True)
 PEBBLE = "M100 10C150 7 191 41 193 95c3 55-34 96-90 98C48 196 8 160 8 103 7 49 47 13 100 10Z"
 PLAY = "M80 66Q80 56 89 61L138 91Q147 97 138 103L89 133Q80 138 80 128Z"
@@ -44,11 +44,4 @@ open(f"{out}/mark.svg", "w").write(svg("-6 -4 212 216", defs("m") + "\n" + mark(
 # The favicon: no fingerprint, no drop shadow, a larger play shape, so it stays clear at 16 px.
 BIGPLAY = "M72 58Q72 46 83 52L146 89Q157 96 146 103L83 141Q72 147 72 135Z"
 open(f"{out}/favicon.svg", "w").write(svg("4 6 192 192", defs("f", shadow=False, rings=False) + "\n" + mark("f", rings=False, play=BIGPLAY), "Clayducation"))
-# The logo: the mark and the word. The word's x-height sits on the mark's middle.
-s = 137.5 / w["upem"]; base = 100 + w["xh"] * s / 2; x0 = 240; W = x0 + w["width"] * s
-def word(c1, c2):
-    return f'<g transform="translate({x0} {base:.2f}) scale({s:.5f})"><path d="{w["clay"]}" fill="{c1}"/><path d="{w["ducation"]}" fill="{c2}"/></g>'
-vb = f"-6 -4 {W + 12:.1f} 216"
-open(f"{out}/logo.svg", "w").write(svg(vb, defs("l") + "\n" + mark("l") + "\n" + word("#26262a", "#b56a44"), "Clayducation", round(W + 12), 216))
-open(f"{out}/logo-dark.svg", "w").write(svg(vb, defs("d") + "\n" + mark("d") + "\n" + word("#f3ede2", "#f3ede2"), "Clayducation", round(W + 12), 216))
-print("ok", round(W))
+print("ok")
