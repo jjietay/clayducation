@@ -18,6 +18,15 @@ Make `world/` again after `make bake`, a change to the clay kit, or a new model 
 cd gallery && node ../engine/gallery-export.mjs world.json
 ```
 
+Check the page after a change (each fault is one line; see "Checks" in `DESIGN.md`):
+
+```bash
+node engine/test/gallery-check.mjs scroll     # the whole scroll, down and back up
+node engine/test/gallery-check.mjs clicks     # chapter 5: every action, and a click during each one
+node engine/test/gallery-check.mjs walks      # chapter 5: a walk between every two places
+node engine/test/gallery-check.mjs input      # hover labels, clicks and (with --touch) taps
+```
+
 To view the page on your computer (a page opened as a file cannot load modules):
 
 ```bash

@@ -84,7 +84,7 @@ See `~/Videos/explainers/mascot-actions-test-3/scenes.js` for each one, both way
 His legs have a hip, a knee and an ankle (the knees were added 2026-11-10), so he can sit, crouch and kneel. His shoulders are at y 4.52 and his hip joints
 at y 2.26: keep holds and knocks below the shoulders, and stands or tables below the hips when he works close to them. Face the object to the camera's side
 (turn the model with `ry`), so the viewer sees him from the side and not from the back. See
-`~/Videos/explainers/mascot-actions-test/scenes.js` and `mascot-actions-test-2/scenes.js` for each helper in use.
+`~/Videos/explainers/mascot-actions-test/scenes.js`, `mascot-actions-test-2/scenes.js` and `mascot-actions-test-3/scenes.js` (kick, jump, hammer, sweep, water, lieDown, walkPath) for each helper in use.
 
 Three simple props: `g.arrow(color)` returns an arrow for a force or a gap (`a.set(from, to)` each frame),
 `g.post(color, h)` marks a place on the floor, and `g.ball(color, r)` is a pulse or a signal. Use these, and do

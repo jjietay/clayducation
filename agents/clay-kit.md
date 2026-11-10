@@ -19,7 +19,7 @@ objects and movements to make, and the test video folder. Work only in those two
    thigh 1.0, fist 0.67 past the wrist, 8.6 tall. 1 m is about 5 units.
 2. `styles/library/clay/models/actions.js`: how a model file is written (parts, `pivot`, `parent`, `pose`,
    `rest`, `JOINS`), and how `models.js` registers it.
-3. `styles/library/clay.js`: the helpers (`carry`, `grip`, `sitOn`, `typeOn`, `trace`, `toss`), `moveHand` (the
+3. `styles/library/clay.js`: the helpers (`carry`, `grip`, `sitOn`, `typeOn`, `trace`, `toss`, `kick`, `jump`, `hammer`, `sweep`, `water`, `lieDown`, `walkPath`), `moveHand` (the
    safe hand path) and `allowance()` (which parts of him may touch which objects).
 4. `styles/library/clay/mascot.js`: `place`, `route`, `stride`, `reach`, `hold`, `legsPose` and `LEGS`, `plant`.
 5. `~/Videos/explainers/mascot-actions-test-3/` (`scenes.js`, `video.json`): a test video of the newest helpers
