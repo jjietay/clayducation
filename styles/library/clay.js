@@ -158,6 +158,8 @@ function allowance(m, g, other, om) {
     // A hand that grips a part closes around it. hold() names the part; reach() only points.
     if (/^(hand|fore)/.test(p)) for (const gr of m.hero.gripped || []) if (gr.i === +p.slice(-1) && gr.m === om) return gr.part === other.userData.part ? null : 0.12;
   }
+  // A short contact between two objects that a helper names for this frame only (the broom's bristles on the dust).
+  for (const c of m.touch || []) if (c.m === om) return null;
   return m.name === 'arrow' ? 0.05 : 0.02;
 }
 function objectHits(models) {
@@ -305,7 +307,7 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
     // The first point is in front of the shoulder and 0.35 out to its side, so it is clear of his shirt however near
     // the target is, and at least 1.0 short of the target's plane (the fist reaches 0.67 beyond the wrist; a lean toward
     // a board once put it on the board).
-    const df = (target[0] - S.x) * f.x + (target[2] - S.z) * f.z, lf = Math.min(1.6, Math.max(0.6, df - 1.0)), side = lf < 1.0 ? 0.7 : 0.35;
+    const df = (target[0] - S.x) * f.x + (target[2] - S.z) * f.z, lf = Math.min(1.6, Math.max(0.6, df - 1.0)), side = 0.35 + 0.35 * clamp((1.15 - lf) / 0.3, 0, 1);   // a smooth change, or the hand jumps when he leans
     const out = new THREE.Vector3(-1, 0, 0).applyQuaternion(hero.root.quaternion).multiplyScalar(i === 0 ? side : -side);   // a near target: further out
     // The point before the target: 0.8 to 0.9 off it for a hold, so the hand does not touch before it holds. reach() puts
     // the wrist on a point, and the fist reaches about 0.67 beyond the wrist.
@@ -722,8 +724,10 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
       // The ball: still until at, then a constant slowing: its speed at the start (2 L / roll) is more than the shoe's.
       const u = clamp((t - at) / roll, 0, 1), s = L * (1 - (1 - u) * (1 - u));
       const P = [from[0] + d.x * s, from[1] + d.z * s];
-      ball.root.position.set(P[0], 0, P[1]);
+      // It rolls about its own centre (y = r): the root (its bottom) is placed so the centre stays at (P, r).
       ball.root.quaternion.setFromAxisAngle(new THREE.Vector3(d.z, 0, -d.x), spin + s / r);
+      const cOff = new THREE.Vector3(0, r, 0).applyQuaternion(ball.root.quaternion);
+      ball.root.position.set(P[0] - cOff.x, r - cOff.y, P[1] - cOff.z);
       if (ball.shadow) { ball.shadow.position.x = P[0]; ball.shadow.position.z = P[1]; }
       const end = at + 0.9;
       if (t < at - 0.9 || t > end) return { stand, face, end, roll: L / r };
@@ -827,24 +831,30 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
       placeTool(tool, P, GR.map((v, i) => v + (G[i] - v) * take));
       nail(pull ? (t < at ? 1 : t > end ? 0 : nk) : (t < at ? 0 : t > end ? 1 : nk));
       const ln = pull ? 0.15 : lean;
-      if (busy) { hero.place(stand[0], stand[1], { face, lean: ln }); holdTool(hero, hand, P.W, grip); }
+      // The lean comes in and goes out with the hand, so his body never jumps at the start or the end.
+      if (busy) { hero.place(stand[0], stand[1], { face, lean: ln * grip }); holdTool(hero, hand, P.W, grip); }
       return { stand, face, hits, end };
     },
-    // Sweep a 'dust' pile with a 'broom' (both hands on the handle): the brush goes side to side on the floor in front of
-    // him, strokes times in dur s, and each stroke pushes the pile a little further along dir ([x, z] on the floor: the
-    // pile's way), dist in all. from: the pile's start [x, z]. He faces across the pile's way, to the camera's side (face:
+    // Sweep a 'dust' pile with a 'broom' (both hands on the handle): strokes times in dur s, the broom's head pushes along
+    // dir ([x, z] on the floor: the pile's way) with its bristles on the floor, then lifts and goes back for the next push.
+    // The pile moves only while the bristles push it, at their speed, touching their edge: dist in all. from: the pile's start [x, z]. He faces across the pile's way, to the camera's side (face:
     // his facing, to choose it). The broom stands upright on its brush at rest ([x, z]) until at; he takes it there, walks
     // with the brush lifted to the strokes, steps along with the pile, walks back, and stands the broom at rest again.
     // His left hand holds the handle high, his right hand low; the strokes run 2.6 to his right.
     // Walk him to the returned stand point (face) before at. Returns { stand, face, end, pileEnd, rest } (rest: where the
     // broom stands, for the next sweep).
-    sweep(hero, broom, pile, t, { at = 1, dur = 4, strokes = 4, from, dist = 2.4, dir = [-1, 0], face, rest, reach = 4.3, amp = 0.75 } = {}) {
+    sweep(hero, broom, pile, t, { at = 1, dur = 4, strokes = 4, from, dist = 2.4, dir = [-1, 0], face, rest, reach = 4.3 } = {}) {
       const s = new THREE.Vector3(dir[0], 0, dir[1]).normalize();
       if (face == null) { const c = new THREE.Vector3(camera.position.x - from[0], 0, camera.position.z - from[1]); const p = new THREE.Vector3(-s.z, 0, s.x); face = Math.atan2(...(p.dot(c) >= 0 ? [p.x, p.z] : [-p.x, -p.z])); }
       const f = dirOf(face), r = new THREE.Vector3(-f.z, 0, f.x), P0 = new THREE.Vector3(from[0], 0, from[1]), up = new THREE.Vector3(0, 1, 0);
-      // Along the pile's way (s), from its start: the brush's leading edge is 0.55 ahead of its centre, the pile's back
-      // edge 0.75 behind its centre. x0: the middle of the first stroke.
-      const x0 = -(0.75 + 0.55 + 0.15) - amp, mid = (tt) => x0 + dist * ease(span(tt, a0, dur));
+      // Along the pile's way (s), from the pile's start: the bristles' leading edge is E (0.16) ahead of the head's centre,
+      // the pile's back edge 0.72 behind its centre. Each push goes c + 0.6 (c = dist / strokes): 0.6 to reach the pile,
+      // then c with it; the return goes back 0.6, lifted 0.3. x0: where the first push starts.
+      const E = 0.16, c = dist / strokes, Lp = c + 0.6, x0 = -0.72 - E - 0.6, T = dur / strokes, PF = 0.55;
+      const stroke = (tt) => { const u = clamp((tt - a0) / T, 0, strokes - 1e-9), k = Math.floor(u), q = u - k, st = x0 + k * c;
+        return q < PF ? { k, push: true, q: q / PF, x: st + Lp * ease(q / PF), y: 0 } : { k, push: false, q: (q - PF) / (1 - PF), x: st + Lp - 0.6 * ease((q - PF) / (1 - PF)), y: 0.3 * Math.sin(Math.PI * (q - PF) / (1 - PF)) }; };
+      const brushX = (tt) => tt <= a0 ? x0 : tt >= b0 ? x0 + strokes * c : stroke(tt).x;
+      const mid = (tt) => x0 + Lp / 2 + c * strokes * span(tt, a0, dur);
       // Where he stands to sweep: reach behind the pile's line, with the line of strokes 2.6 to his right.
       const H = (tt) => P0.clone().addScaledVector(s, mid(tt)).addScaledVector(f, -reach).addScaledVector(r, -2.6);
       // The rest: the broom upright at R; he takes it standing at Sr, 2.2 in front of him and 0.75 to his left. Default R: at the
@@ -855,31 +865,35 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
       const a = at + 1.4, w1 = Math.max(0.5, Sr.distanceTo(H0) / 2.2);
       let a0 = a + w1;
       const b0 = a0 + dur, w2 = Math.max(0.5, Sr.distanceTo(H(b0)) / 2.2), end = b0 + w2 + 1.4;
-      const brushX = (tt) => mid(tt) - amp * Math.cos(2 * Math.PI * strokes * span(tt, a0, dur));
       // Where he is: at Sr, walking to the strokes, sweeping, walking back.
       const Hp = (tt) => tt <= a ? Sr.clone() : tt < a0 ? Sr.clone().lerp(H(a0), ease(span(tt, a, w1))) : tt <= b0 ? H(tt) : tt < b0 + w2 ? H(b0).lerp(Sr, ease(span(tt, b0, w2))) : Sr.clone();
-      const lift = (tt) => tt < a0 ? 1.0 * (1 - ease(span(tt, a0 - 0.35, 0.35))) : tt > b0 ? 1.0 * ease(span(tt, b0, 0.35)) : 0;
-      // The pile: pushed ahead of the brush's furthest edge so far.
-      let push = -9; for (let tt = a0; tt <= Math.min(t, b0); tt += 1 / 60) push = Math.max(push, brushX(tt) + 0.55);
-      const px = Math.max(0, push + 0.75 + 0.15), pileEnd = [P0.x + s.x * (dist + 0.0), P0.z + s.z * (dist + 0.0)];
+      const lift = (tt) => tt < a0 ? 1.0 * (1 - ease(span(tt, a0 - 0.35, 0.35))) : tt > b0 ? 1.0 * ease(span(tt, b0, 0.35)) : stroke(tt).y;
+      // The pile: its back edge stays 0.02 into the bristles' furthest edge so far (it moves only while they push it).
+      const now = t > a0 && t < b0 ? stroke(t) : null;
+      const edge = t <= a0 ? -9 : t >= b0 ? x0 + (strokes - 1) * c + Lp + E : Math.max(now.k > 0 ? x0 + (now.k - 1) * c + Lp + E : -9, (now.push ? now.x : x0 + now.k * c + Lp) + E);
+      const px = Math.max(0, edge + 0.72 - 0.02), pileEnd = [P0.x + s.x * (dist - 0.02), P0.z + s.z * (dist - 0.02)];
+      broom.touch = now && (now.push || now.q < 0.15) && edge + 0.72 - 0.02 > 0 ? [{ m: pile }] : [];
       pile.root.position.set(P0.x + s.x * px, 0, P0.z + s.z * px);
       if (pile.shadow) { pile.shadow.position.x = pile.root.position.x; pile.shadow.position.z = pile.root.position.z; }
       // The broom: the brush at B, the handle up to U (2.6 in front of him, 0.5 to his left), where the upper hand holds it.
       const G = [[0, 4.6, 0], [0, 3.8, 0]];   // the grips on the handle: upper hand (1, his left) and lower hand (0, his right)
-      const B = (tt) => { const h = Hp(tt), rel = tt >= a0 && tt <= b0 ? brushX(tt) - mid(tt) : -amp; return h.addScaledVector(f, reach).addScaledVector(r, 2.6).addScaledVector(s, rel).addScaledVector(up, lift(tt)); };
+      const B = (tt) => { const h = Hp(tt), rel = tt >= a0 && tt <= b0 ? brushX(tt) - mid(tt) : -Lp / 2; return h.addScaledVector(f, reach).addScaledVector(r, 2.6).addScaledVector(s, rel).addScaledVector(up, lift(tt)); };
       const U = (tt) => Hp(tt).addScaledVector(f, 2.6).addScaledVector(r, -0.5).setY(3.8);
-      const swPose = (tt) => { const Bv = B(tt), Q = new THREE.Quaternion().setFromUnitVectors(up, U(tt).sub(Bv).normalize()); return { Q, W: Bv.add(V3(G[0]).applyQuaternion(Q)) }; };
-      const rp = { Q: new THREE.Quaternion(), W: R.clone().add(V3(G[0])) };
+      // The handle runs from the head on the floor to the upper hand; the head's broad face looks along s (it pushes).
+      const swPose = (tt) => { const Bv = B(tt), h = U(tt).sub(Bv).normalize(), zz = s.clone().addScaledVector(h, -s.dot(h)).normalize(), xx = h.clone().cross(zz);
+        const Q = basisQ(xx.toArray(), h.toArray(), zz.toArray()); return { Q, W: Bv.add(V3(G[0]).applyQuaternion(Q)) }; };
+      // At rest it stands upright, its broad face along s.
+      const rq = basisQ(s.clone().cross(up).negate().toArray(), [0, 1, 0], s.toArray()), rp = { Q: rq, W: R.clone().add(V3(G[0]).applyQuaternion(rq)) };
       const { P, grip, busy } = toolPath(t, at, end, rp, swPose, 0.3);
       placeTool(broom, P, G[0]);
-      // The brush never goes into the floor: lift the broom when its lowest point is below y 0 (the bundle is round).
+      // The bristles never go into the floor: lift the broom when its lowest point is below y 0.
       const brush = broom.groups.brush, pos = meshOf(brush).geometry.attributes.position, v = new THREE.Vector3(); let low = 9;
       for (let i = 0; i < pos.count; i += 5) { v.fromBufferAttribute(pos, i).applyMatrix4(brush.matrixWorld); low = Math.min(low, v.y); }
       if (low < 0) { broom.root.position.y -= low; broom.root.updateMatrixWorld(true); }
       if (busy) {
         const Hn = Hp(t), walked = t < a0 ? Sr.distanceTo(Hn) : t <= b0 ? Sr.distanceTo(H(a0)) + Math.abs(mid(t) - mid(a0)) : Sr.distanceTo(H(a0)) + dist + H(b0).distanceTo(Hn);
-        const moving = t > a && t < a0 ? Math.sin(Math.PI * span(t, a, w1)) : t > b0 && t < b0 + w2 ? Math.sin(Math.PI * span(t, b0, w2)) : t >= a0 && t <= b0 ? 0.4 * Math.sin(Math.PI * span(t, a0, dur)) : 0;
-        hero.place(Hn.x, Hn.z, { face, lean: 0.2 });
+        const moving = t > a && t < a0 ? Math.sin(Math.PI * span(t, a, w1)) : t > b0 && t < b0 + w2 ? Math.sin(Math.PI * span(t, b0, w2)) : t >= a0 && t <= b0 ? 0.4 * span(t, a0, 0.4) * (1 - span(t, b0 - 0.4, 0.4)) : 0;
+        hero.place(Hn.x, Hn.z, { face, lean: 0.2 * grip });
         hero.stride(walked * hero.STEP, 0.4 * moving);
         holdTool(hero, 1, V3(g.partPoint(broom, 'handle', G[0])), grip);
         // The right hand comes to the lower grip from his right side (a path across his chest goes into his shirt).
@@ -952,7 +966,7 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
       if (busy) {
         const Hn = Hp(t), walked = t < a1 ? Sr.distanceTo(Hn) : t <= b1 ? Sr.distanceTo(X) : Sr.distanceTo(X) + X.distanceTo(Hn);
         const moving = t > a && t < a1 ? Math.sin(Math.PI * span(t, a, w1)) : t > b1 && t < b1 + w1 ? Math.sin(Math.PI * span(t, b1, w1)) : 0;
-        hero.place(Hn.x, Hn.z, { face, lean: 0.1 });
+        hero.place(Hn.x, Hn.z, { face, lean: 0.1 * grip });
         hero.stride(walked * hero.STEP, 0.4 * moving);
         holdTool(hero, hand, P.W, grip);
       }
@@ -975,13 +989,16 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
       if (back > 0) {
         // Lean back about the hips; the thighs turn forward by the same angle, so the legs stay on the floor. Breathing
         // lifts his chest a little.
-        const beta = (Math.PI / 2 - 0.03) * back - 0.03 * back * (0.5 + 0.5 * Math.sin(2 * Math.PI * t / 3.6));
+        const beta = (Math.PI / 2 - 0.03) * back;
         hero.root.updateMatrixWorld(true);
         const Pm = hero.legs[0].hip.getWorldPosition(new THREE.Vector3()).add(hero.legs[1].hip.getWorldPosition(new THREE.Vector3())).multiplyScalar(0.5);
         const side = new THREE.Vector3(1, 0, 0).applyQuaternion(hero.root.quaternion), q = new THREE.Quaternion().setFromAxisAngle(side, -beta);
         hero.root.position.sub(Pm).applyQuaternion(q).add(Pm); hero.root.quaternion.premultiply(q);
         for (const l of hero.legs) l.hip.rotation.x += beta;
         hero.plant(0.08, { body: true });
+        // Breathing: only his chest rises and falls (the shirt grows 7 % in depth about its back, 3.6 s a breath).
+        const sh = hero.shapes.find((m) => m.userData.part === 'shirt'), bz = 1 + 0.07 * back * (0.5 + 0.5 * Math.sin(2 * Math.PI * t / 3.6));
+        sh.scale.z = bz; sh.position.z = 1.05 * (bz - 1);
       }
       // Sitting, his hands rest on the rug beside his hips; they let go as he leans back, and his arms lie at his sides.
       // Lying, they stay there, a little nearer his head, so his arms stay bent (a straight arm level with the shoulder

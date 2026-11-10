@@ -20,7 +20,7 @@ export const MODELS = {
     make() {
       const m = def();
       m.add('ball', (x, y, z) => ell(x, y, z, 0, 0.55, 0, 0.55, 0.55, 0.55), C.ball, { step: 0.02 });
-      m.add('band', (x, y, z) => Math.min(torus(x, y, z, 0, 0.55, 0, 'x', 0.52, 0.06), torus(x, y, z, 0, 0.55, 0, 'y', 0.52, 0.06)), C.red, { step: 0.015 });
+      m.add('band', (x, y, z) => Math.min(torus(x, y, z, 0, 0.55, 0, 'x', 0.5, 0.055), torus(x, y, z, 0, 0.55, 0, 'y', 0.5, 0.055)), C.red, { step: 0.015 });
       return m;
     },
     moving: 'Rolls (its root)',
@@ -60,16 +60,22 @@ export const MODELS = {
     pose(g) { g.nail.position.y -= 0.3; },
     moving: 'Nail sinks',
   },
-  // A broom, 5.1 tall (1 m), with a round bundle of straw, so it rests on the floor at any lean. Its root is the
-  // bottom of the bundle, on the floor; the handle goes up to y 5.1. sweep() in clay.js holds it at y 4.6 (upper hand)
-  // and 3.3 (lower hand) on the handle.
+  // A broom, 5.1 tall (1 m). Its head is a flat fan of five straw bundles, 1.5 wide (x) and 0.3 deep (z) at the floor,
+  // narrow at the binding (three red bands); a steel ferrule joins it to the handle, which ends in a round knob. The
+  // root is the bottom of the head, on the floor; the head's broad faces look along z, the way it pushes. sweep() in
+  // clay.js holds it at y 4.6 (upper hand) and 3.8 (lower hand) on the handle.
   broom: {
     label: 'Broom',
     make() {
       const m = def();
-      m.add('brush', (x, y, z) => smax(smin(cone(x, y, z, 0, 0.3, 0, 0, 1.2, 0, 0.5, 0.17), ell(x, y, z, 0, 0.3, 0, 0.52, 0.3, 0.52), 0.15), -y, 0.06), C.straw, { step: 0.025 });
-      m.add('band', (x, y, z) => rcyl(x, y, z, 0, 1.1, 0, 'y', 0.22, 0.08, 0.04), C.red, { step: 0.02 });
-      m.add('handle', (x, y, z) => cone(x, y, z, 0, 1.1, 0, 0, 5.1, 0, 0.085, 0.075), C.wood, { step: 0.02 });
+      m.add('brush', (x, y, z) => {
+        let d = ell(x, y, z, 0, 1.12, 0, 0.3, 0.26, 0.15);
+        for (let i = -2; i <= 2; i++) d = smin(d, cone(x, y, z, i * 0.08, 1.1, 0, i * 0.29, 0.16, 0, 0.09, 0.15), 0.05);
+        return smax(d, -y, 0.03);
+      }, C.straw, { step: 0.02 });
+      m.add('band', (x, y, z) => Math.min(ell(x, y, z, 0, 0.98, 0, 0.36, 0.045, 0.19), ell(x, y, z, 0, 1.12, 0, 0.33, 0.045, 0.18), ell(x, y, z, 0, 1.26, 0, 0.26, 0.045, 0.16)), C.red, { step: 0.015 });
+      m.add('ferrule', (x, y, z) => cone(x, y, z, 0, 1.3, 0, 0, 1.6, 0, 0.13, 0.095), PAL.steel, { mat: 'metal', step: 0.015 });
+      m.add('handle', (x, y, z) => smin(cone(x, y, z, 0, 1.5, 0, 0, 4.98, 0, 0.085, 0.075), ell(x, y, z, 0, 5.02, 0, 0.11, 0.09, 0.11), 0.04), C.wood, { step: 0.02 });
       return m;
     },
     moving: 'Held',
@@ -144,7 +150,7 @@ export const JOINS = {
   kickball: [['band', 'ball']],
   hammer: [['head', 'handle']],
   nailboard: [[/^leg/, 'top'], ['bar', /^leg/], ['nail', 'top']],
-  broom: [['band', 'brush'], ['handle', 'band']],
+  broom: [['band', 'brush'], ['ferrule', 'brush'], ['handle', 'ferrule']],
   wateringCan: [['spout', 'body'], ['rose', 'spout'], ['grip', 'body']],
   plant: [['soil', 'pot'], ['stem', 'soil'], ['flower', 'stem'], [/^petal/, 'flower']],
   rug: [['floorStripes', 'floor']],
