@@ -104,10 +104,11 @@ function PROBE() {
           if (hit) out.push(`${a.userData.part} into ${b.userData.part}`); }
       }
       for (const g of H.grips || []) if (g.gap > 0.3) out.push(`hand ${g.i} misses what it holds, by ${g.gap.toFixed(1)}`);
+      const fl = window.__clayFloor?.(); if (fl && Math.abs(fl.low - fl.want) > 0.02) out.push(`lying: his lowest point is ${(fl.low - fl.want).toFixed(2)} off the rug top`);
       // Jumps: his feet place, and each joint, against the frame before.
       const J = [['root', H.root], ...H.arms.flatMap((a, i) => [[`shoulder${i}`, a.shoulder], [`elbow${i}`, a.elbow]]), ...H.legs.flatMap((l, i) => [[`hip${i}`, l.hip], [`knee${i}`, l.knee]])].filter((x) => x[1]);
       const now = { p: H.root.position.clone(), q: J.map((x) => x[1].quaternion.clone()) };
-      const st0 = window.__clayState(); if ((st0.kind === 'pen' && Math.abs(st0.u - 0.5) < 0.03) || (st0.kind === 'dream' && Math.abs(st0.u - 0.62) < 0.03)) last = null;   // the two cuts, hidden by the pen's blue and by the bubble
+      const st0 = window.__clayState(); if ((st0.kind === 'pen' && Math.abs(st0.u - 0.5) < 0.03) || (st0.kind === 'dream' && st0.u > 0.55 && st0.u < 0.65)) last = null;   // the two cuts, hidden by the pen's blue and by the bubble
       if (last) { const dp = now.p.distanceTo(last.p); if (dp > 0.6) out.push(`jump: his body moves ${dp.toFixed(2)} in one frame`); now.q.forEach((q, i) => { const dq = q.angleTo(last.q[i]); if (dq > 0.35) out.push(`jump: ${J[i][0]} turns ${dq.toFixed(2)} rad in one frame`); }); }
       last = now;
       sg.clearRect(0, 0, 64, 36); sg.drawImage(document.querySelector('canvas.world'), 0, 0, 64, 36); const px = sg.getImageData(0, 0, 64, 36).data;
@@ -241,6 +242,27 @@ try {
       for (let i = 0; i < 2400; i++) { __clayFrame(1 / 60); const s = P.state(); if (s.mode !== 'walk') break; const f = P.face(); if (lf !== null) { let d = f - lf; d = Math.atan2(Math.sin(d), Math.cos(d)); if (Math.abs(d) > 0.08) out.push({ i, t: +s.w.t.toFixed(3), d: +d.toFixed(3), d0: s.w.d0, T: s.w.T }); } lf = f; }
       return out; })()`);
     console.log(JSON.stringify(r).slice(0, 3000));
+  } else if (mode === 'hair') {
+    // Item 6: the colour of his hair in every frame of one action (a pixel read from the 3D canvas at his head's top).
+    await page.ev(`scrollTo(0, __clayAt(5, 0.5)); for (let i = 0; i < 30; i++) __clayFrame(1 / 60); { const s = __clayPlayer.stand('${args[1]}'); __clayPlayer.reset(s[0], s[1], s[2]); __clayPlayer.click('${args[1]}'); } true`);
+    const r = await page.ev(`(() => { const out = [], c = document.createElement('canvas'); c.width = c.height = 1; const g = c.getContext('2d', { willReadFrequently: true });
+      for (let i = 0; i < ${Math.round(+(args[2] || 6) * 60)}; i++) { __clayFrame(1 / 60); const p = __clayProbe(({ H, toScreen }) => { const v = H.head.getWorldPosition(new (H.root.position.constructor)()); v.y += 0.9; return toScreen(v); });
+        const cv = document.querySelector('canvas.world'), k = cv.width / innerWidth; g.clearRect(0, 0, 1, 1); g.drawImage(cv, p[0] * k, p[1] * k, 1, 1, 0, 0, 1, 1); const d = g.getImageData(0, 0, 1, 1).data; const info = __clayProbe(({ H, THREE, cam }) => { const h = H.shapes.find((m) => m.userData.part === 'hair'); h.updateMatrixWorld(true); const fr = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse)); const bs = h.geometry.boundingSphere.clone().applyMatrix4(h.matrixWorld); let vis = true; for (let q = h; q; q = q.parent) if (!q.visible) vis = false; return [vis, +h.getWorldScale(new THREE.Vector3()).x.toFixed(3), fr.intersectsSphere(bs), +bs.radius.toFixed(2), h.frustumCulled]; }); out.push([i, d[0], d[1], d[2], d[3], ...info]); }
+      return out; })()`);
+    const brown = r.filter(([, R, G, B, A]) => A > 200 && R - B > 40);
+    console.log('frames', r.length, 'brownish', brown.length, JSON.stringify(brown.slice(0, 12)), 'typical', JSON.stringify(r.slice(60, 63)));
+  } else if (mode === 'film') {
+    // One click on action args[2] from the scene's start, then a full picture every args[3] frames for args[4] s, tiled.
+    const out = args[1], act = args[2], every = +(args[3] || 30), secs = +(args[4] || 16); fs.mkdirSync(out, { recursive: true });
+    await page.ev(`scrollTo(0, __clayAt(5, 0.5)); for (let i = 0; i < 60; i++) __clayFrame(1 / 60); __clayPlayer.click('${act}'); true`);
+    let n = 0;
+    for (let f = 0; f < secs * 60; f += every) {
+      await page.ev(`for (let k = 0; k < ${every}; k++) __clayFrame(1 / 60); true`);
+      await new Promise((r) => setTimeout(r, 120));
+      fs.writeFileSync(path.join(out, `f-${String(n++).padStart(3, '0')}.jpg`), Buffer.from((await page.send('Page.captureScreenshot', { format: 'jpeg', quality: 70 })).data, 'base64'));
+    }
+    spawnSync('ffmpeg', ['-y', '-v', 'error', '-pattern_type', 'glob', '-i', path.join(out, 'f-*.jpg'), '-vf', 'scale=360:-1,tile=6x6:padding=3', '-frames:v', '1', path.join(out, 'sheet.jpg')]);
+    console.log('film', n, 'frames');
   } else if (mode === 'eval') {
     // Debug: at chapter 5, click args[1], step args[2] seconds, print the value of args[3].
     await page.ev(`scrollTo(0, __clayAt(5, 0.5)); for (let i = 0; i < 30; i++) __clayFrame(1 / 60); { const s = __clayPlayer.stand('${args[1]}'); __clayPlayer.reset(s[0], s[1], s[2]); } __clayPlayer.click('${args[1]}'); for (let i = 0; i < ${Math.round(+args[2] * 60)}; i++) __clayFrame(1 / 60); true`);

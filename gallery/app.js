@@ -1114,7 +1114,7 @@ C[4] = {
 const SC = [CX + 30, 0], SPREAD = 1.3;   /* the ring spread out: a clear corridor between the things' grown footprints */
 const W5 = (x, z) => [SC[0] + x * SPREAD, SC[1] + z * SPREAD];   // ring coordinates to world
 const PED = 2.2, BR = 0.42, BK = 0.66;   /* the ball's radius reads on screen; the basket's size (inner radius 0.56) */                                   // the stand's top; the ball's radius
-const RING = { berry: [-12, 3], bench: [-14.5, -1.5], wheel: [-12, -6], board: [0.6, -9.4], nails: [-5.6, -10], plant: [8.5, 6.0], basket: [12.0, -6.6], rack: [7.4, -6.6],   /* 6.0 apart in the world (x SPREAD): he stands 3.0 from each */   /* in a line across the screen: the throw is seen from the side */
+const RING = { berry: [-12, 3], bench: [-14.5, -1.5], wheel: [-12, -6], board: [0.6, -9.4], nails: [-5.6, -10], plant: [8.5, 6.0], basket: [12.18, -6.6], rack: [7.1, -6.6],   /* 6.6 apart in the world (x SPREAD): he stands 3.3 from each, with room for his hands */   /* in a line across the screen: the throw is seen from the side */
   parcel: [13.5, 2.5], stand: [13.5, -2.5], rug: [0, 5.8] };
 const FREE = { sweep: [13, -7.5] };   // kept for the sweep
 const KICK = [[-4.5, 1.8], [-7.2, 5.9]], SPOT = [0, -1];   // the ball's two places; the jump's spot
@@ -1224,7 +1224,7 @@ const walkTime = (a, b) => 0.6 + Math.hypot(b[0] - a[0], b[1] - a[1]) / 3.6;
 // from his place to the goal through the corners of the grown footprints (a visibility graph, Dijkstra), each corner
 // rounded with an arc. He turns on the spot toward the path, walks it forward (the kit's walkPath: one pace, eased only
 // at its two ends, facing along the path), and turns on the spot to face the thing.
-const GROW = 1.5, NODE = 1.2, ARC = 1.8, TURN = 2.3, PACE = 2.7;   /* GROW: his hands hang 1.35 from his middle, plus a margin */
+const GROW = 1.8, NODE = 1.2, ARC = 1.8, TURN = 2.3, PACE = 2.7;   /* GROW: his fists reach about 1.7 from his middle as he walks, plus a margin */
 function footprints() {
   const out = [], b = new THREE.Box3(), seen = new Set();
   const add = (o) => {
@@ -1251,7 +1251,9 @@ function crosses(a, b, r) {
 // The grown footprints for a walk from a to b: a footprint that holds a or b (a stand point right by its thing) grows
 // less, so the point is just outside it.
 function obstacles(a, b, G = GROW) {
-  return footprints().map((raw) => { let g = G; for (const p of [a, b]) if (inside(p, grow(raw, g))) g = Math.max(0, boxGap(p, raw) - 0.05); return grow(raw, g); });
+  // A box is square: the point is outside it when it is out along one axis, so grow the box less than the larger axis gap.
+  const axisGap = (p, r) => Math.max(r[0] - p[0], p[0] - r[2], r[1] - p[1], p[1] - r[3]);
+  return footprints().map((raw) => { let g = G; for (const p of [a, b]) if (inside(p, grow(raw, g))) g = Math.max(0, axisGap(p, raw) - 0.05); return grow(raw, g); });
 }
 function planPath(a, b) {
   for (const G of [GROW, 1.2, 0.9]) { const p = planWith(a, b, G); if (p) return p; }   /* no way at full room: try a little less */
@@ -1792,13 +1794,13 @@ const ACTS = {
   toss: {
     label: 'toss()', objs: () => [C[5].basketStand, C[5].basket, C[5].rack, C[5].ball],
     spots() { const R = W5(...RING.rack), K = W5(...RING.basket); return [[R[0], PED + BR, R[1]], [K[0], PED + BK * 0.12 + BR, K[1]]]; },
-    stand(dir) { const R = W5(...RING.rack), K = W5(...RING.basket); return dir ? [K[0] - 3.0, K[1], PI2] : [R[0] + 3.0, R[1], -PI2]; },
+    stand(dir) { const R = W5(...RING.rack), K = W5(...RING.basket); return dir ? [K[0] - 3.3, K[1], PI2] : [R[0] + 3.3, R[1], -PI2]; },
     end(dir) { const s = this.stand(dir); return [s[0], s[1], s[2] + Math.PI]; }, dur: 5.1, commit: 1.6,
     idle(st) { C[5].ball.position.set(...this.spots()[st]); },
     run(t, dir) {
       const s = this.stand(dir), [Rs, Ks] = this.spots(), from = dir ? Ks : Rs, ball = C[5].ball, AT = 3.45;
       const grab = seg(t, 0, 0.8), lift = seg(t, 0.8, 0.6), turn = seg(t, 1.4, Math.PI / TURN), face = angMix(s[2], s[2] + Math.PI, turn);
-      const lean = 0.32 * grab * (1 - lift) + (dir ? 0.32 * seg(t, 2.6, 0.5) * (1 - seg(t, 3.9, 0.8)) : 0);
+      const lean = 0.42 * grab * (1 - lift) + (dir ? 0.42 * seg(t, 2.6, 0.5) * (1 - seg(t, 3.9, 0.8)) : 0);
       H.pose.rest(); place(s[0], s[1], face, { lean }); H.stride(turn * 2.4, 0.16 * Math.sin(Math.PI * turn));
       H.root.updateMatrixWorld(true);
       const S = H.arms[1].shoulder.getWorldPosition(new THREE.Vector3()), f = kit.fwd(), carryPt = [S.x + f.x * 1.5, S.y - 0.9, S.z + f.z * 1.5];
@@ -1832,10 +1834,10 @@ const ACTS = {
     label: 'grip()', objs: () => [C[5].wheel],
     dir3() { const ry = C[5].wheel.root.rotation.y; return [Math.sin(ry), 0, Math.cos(ry)]; },
     stand() { const m = C[5].wheel, P = RIM.map((p) => kit.partPoint(m, 'wheel', p)), d = this.dir3(); const c = [(P[0][0] + P[1][0]) / 2, (P[0][2] + P[1][2]) / 2]; return [c[0] + d[0] * 2.0, c[1] + d[2] * 2.0, Math.atan2(-d[0], -d[2])]; },
-    end(d) { return this.stand(d); }, dur: 2.8, commit: 1.0,
+    end(d) { return this.stand(d); }, dur: 3.3, commit: 1.3,
     idle(st) { C[5].wheel.setPose(st * STEPW / PI2); },
     run(t, dir) {
-      const a = (dir ? 1 - seg(t, 0.7, 1.4) : seg(t, 0.7, 1.4)) * STEPW, k = seg(t, 0, 0.6) * (1 - seg(t, 2.3, 0.5));
+      const a = (dir ? 1 - seg(t, 1.0, 1.4) : seg(t, 1.0, 1.4)) * STEPW, k = seg(t, 0, 0.9) * (1 - seg(t, 2.6, 0.6));   /* the hands come in over 0.9 s */
       C[5].wheel.setPose(a / PI2); H.pose.rest();
       kit.grip(C[5].wheel, 'wheel', RIM, { k, standOff: 2.0, dir: this.dir3(), lean: 0.08 });
       blendFace('neutral', 'thinking', k);
@@ -1867,7 +1869,7 @@ const ACTS = {
     label: 'lieDown()', objs: () => [C[5].rug],
     stand() { const r = play.lieDown(H, C[5].rug, 0, { k: 0 }); return [r.stand[0], r.stand[1], r.face]; }, end(d) { return this.stand(d); }, dur: 7.4, commit: 99,
     idle() {},
-    run(t) { const s = this.stand(), k = seg(t, 0.1, 2.6) * (1 - seg(t, 4.7, 2.6)); H.pose.rest(); place(s[0], s[1], s[2]); play.lieDown(H, C[5].rug, t, { k, sleep: k }); },
+    run(t) { const s = this.stand(), k = seg(t, 0.1, 2.6) * (1 - seg(t, 4.7, 2.6)); H.pose.rest(); place(s[0], s[1], s[2]); play.lieDown(H, C[5].rug, t, { k, sleep: k }); if (k > 0) floorPlant = RUGTOP; },
   },
   // Drive the nail in with three hits (dir 0), or pull it out with the claw (dir 1): the kit's hammer().
   hammer: {
@@ -1936,6 +1938,7 @@ const snap = () => JSON.parse(JSON.stringify({ mode: P5.mode, at: P5.at, face: P
 let rec5 = null;   // the player's state when the scroll left the chapter
 window.__clayPlayer = { click: (n) => p5Click(n), state: () => snap(), acts: () => Object.keys(ACTS), stand: (n) => ACTS[n].stand(P5.st[n]), dur: (n) => ACTS[n].dur,
   reset: (x, z, face = 0) => { p5Init(); Object.assign(P5, { mode: 'idle', at: [x, z], face, next: null, quiet: 0, act: null, w: null }); }, w5: W5,
+  plan: (a, b) => ({ raw: footprints().map((r) => r.map((v) => +v.toFixed(2))), path: planPath(a, b).map((p) => p.map((v) => +v.toFixed(2))) }),
   face: () => { const w = P5.w; return w ? walkAt(w, w.t)[2] : P5.face; },
   walkTo: (x, z, face) => { P5.w = { ...makeWalk([P5.at[0], P5.at[1], P5.face], [x, z, face]), t: 0 }; P5.act = null; P5.mode = 'walk'; return { L: P5.w.L, straight: P5.w.straight, dur: P5.w.dur }; } };
 
@@ -2007,8 +2010,31 @@ C[5] = {
     if (live) { if (H) { p5Step(dt); p5Draw(P5); rec5 = snap(); } else p5Draw(P5); }
     else if (!(state.i === 5 && state.u > 0)) p5Draw(rec5 || P5, 1);
     this.sink(1);
+    if (H || !live) this.steer(live && !!H);
   },
-  shot(t) { return { at: [SC[0] + 0.5 * SPREAD, 4.2, SC[1] - 1.5 * SPREAD], dist: 57 * SPREAD, az: -4 + 3 * pn.x, el: 24 - 2 * pn.y, sx: 0.14, sy: 0.21 }; },
+  // The camera: the whole ring while he walks; during an action it eases in to frame him and the thing he uses, and
+  // eases back out when it ends (damped on time; reduced motion: always the whole ring).
+  zoom: 0, cv: null,
+  wide() { return { at: [SC[0] + 0.5 * SPREAD, 4.2, SC[1] - 1.5 * SPREAD], dist: 57 * SPREAD, az: -4 + 3 * pn.x, el: 24 - 2 * pn.y, sx: 0.14, sy: 0.21 }; },
+  close() {
+    const A = ACTS[P5.act], o = A?.objs()[0], q = o ? (o.root || o).getWorldPosition(new THREE.Vector3()) : null, h = H ? H.root.getWorldPosition(new THREE.Vector3()) : null;
+    if (!q || !h) return null;
+    const span = Math.hypot(q.x - h.x, q.z - h.z);
+    return { at: [(q.x + h.x) / 2, 3.6, (q.z + h.z) / 2], dist: clamp(1.3 * span + 26, 28, 40), az: (A.view ?? -4) + 2 * pn.x, el: 16 - 2 * pn.y, sx: 0.12, sy: 0 };   /* he and the thing whole on the screen */
+  },
+  steer(live) {
+    const want = live && !still && P5.act && (P5.mode === 'do' || P5.mode === 'undo') ? 1 : 0, c = want ? this.close() : null;
+    this.zoom = damp(this.zoom, want, 1.6);
+    if (c) this.cv = this.cv ? { ...c, at: this.cv.at.map((v, i) => damp(v, c.at[i], 2.5)), dist: damp(this.cv.dist, c.dist, 2.5), az: damp(this.cv.az, c.az, 2.5) } : c;
+    if (this.zoom < 0.002) { this.zoom = 0; if (!want) this.cv = null; }
+    // The statement fades while the camera is close, so it never sits over the action.
+    if (this.zoom > 0) { const op = +chs[5].style.opacity * (1 - 0.9 * sm(0, 0.6, this.zoom)); chs[5].style.opacity = op; }
+  },
+  shot(t) {
+    const w = this.wide(), c = this.cv, z = this.zoom * this.zoom * (3 - 2 * this.zoom);
+    if (!c || z <= 0) return w;
+    return { at: w.at.map((v, i) => lerp(v, c.at[i], z)), dist: lerp(w.dist, c.dist, z), az: lerp(w.az, c.az, z), el: lerp(w.el, c.el, z), sx: lerp(w.sx, c.sx, z), sy: lerp(w.sy, c.sy, z) };
+  },
 };
 // The walk in from the cart (4 to 5): to where the player left him, then his action plays back to where it was.
 const VIA5 = () => [W5(-12.5, 6.5)];   /* in the camera's view all the way */
@@ -2036,6 +2062,15 @@ function outOf5(s) {
 
 // 6. Nothing renders until the checks pass: he lies down on the rug, and the console of "make look" checks his pose
 // on every frame, with its real measures; when they pass, he falls asleep. The way out is his dream (chapter 7).
+// He lies or sits on the floor: after settle() has eased his joints, his lowest point (any part) is set on the floor.
+let floorPlant = null, floorLast = null;
+function lowest() { H.root.updateMatrixWorld(true); let lo = 1e9; const v = new THREE.Vector3(); for (const sh of H.shapes) { const p = sh.geometry?.attributes.position; if (!p) continue; for (let i = 0; i < p.count; i += 7) { v.fromBufferAttribute(p, i).applyMatrix4(sh.matrixWorld); if (v.y < lo) lo = v.y; } } return lo; }
+function plantFloor() {
+  if (floorPlant === null || !H) { floorLast = null; return; }
+  H.root.position.y += floorPlant - lowest(); H.root.updateMatrixWorld(true);
+  floorLast = { want: floorPlant, low: lowest() }; floorPlant = null;
+}
+window.__clayFloor = () => floorLast;
 const consoleEl = $('.console'), lineEls = [...document.querySelectorAll('.console .line')];
 const RUGTOP = 0.08;
 C[6] = {
@@ -2075,6 +2110,7 @@ C[6] = {
     if (!H) return;
     H.pose.rest();
     play.lieDown(H, C[5].rug, still ? 0 : now() / 1000, { k: sm(0, 0.5, t), sleep: sm(0.82, 0.95, t) });   // breathing from the clock
+    if (t > 0) floorPlant = RUGTOP;
     lookAt(null, 0);
     this.console(live);
   },
@@ -2372,7 +2408,10 @@ function shotAt(s) {
   const b = C[s.i + 1].shot(0);
   if (s.kind === 'pen') return s.u < 0.5 ? a : b;   // the cut is behind the pen's blue, which fills the frame
   if (s.kind === 'dream') {   // into the bubble; the cut is inside it, where the screen is all chapter 7's colour
-    if (s.u >= DREAM_CUT) { const e = still ? 1 : inOut(sm(DREAM_CUT, 1, s.u)); return { ...b, dist: lerp(9, b.dist, e), at: b.at.map((v, i) => lerp([STAND[0], 4.4, STAND[1]][i], v, e)), sx: b.sx * e, sy: b.sy * e }; }   /* out from close on him holding the roll */
+    if (s.u >= DREAM_CUT) {   /* out from close on him holding the roll: chapter 7's own view, its look point and distance scaled about his chest, so the camera moves on one straight line and he stays in place on the screen */
+      const e = still ? 1 : inOut(sm(DREAM_CUT, 1, s.u)), k = lerp(0.22, 1, e), M = [STAND[0], 4.4, STAND[1]];
+      return { ...b, at: b.at.map((v, i) => M[i] + (v - M[i]) * k), dist: b.dist * k };
+    }
     const A = C[s.i].shot(1), { c } = C[6].bubbleAt(s.u), e = still ? 0 : sm(0.3, DREAM_CUT, s.u);
     return { ...A, at: A.at.map((v, i) => lerp(v, c.getComponent(i), e)), dist: lerp(A.dist, 6, e), sx: A.sx * (1 - e), sy: A.sy * (1 - e) };
   }
@@ -2562,11 +2601,12 @@ function frame() {
       if (H) { if (state.u < 0.5) C[1].act(1); else C[2].act(0); }
     } else if (state.kind === 'in5') { if (H) into5(state); }
     else if (state.kind === 'rug') { if (H) outOf5(state); }
-    else if (state.kind === 'dream') { if (H) { if (state.u < DREAM_CUT) C[6].act(1); else C[7].act(0); } }
+    else if (state.kind === 'dream') { if (H) { if (state.u < DREAM_CUT) C[6].act(1); else C[7].act(0.04); } }   /* he holds the roll (chapter 7's holding pose) from the first frame of the pull-back */
     else walkBetween(state);
   } else walkFace = null;
   morphs(state);
   settle();
+  plantFloor();   /* on the eased pose */
   aim(shotAt(state));
   if (C[6].ready) C[6].dream(state.kind === 'dream' && state.i === 6 ? state.u : 0);
   if (C[6].ready && +consoleEl.style.opacity > 0) C[6].console(state.i === 6 && state.u === 0);   /* every line always has its text */
