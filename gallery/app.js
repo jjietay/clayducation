@@ -1263,7 +1263,7 @@ function planWith(a, b, G) {
   const nodes = [a, b];
   for (const r of R) for (const c of [[r[0] - NODE, r[1] - NODE], [r[2] + NODE, r[1] - NODE], [r[0] - NODE, r[3] + NODE], [r[2] + NODE, r[3] + NODE]]) if (!R.some((q) => inside(c, q))) nodes.push(c);
   const n = nodes.length, dist = new Array(n).fill(Infinity), prev = new Array(n).fill(-1), done = new Array(n).fill(false); dist[0] = 0;
-  for (;;) {
+  for (let guard = 0; guard <= n; guard++) {   /* at most one pass for each node: it can never hang the page */
     let u = -1; for (let i = 0; i < n; i++) if (!done[i] && dist[i] < Infinity && (u < 0 || dist[i] < dist[u])) u = i;
     if (u < 0 || u === 1) break; done[u] = true;
     for (let v = 0; v < n; v++) if (!done[v] && v !== u) { const d = dist[u] + Math.hypot(nodes[v][0] - nodes[u][0], nodes[v][1] - nodes[u][1]); if (d < dist[v] && clear(nodes[u], nodes[v])) { dist[v] = d; prev[v] = u; } }
@@ -1292,7 +1292,7 @@ function rounded(pts) {
 // Points every 0.4 along a path: walkPath's curve (Catmull-Rom) loops back where its points are bunched (an arc
 // between two long legs), so it gets evenly spaced ones.
 function resample(p, step = 0.4) {
-  const L = pathLen(p); if (L < step) return p;
+  const L = pathLen(p); if (!(L >= step) || !Number.isFinite(L) || L > 500) return p;   /* a bad path (NaN, endless) is never sampled */
   const n = Math.ceil(L / step), out = [p[0]]; let k = 0, acc = 0;
   for (let j = 1; j < n; j++) {
     const d = j * L / n;
@@ -2042,7 +2042,7 @@ C[6] = {
   get start() { return RUGSTAND(); }, end: [0, 0, 0], next: 'dream',
   build() {
     this.msgs = ['', '', '']; this.oks = [null, null, null];
-    // The dream: three puffs and a round bubble in chapter 7's colour, with film frames in it (in the scene, not a set).
+    // The dream: three puffs and a round bubble in chapter 7's colour (in the scene, not a set).
     const clay = new THREE.MeshPhysicalMaterial({ color: '#f0e7d6', roughness: 0.6, sheen: 0.3 });
     this.puffs = [0.22, 0.34, 0.5].map((r) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 32, 20), clay); m.visible = false; scene.add(m); return m; });
     this.bubble = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 40), new THREE.MeshBasicMaterial({ color: chs[7].dataset.bg, side: THREE.DoubleSide, toneMapped: false }));
@@ -2050,7 +2050,6 @@ C[6] = {
     // Drawn over the world: as it grows, it covers him and then the whole screen.
     this.bubble.material.depthTest = false; this.bubble.renderOrder = 12; this.edge.material.depthTest = false; this.edge.renderOrder = 11;
     this.bubble.visible = this.edge.visible = false; scene.add(this.bubble, this.edge);
-    this.frames = [];
   },
   hip() { const r = RUGSTAND(); return [r[0], r[1]]; },
   // The checks: real measures of his pose against the rug.
@@ -2108,16 +2107,7 @@ C[6] = {
     this.puffs.forEach((m, i) => { const k = sm(0.02 + i * 0.05, 0.08 + i * 0.05, u) * (1 - sm(0.34, 0.4, u)); m.visible = on && k > 0.01; m.scale.setScalar(Math.max(k, 0.01)); m.position.copy(head).add(new THREE.Vector3(0, 2.0, 0.9)).lerp(c, 0.12 + i * 0.22);   /* above and in front of his head, clear of it */ });
     this.bubble.visible = on && r > 0.06; this.bubble.position.copy(c); this.bubble.scale.setScalar(r);
     this.edge.visible = this.bubble.visible && u < 0.42; this.edge.position.copy(c); this.edge.scale.setScalar(r * 1.035);
-    // Film frames from chapter 7 drift in the bubble, on its front, facing the camera.
-    if (!this.frames.length && C[7].pics) this.frames = C[7].pics.slice(1, 4).map((p) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.9), new THREE.MeshBasicMaterial({ map: p.material.map, toneMapped: false, depthTest: false })); m.renderOrder = 13; m.visible = false; scene.add(m); return m; });
-    const T = now() / 1000;
-    this.frames.length = 0; [].forEach((m, i) => {
-      const k = sm(0.2 + i * 0.03, 0.3 + i * 0.03, u); m.visible = on && k > 0.01 && u < 0.5;
-      const off = new THREE.Vector3(((i - 1) * 0.75 + 0.15 * Math.sin(T * 0.5 + i)) * r / 2.45, ((i % 2) - 0.4) * 0.6 * r / 2.45, 0);
-      m.quaternion.copy(cam.quaternion); off.applyQuaternion(cam.quaternion);
-      const toCam = cam.position.clone().sub(c).normalize();
-      m.position.copy(c).add(off).addScaledVector(toCam, r * 1.02); m.scale.setScalar(k * r / 2.45);
-    });
+    // (No film frames in the bubble: JJ asked for the bubble to open onto him holding the roll.)
   },
   shot(t) { const [x, z] = this.hip(); return { at: [x - 1.6, 1.8, z], dist: 26, az: 4 + 3 * pn.x, el: 26 - 2 * pn.y, sx: 0.14, sy: 0.12 }; },
 };
