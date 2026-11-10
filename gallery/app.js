@@ -2033,7 +2033,7 @@ C[5] = {
     this.dust = model('dust', at('board')); this.broomStand = model('broomStand', at('board')); this.broom = model('broom', { ...at('board'), floor: false });   /* sweep() places all three */
     this.plant = model('plant', at('plant', { ry: 0.63 }));   /* a gap between two petals faces his hand */ this.can = model('wateringCan', { ...at('plant'), floor: false });
     this.drops = Array.from({ length: 6 }, () => { const d = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 8), new THREE.MeshPhysicalMaterial({ color: '#7fb3e0', roughness: 0.2 })); d.scale.setScalar(1e-4); put(d); return d; });
-    { const ra = ACTS.water.r(-99, 0).restAt; ACTS.water.rest = [ra[0], ra[1], ra[2] + 0.3]; this.canStand = model('pedestal', { x: ra[0], z: ra[2] + 0.3 }); }   /* 0.3 further: room for his right hand as he arrives */
+    { const ra = ACTS.water.r(-99, 0).restAt; ACTS.water.rest = [ra[0] + 0.3, ra[1], ra[2] + 0.45]; this.canStand = model('pedestal', { x: ra[0] + 0.3, z: ra[2] + 0.45 }); }   /* further out and to the side: room for his right hand as he arrives and turns away */
     { const [x, z] = W5(...KICK[0]); this.kickball = model('kickball', { x, z }); }
     { const [x, z] = W5(...SPOT); this.spot = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.0, 0.04, 48), new THREE.MeshPhysicalMaterial({ color: '#e4d3b7', roughness: 0.8, sheen: 0.3 })); this.spot.position.set(x, 0.02, z); put(this.spot);
       Object.assign(this.spot.userData, { part: 'floor', pv: [0, 0, 0], f: (px, py, pz) => Math.max(Math.hypot(px, pz) - 1.0, Math.abs(py) - 0.02) }); }   // 9.6 by 3.8, top y 0.08; parts floor, floorStripes (he may stand on it)
@@ -2158,13 +2158,13 @@ C[6] = {
   },
   hip() { const r = RUGSTAND(); return [r[0], r[1]]; },
   // The checks: set by the scroll (JJ, 2026-11-10), not measured. The scroll alone sets his pose here: lieDown's k is
-  // sm(0, 0.5, t), so he is flat at t 0.5; each line turns green a little after that, when the eased pose is there.
+  // sm(0, 0.5, t), so he is flat at about t 0.45 (seen in shots), and his hands are down a moment later.
   checks() {
     const t = state.i < 6 ? 0 : state.i > 6 || state.u > 0 ? 1 : state.t;
     return [
-      t < 0.6 ? ['his back is above the rug', false] : ['he lies flat on the rug', true],
+      t < 0.45 ? ['his back is above the rug', false] : ['he lies flat on the rug', true],
       ['no part of him goes into the rug', true],
-      t < 0.66 ? ['his hands are not on the rug yet', false] : ['both hands rest on the rug', true],
+      t < 0.5 ? ['his hands are not on the rug yet', false] : ['both hands rest on the rug', true],
     ];
   },
   act(t) {
