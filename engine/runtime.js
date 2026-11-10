@@ -237,8 +237,13 @@ export function goo(svg, id = 'goo', blur = 16) {
 }
 // Moves an element by (x, y) px from where it was placed, and scales and turns
 // it about its own centre. Works on HTML and SVG elements.
+// An HTML element moves by whole pixels. At a fractional offset (a label that follows a 3D point), Chrome
+// reused a raster that it made at another offset, so the label's edges depended on the frame drawn before
+// and "make stable" failed (the strawberry video, 2026-11-10). SVG keeps fractional offsets.
 export function set(n, { x = 0, y = 0, scale = 1, rot = 0, opacity } = {}) {
-  if (n instanceof SVGElement) { n.style.transformBox = 'fill-box'; n.style.transformOrigin = 'center'; }
+  const svg = n instanceof SVGElement;
+  if (svg) { n.style.transformBox = 'fill-box'; n.style.transformOrigin = 'center'; }
+  else { x = Math.round(x); y = Math.round(y); }
   if (!n.dataset.tr) n.dataset.tr = 'auto'; // "make review" follows everything that moves
   n.style.transform = `translate(${x}px,${y}px) rotate(${rot}deg) scale(${scale})`;
   if (opacity !== undefined) n.style.opacity = opacity;

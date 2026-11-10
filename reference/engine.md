@@ -80,7 +80,7 @@ on the contact sheet.
 | `bezier(x1, y1, x2, y2)` | any CSS cubic-bezier as an easing function |
 | `clamp, lerp, invLerp, mix(hexA, hexB, t)` | numbers and colours |
 | `rng(seed)` | seeded random generator: `const r = rng(7); r()` |
-| `set(el, {x, y, scale, rot, opacity})` | move by (x, y) from where it was placed, scale and turn about its centre. HTML or SVG |
+| `set(el, {x, y, scale, rot, opacity})` | move by (x, y) from where it was placed, scale and turn about its centre. HTML or SVG. HTML moves by whole pixels (fractional offsets made `stable` fail); to bring a label in, animate opacity and a short y move, not scale |
 | `el(tag, attrs, parent)` | create an element. SVG when the parent is SVG. `attrs.text` sets text |
 | `resample(d, n)` | n points evenly along an SVG path `d` |
 | `lerpPoints(a, b, t)`, `align(points, to)`, `pathFrom(points, closed)` | morph two shapes: resample both to the same n, `align` the start points, lerp, draw with `pathFrom` |

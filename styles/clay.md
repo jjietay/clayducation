@@ -90,6 +90,10 @@ Three simple props: `g.arrow(color)` returns an arrow for a force or a gap (`a.s
 `g.post(color, h)` marks a place on the floor, and `g.ball(color, r)` is a pulse or a signal. Use these, and do
 not add your own meshes: the collision measures see only what the kit made.
 
+To put a letter or a number on a model, use `await g.print(model, part, 'R', { at: [0, 0.66, 0.662], w: 1.05, h: 1.05, color })`
+in setup: a cut-out print on the part's +z face that moves with the part. To change a print (a black R that turns red),
+make both and move the one not in use inside the part (`mesh.position.z = 0`); do not shrink it to a speck.
+
 ## Fixed layout (start every clay scene from it)
 
 The user asked for a fixed frame for each scene on 2026-11-09, after the first look of the computed
@@ -282,4 +286,6 @@ with a bent arm below the shoulder.
 - **No antialiasing.** On the GPU path it drops whole objects at random, so the renderer draws twice
   the pixels. Do not turn it on.
 - **Hide with a tiny scale, not `visible = false`,** and `await g.ready()` at the end of `setup`.
+- **Labels arrive with opacity and a short move, not with scale.** A scaled HTML label can keep an old raster, so
+  `make stable` sees two different draws of one frame (the strawberry video).
 - **Use the whole frame.** Do not crowd things together while most of the frame is empty.

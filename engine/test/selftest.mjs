@@ -99,6 +99,16 @@ try {
   report('a model with no join list is caught', measureJoins([wall, spring], undefined, 1, ptsOf).faults.some((f) => /no join list/.test(f)));
   report('a model that connects gives no fault', measureJoins([{ name: 'wall', ...box(-3, -1.7) }, spring, cart], [['spring', 'wall'], ['spring', 'cart']], 1, ptsOf).faults.length === 0);
 
+  // ---------- a label at a fractional offset drew different edges by frame order (strawberry video) ----------
+  // runtime.js needs a browser to load, so the test takes set() from its source and runs it alone.
+  {
+    const src = fs.readFileSync(path.join(HERE, '..', 'runtime.js'), 'utf8').match(/export function set\([\s\S]*?\n}\n/)?.[0] || '';
+    const setFn = new Function('SVGElement', `${src.replace('export ', '')}; return set;`)(class SVGElement {});
+    const html = { style: {}, dataset: {} };
+    setFn(html, { x: 10.4, y: 3.6, scale: 1.2 });
+    report('set() moves HTML text by whole pixels', /translate\(10px,4px\)/.test(html.style.transform || ''), html.style.transform || 'no set() found');
+  }
+
   // ---------- the rest use a small project ----------
   const one = [{ ...scenes[0], start: 0, dur: 2, marks: { a: 0.5 } }];
   fs.writeFileSync(path.join(dir, 'script.md'), '# Test\n\n## clean\nA short test line.\n');

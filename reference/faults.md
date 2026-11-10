@@ -22,6 +22,8 @@ confirms that the engine catches it. Run it after each change to a check.
 | A voice that matched 84 % of its words passed the look and stopped the build | `look` reports a low voice match too | `voiceMatchIssues` in `make.mjs` |
 | With large-v3-turbo a cue came 0.5 s early: the word start lay in the silence before the word | Each word start that lies in silence moves to where the sound begins | `snap` in `engine/tts/hear.py` |
 | Signal balls went through the mascot | `g.ball`: the kit registers each prop, so the measures see it | `clay.js` |
+| A label that followed a 3D point drew different edges by frame order, and `make stable` failed (strawberry video) | `set()` moves HTML elements by whole pixels | `set` in `runtime.js`; `make selftest` |
+| Blended letter textures on blocks drew different edge pixels by draw order | `g.print()` prints text on a face as a cut-out (alphaTest) | `print` in `clay.js`; `make stable` |
 | The mascot's straight raised arm looked like a salute | A straight arm at shoulder height or above is a fault, on every frame | `clay.js` |
 | Two formulas ran together on one line and read as one wrong formula | Two rows on one line need a gap of 40 px | `formulasRunTogether` in `make.mjs` |
 | A formula sat still like notes | A formula shown for 3 s or more must move, build or bounce | `stillFormulas` in `make.mjs` |

@@ -4,6 +4,12 @@ Newest first. Under each `## vX.Y.Z` heading, write one short message for users,
 When a newer release is out, Claude shows these messages to the user word for word and asks
 whether to update. A user who skipped some releases sees the messages of all of them.
 
+## v0.5.3
+
+Labels and printed letters now draw the same way every time, so a video no longer fails its last check
+because a label's edge changed by a pixel. There is a new helper, `g.print()`, that puts a letter or a
+number on a clay model.
+
 ## v0.5.2
 
 The gallery page now works on phones. On a phone you scroll, and the page plays: every scene fits the

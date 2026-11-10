@@ -445,6 +445,23 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
       models.push({ name: 'ball', root: m, groups: { ball: m } });
       return m;
     },
+    // Text printed on one face of a model part: a letter on a block, a number on a sleeve. at: the centre of the
+    // print in the part's coordinates, on (or just in front of) a face that looks along +z; w, h: its size in model
+    // units. The print is a cut-out (alphaTest), not a blended texture: blended edges changed with the draw order
+    // and "make stable" failed (the strawberry video, 2026-11-10). Returns the mesh; to swap two prints, move the
+    // one not in use inside the part (z 0), where the part's own face hides it, and never shrink it to a speck.
+    async print(model, part, str, { at = [0, 0, 0], w = 1, h = 1, color = '#26262a', px = 200, weight = 800, family = 'Plus Jakarta Sans' } = {}) {
+      const grp = model.groups[part]; if (!grp) throw new Error(`print: ${model.name} has no part "${part}"`);
+      const font = `${weight} ${px}px "${family}"`;
+      await document.fonts.load(font);
+      const c = document.createElement('canvas'); c.width = Math.round(256 * w / h); c.height = 256;
+      const x = c.getContext('2d'); x.fillStyle = color; x.font = font; x.textAlign = 'center'; x.textBaseline = 'middle';
+      x.fillText(str, c.width / 2, 138);
+      const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5, polygonOffset: true, polygonOffsetFactor: -2 }));
+      mesh.position.set(...at); grp.add(mesh);
+      return mesh;
+    },
     // Where the mascot stands to push, pull or hold one part of a model from one side (the user asked, 2026-11-09:
     // 4 look rounds went to hands that missed a cart and shoes inside its rail). side is the face he touches:
     // '-x', '+x', '-z' or '+z'. He stands standOff (1.85) out from that face and faces it; if a floor-level part
