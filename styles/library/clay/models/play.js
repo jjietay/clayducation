@@ -80,6 +80,20 @@ export const MODELS = {
     },
     moving: 'Held',
   },
+  // A stand for the broom: a post 3.8 tall on a small round base, with a U hook at y 3.5 that opens toward +z. A broom
+  // leans into it: its handle rests on the hook's back (handle centre at (0, 3.5, 0.365)) and its head stands on the
+  // floor at (0, 0, 1.1), so the handle leans 0.21 rad. sweep() in clay.js places the stand and the broom there.
+  broomStand: {
+    label: 'Broom stand',
+    make() {
+      const m = def();
+      m.add('base', (x, y, z) => rcyl(x, y, z, 0, 0.06, 0, 'y', 0.32, 0.06, 0.04), PAL.ink);
+      m.add('post', (x, y, z) => cone(x, y, z, 0, 0.1, 0, 0, 3.8, 0, 0.09, 0.08), PAL.ink, { step: 0.02 });
+      m.add('hook', (x, y, z) => Math.min(smax(torus(x, y, z, 0, 3.5, 0.4, 'y', 0.17, 0.045), z - 0.43, 0.02), cone(x, y, z, 0, 3.5, 0.05, 0, 3.5, 0.24, 0.05, 0.045)), PAL.steel, { mat: 'metal', step: 0.012 });
+      return m;
+    },
+    moving: 'No moving parts',
+  },
   // A small pile of dust, 1.3 wide and 0.45 high, for sweep() to push (its root moves).
   dust: {
     label: 'Dust pile',
@@ -151,6 +165,7 @@ export const JOINS = {
   hammer: [['head', 'handle']],
   nailboard: [[/^leg/, 'top'], ['bar', /^leg/], ['nail', 'top']],
   broom: [['band', 'brush'], ['ferrule', 'brush'], ['handle', 'ferrule']],
+  broomStand: [['post', 'base'], ['hook', 'post']],
   wateringCan: [['spout', 'body'], ['rose', 'spout'], ['grip', 'body']],
   plant: [['soil', 'pot'], ['stem', 'soil'], ['flower', 'stem'], [/^petal/, 'flower']],
   rug: [['floorStripes', 'floor']],

@@ -710,6 +710,33 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
     // ---------- play and tool actions (the user asked, 2026-11-10): kick, jump, hammer, sweep, water, lieDown ----------
     // Each one starts and ends with him standing, so they chain. A held tool rests at its own place until the action
     // takes it, and goes back there after it. Times are scene seconds; draw only from t.
+    // Walk along a smooth curve (Catmull-Rom through pts, [x, z] on the floor) from t0 to t1 as one walk: the pace
+    // speeds up over the first 20 % of the time, stays constant, and slows over the last 20 %, so he never stops on the
+    // way. He faces along the path; at the start he turns from face0 and at the end to face1 within the first and last
+    // 0.6 s (a turn of at most about 2 rad a second). The stride follows his speed, so it is 0 at both ends.
+    walkPath(hero, t, { t0, t1, pts, face0, face1, amp = 0.55 } = {}) {
+      const P = pts.map((p) => new THREE.Vector2(p[0], p[1])), n = P.length - 1, at = (i) => P[clamp(i, 0, n)];
+      const cr = (i, u) => { const p0 = at(i - 1), p1 = at(i), p2 = at(i + 1), p3 = at(i + 2), u2 = u * u, u3 = u2 * u;
+        return new THREE.Vector2(0.5 * (2 * p1.x + (-p0.x + p2.x) * u + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * u2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * u3),
+          0.5 * (2 * p1.y + (-p0.y + p2.y) * u + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * u2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * u3)); };
+      // Arc length table (the same for every t).
+      const tab = [[0, P[0].clone()]]; let L = 0;
+      for (let i = 0; i < n; i++) for (let k = 1; k <= 40; k++) { const q = cr(i, k / 40); L += q.distanceTo(tab[tab.length - 1][1]); tab.push([L, q]); }
+      const pos = (d) => { let lo = 0, hi = tab.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (tab[m][0] < d) lo = m; else hi = m; } const A = tab[lo], B = tab[hi], w = (d - A[0]) / ((B[0] - A[0]) || 1); return A[1].clone().lerp(B[1], clamp(w, 0, 1)); };
+      // Distance walked: a trapezoid speed profile (accelerate 20 %, cruise, slow 20 %).
+      const T = t1 - t0, u = clamp((t - t0) / T, 0, 1), a = 0.2, vmax = 1 / (1 - a);
+      const frac = u < a ? vmax * u * u / (2 * a) : u > 1 - a ? 1 - vmax * (1 - u) * (1 - u) / (2 * a) : vmax * (u - a / 2);
+      const speed = u < a ? u / a : u > 1 - a ? (1 - u) / a : 1;
+      const d = L * frac, p = pos(d), q = pos(Math.min(L, d + 0.05)), r0 = pos(Math.max(0, d - 0.05));
+      let face = Math.atan2(q.x - r0.x, q.y - r0.y);
+      const turnTo = (from, to, k) => { let dd = (to - from) % (Math.PI * 2); if (dd > Math.PI) dd -= Math.PI * 2; if (dd < -Math.PI) dd += Math.PI * 2; return from + dd * k; };
+      const tt = t - t0;
+      if (face0 != null) face = turnTo(face0, face, ease(clamp(tt / 0.6, 0, 1)));
+      if (face1 != null) face = turnTo(face, face1, ease(clamp((tt - (T - 0.6)) / 0.6, 0, 1)));
+      hero.place(p.x, p.y, { face });
+      hero.stride(d * hero.STEP, amp * speed);
+      return { x: p.x, z: p.y, face, length: L };
+    },
     // Kick a ball (a 'kickball' model) from `from` to `to` ([x, z] on the floor) with leg (0: his right). He stands behind
     // the ball, swings the leg back (hip +0.4, knee bent) and through (hip to -0.9, knee straight); the shoe meets the
     // ball at `at`, and it rolls away and slows to a stop at `to` after roll s. spin: the turn of the ball at the start, so
@@ -731,7 +758,9 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
       if (ball.shadow) { ball.shadow.position.x = P[0]; ball.shadow.position.z = P[1]; }
       const end = at + 0.9;
       if (t < at - 0.9 || t > end) return { stand, face, end, roll: L / r };
-      hero.place(stand[0], stand[1], { face, lean: -0.08 * Math.sin(Math.PI * span(t, at, 0.9)) });
+      // Weight shift: he leans back a little on the wind-up and forward through the swing, then settles.
+      const lw = t < at - 0.3 ? -0.05 * ease(span(t, at - 0.9, 0.6)) : t < at + 0.3 ? -0.05 + 0.11 * ease(span(t, at - 0.3, 0.6)) : 0.06 * (1 - ease(span(t, at + 0.3, 0.6)));
+      hero.place(stand[0], stand[1], { face, lean: lw });
       // The hip: back (0 to +0.4, 0.6 s), through the ball (+0.4 to -0.9, eased, the contact at the middle), and back to 0.
       let h, kn;
       if (t < at - 0.3) { const e = ease(span(t, at - 0.9, 0.6)); h = 0.4 * e; kn = 1.2 * e; }
@@ -838,12 +867,12 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
     // Sweep a 'dust' pile with a 'broom' (both hands on the handle): strokes times in dur s, the broom's head pushes along
     // dir ([x, z] on the floor: the pile's way) with its bristles on the floor, then lifts and goes back for the next push.
     // The pile moves only while the bristles push it, at their speed, touching their edge: dist in all. from: the pile's start [x, z]. He faces across the pile's way, to the camera's side (face:
-    // his facing, to choose it). The broom stands upright on its brush at rest ([x, z]) until at; he takes it there, walks
-    // with the brush lifted to the strokes, steps along with the pile, walks back, and stands the broom at rest again.
+    // his facing, to choose it). The broom leans into its stand (rest: [x, z] of its head) until at; he takes it there, walks
+    // with the head lifted to the strokes, steps along with the pile, walks back, and leans the broom into its stand again.
     // His left hand holds the handle high, his right hand low; the strokes run 2.6 to his right.
     // Walk him to the returned stand point (face) before at. Returns { stand, face, end, pileEnd, rest } (rest: where the
     // broom stands, for the next sweep).
-    sweep(hero, broom, pile, t, { at = 1, dur = 4, strokes = 4, from, dist = 2.4, dir = [-1, 0], face, rest, reach = 4.3 } = {}) {
+    sweep(hero, broom, pile, t, { at = 1, dur = 4, strokes = 4, from, dist = 2.4, dir = [-1, 0], face, rest, stand, reach = 4.3 } = {}) {
       const s = new THREE.Vector3(dir[0], 0, dir[1]).normalize();
       if (face == null) { const c = new THREE.Vector3(camera.position.x - from[0], 0, camera.position.z - from[1]); const p = new THREE.Vector3(-s.z, 0, s.x); face = Math.atan2(...(p.dot(c) >= 0 ? [p.x, p.z] : [-p.x, -p.z])); }
       const f = dirOf(face), r = new THREE.Vector3(-f.z, 0, f.x), P0 = new THREE.Vector3(from[0], 0, from[1]), up = new THREE.Vector3(0, 1, 0);
@@ -882,9 +911,17 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
       // The handle runs from the head on the floor to the upper hand; the head's broad face looks along s (it pushes).
       const swPose = (tt) => { const Bv = B(tt), h = U(tt).sub(Bv).normalize(), zz = s.clone().addScaledVector(h, -s.dot(h)).normalize(), xx = h.clone().cross(zz);
         const Q = basisQ(xx.toArray(), h.toArray(), zz.toArray()); return { Q, W: Bv.add(V3(G[0]).applyQuaternion(Q)) }; };
-      // At rest it stands upright, its broad face along s.
-      const rq = basisQ(s.clone().cross(up).negate().toArray(), [0, 1, 0], s.toArray()), rp = { Q: rq, W: R.clone().add(V3(G[0]).applyQuaternion(rq)) };
-      const { P, grip, busy } = toolPath(t, at, end, rp, swPose, 0.3);
+      // At rest it leans into a 'broomStand' (stand: the model; sweep() places it) 1.1 beyond the head, away from him:
+      // the handle rests on the stand's hook, 3.5 up, so the broom leans 0.21 rad and cannot fall. Its head's width is
+      // along s, so it stays clear of the stand's base.
+      const Pst = R.clone().addScaledVector(f, 1.1);
+      if (stand) { stand.root.position.set(Pst.x, 0, Pst.z); stand.root.rotation.y = Math.atan2(-f.x, -f.z); if (stand.shadow) { stand.shadow.position.x = Pst.x; stand.shadow.position.z = Pst.z; } }
+      const hr = f.clone().multiplyScalar(0.735).add(new THREE.Vector3(0, 3.5, 0)).normalize(), xr = s.clone().addScaledVector(hr, -s.dot(hr)).normalize();
+      const rq = basisQ(xr.toArray(), hr.toArray(), xr.clone().cross(hr).toArray()), rp = { Q: rq, W: R.clone().add(V3(G[0]).applyQuaternion(rq)) };
+      // Out of the hook: 0.45 toward him and 0.15 up, the same lean; it goes this way first when he takes it.
+      const out = { Q: rq, W: rp.W.clone().addScaledVector(f, -0.45).add(new THREE.Vector3(0, 0.15, 0)) };
+      let { P, grip, take, busy } = toolPath(t, at, end, rp, swPose, 0.3);
+      if (take > 0 && take < 1) { const W = swPose(t < a ? a : b0 + w2); P = take < 0.4 ? mixPose(rp, out, ease(take / 0.4)) : mixPose(out, W, ease((take - 0.4) / 0.6), 0.3); }
       placeTool(broom, P, G[0]);
       // The bristles never go into the floor: lift the broom when its lowest point is below y 0.
       const brush = broom.groups.brush, pos = meshOf(brush).geometry.attributes.position, v = new THREE.Vector3(); let low = 9;
