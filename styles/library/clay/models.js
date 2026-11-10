@@ -14,6 +14,7 @@ import * as CTC from './models/ee4268-ctc.js';
 import * as ATT from './models/attention.js';
 import * as TOK from './models/tokens.js';
 import * as ACT from './models/actions.js';
+import * as PLAY from './models/play.js';
 
 export const PAL = {
   robot: '#f2773a', ink: '#2a2a2e', cream: '#ede3cf', white: '#f1efe9', grey: '#b7b4ab', steel: '#a9adb2',
@@ -447,7 +448,7 @@ export const JOINS = {
 };
 
 // Add the model sets to the kit.
-for (const set of [IPCV1, IPCV2, IPCV3, IPCV4, IPCV5, IPCV6, CTC, ATT, TOK, ACT]) { Object.assign(MODELS, set.MODELS); Object.assign(JOINS, set.JOINS); }
+for (const set of [IPCV1, IPCV2, IPCV3, IPCV4, IPCV5, IPCV6, CTC, ATT, TOK, ACT, PLAY]) { Object.assign(MODELS, set.MODELS); Object.assign(JOINS, set.JOINS); }
 
 // Finds the part's bounds from its distance field, and a mesh step from its size.
 function autoBox(f) {
@@ -480,13 +481,26 @@ export function buildModel(THREE, name) {
     (parent || root).add(grp); groups[p.name] = grp;
   }
   spec.rest?.(groups);
-  // setPose(k): blends from the rest pose (0) to the model's moving pose (1).
+  // setPose(k): blends from the rest pose (0) to the model's moving pose (1). setPose(k, name): blends to a second,
+  // named pose of spec.poses (a plant's flower opens), and sets only the parts that this pose moves. Call setPose(k)
+  // first, because it sets every part.
   const take = () => Object.values(groups).map((g) => [g.position.clone(), g.rotation.clone(), g.scale.clone()]);
-  const A = take(); spec.pose?.(groups); const B = take();
-  const setPose = (k) => Object.values(groups).forEach((g, i) => {
-    g.position.lerpVectors(A[i][0], B[i][0], k); g.scale.lerpVectors(A[i][2], B[i][2], k);
-    g.rotation.set(A[i][1].x + (B[i][1].x - A[i][1].x) * k, A[i][1].y + (B[i][1].y - A[i][1].y) * k, A[i][1].z + (B[i][1].z - A[i][1].z) * k);
-  });
+  const A = take(), put = (S) => Object.values(groups).forEach((g, i) => { g.position.copy(S[i][0]); g.rotation.copy(S[i][1]); g.scale.copy(S[i][2]); });
+  const named = {};
+  for (const [n, f] of Object.entries(spec.poses || {})) {
+    put(A); f(groups); const P = take();
+    named[n] = { P, moves: P.map((p, i) => !p[0].equals(A[i][0]) || !p[1].equals(A[i][1]) || !p[2].equals(A[i][2])) };
+  }
+  put(A); spec.pose?.(groups); const B = take();
+  const blend = (g, i, F, T, k) => {
+    g.position.lerpVectors(F[i][0], T[i][0], k); g.scale.lerpVectors(F[i][2], T[i][2], k);
+    g.rotation.set(F[i][1].x + (T[i][1].x - F[i][1].x) * k, F[i][1].y + (T[i][1].y - F[i][1].y) * k, F[i][1].z + (T[i][1].z - F[i][1].z) * k);
+  };
+  const setPose = (k, name) => {
+    if (name == null) return Object.values(groups).forEach((g, i) => blend(g, i, A, B, k));
+    const N = named[name]; if (!N) throw new Error(`setPose: ${spec.label} has no pose "${name}". Poses: ${Object.keys(named).join(', ') || 'none'}`);
+    Object.values(groups).forEach((g, i) => { if (N.moves[i]) blend(g, i, A, N.P, k); });
+  };
   setPose(0);
   return { root, groups, setPose, label: spec.label, moving: spec.moving, hasPose: !!spec.pose };
 }

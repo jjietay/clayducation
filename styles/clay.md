@@ -64,9 +64,22 @@ place him and his hands the same safe way. Call them after `blendPose` (and afte
 | `g.trace(hero, hand, pts, u, { k })` | moves a hand along a path of points on a surface: writing, drawing | returns the hand's point; draw the ink to it on a canvas texture |
 | `g.toss(hero, obj, t, { at, dur, to, height })` | an underhand throw of a `g.ball()` to a point | the ball rests on his palm until `at` |
 | `g.handsOnHips(hero, k)` | hands on hips, elbows out | |
-| `hero.legsPose('sit' \| 'crouch' \| 'kneel', k)` | bends his knees and lowers him to the floor | after `place` or `route`, before the hands. `carry` crouches by itself for a thing on the floor |
+| `g.kick(hero, ball, t, { at, from, to, leg, roll, spin })` | kicks a `kickball` from `from` to `to` ([x, z]): the leg swings back (hip +0.4, knee 1.2, 0.6 s), then through (hip +0.4 to -0.9 in 0.6 s, the knee straight at the contact, hip -0.25, at `at`); the ball rolls with a constant slowing for `roll` s (2.0) | returns `{ stand, face, end, roll }`: route him to `stand` before at - 0.9. Kick back: `from`/`to` swapped, `spin: -first.roll`. The shoe may touch the ball for 0.12 s round `at` (`hero.touch`) |
+| `g.walkPath(hero, t, { t0, t1, pts, face0, face1 })` | one smooth walk along a curve through pts ([x, z]): a constant pace, eased only at its two ends, facing along the path; turns from face0 and to face1 within the first and last 0.6 s | use it for any walk with corners (route() stops at each key). Put a round turn (radius 2 or more) into pts where he must turn round, so he turns at about 2 rad a second |
+| `g.jump(hero, t, { at, x, z, to, face, height, air })` | a crouch (0.45 s, crouch 0.55), both feet off the floor for `air` s (0.7) in an arc `height` high (1.3), the arms bent up beside his head, a landing crouch (0.5 s, 0.45) | from (x, z) to `to`; returns `{ end }`. Jump back: the same with `face` turned and `to` swapped |
+| `g.hammer(hero, hammer, nailboard, t, { at, mode, count, gap, hand })` | `mode: 'drive'`: takes the `hammer` from the bench, hits the nail `count` (3) times `gap` (0.75 s) apart, the nail sinking a third each time, and puts the hammer back. `'pull'`: turns the hammer, slides the claw's slot round the nail under its head, and pulls the handle toward him (the head rocks on the bench, the handle from 0.95 to 0.16 rad off upright) so the claw levers the nail out | the bench at size 1; he stands at its +z side. Returns `{ stand, face, hits, end }` (`hits` for `s.sfx('thud', t)`). The nail's height in the pull comes from the claw's own shape |
+| `g.sweep(hero, broom, dust, t, { at, dur, strokes, from, dist, dir, face, rest })` | takes the `broom` from its `broomStand` (`rest`: its head; `stand`: the stand, placed by sweep), out of the hook first, walks with the head lifted to the strokes, and pushes `strokes` (4) times in `dur` s (4) along `dir`: the bristles on the floor while they push, lifted on the way back. The `dust` pile moves only while it is pushed, touching the bristles, `dist` (2.4) in all. Then he walks back and stands the broom up again | left hand high (4.6 up the handle), right hand low (3.8); the strokes run 2.6 to his right, 4.3 in front of him. Returns `{ stand, face, end, pileEnd, rest }`: the sweep back uses `from: pileEnd`, `rest: first.rest` and the opposite `dir` |
+| `g.water(hero, can, plant, t, { at, effect, drops, hand, rest })` | takes the `wateringCan` from a `pedestal` (`restAt`), walks sideways to the pot, tilts the can (0 to 1.15 rad) until the rose is 0.5 over the soil, drops fall, walks back and sets the can down | `effect`: `'grow'`, `'open'` or `'close'`. `drops`: about 6 `g.ball('#5d9bd6', 0.06)` made in setup. Call it once in setup with t -1 for `restAt` (put the pedestal there). Returns `{ stand, face, end, restAt }` |
+| `g.lieDown(hero, rug, t, { k, sleep })` | k 0 to 0.3: a crouch; 0.3 to 0.55: he sits on the floor, legs straight out (`legsPose('sitFloor')`); 0.55 to 1: he leans back about his hips until he lies flat, and breathes (3.6 s a breath). `sleep` 0 to 1: the sleepy face, eyes shut. k back to 0 gets him up | his hips 1.5 from the rug's middle toward its +x end, his feet to +x. Walk onto the rug with `route(..., { y: 0.08 })`. His body may touch the rug while k > 0 (`hero.touch`); his hands stay on the rug beside his hips, so his arms stay bent |
+| `hero.legsPose('sit' \| 'crouch' \| 'kneel' \| 'sitFloor', k)` | bends his knees and lowers him to the floor | after `place` or `route`, before the hands. `carry` crouches by itself for a thing on the floor. `sitFloor`: on the floor with the legs straight out. `hero.plant(y, { body: true })` puts his lowest point (of any part, not only the legs) at y |
 | `hero.nod(t, { at, count })`, `hero.shake(t, ...)` | yes and no with his head | after `blendExpression` |
 | `blendPose('rest', 'shrug', k)` | a shrug | |
+
+The six play and tool actions (kick, jump, hammer, sweep, water, lieDown; added 2026-11-10) start and end with him
+standing, so they chain. A held tool rests at its own place until the action takes it, and goes back there. Call
+only the helper that runs now last in draw: each call also sets its objects (a kick sets the ball). A short contact
+(a shoe on the ball, his back on the rug) is allowed through `hero.touch`, which a helper fills for those frames only.
+See `~/Videos/explainers/mascot-actions-test-3/scenes.js` for each one, both ways.
 
 His legs have a hip, a knee and an ankle (the knees were added 2026-11-10), so he can sit, crouch and kneel. His shoulders are at y 4.52 and his hip joints
 at y 2.26: keep holds and knocks below the shoulders, and stands or tables below the hips when he works close to them. Face the object to the camera's side
@@ -140,7 +153,8 @@ look at a still of each contact. His head must stay clear of the title, in the f
 
 `await g.model(name, { x, y, z, ry, k, shadow })` makes a new one each time. It stands on `y = 0` and
 faces `+z`. `y` above zero (on a table) turns its floor shadow off. `m.setPose(k)` blends to its moving
-pose. `m.groups.<part>` are the named parts; each pivots at its joint, so `rotation` or `position` move
+pose. A model can have more named poses (`poses: { bloom(g) {...} }` in its spec): `m.setPose(k, 'bloom')`
+blends only the parts that pose moves, so call `m.setPose(k)` first. `m.groups.<part>` are the named parts; each pivots at its joint, so `rotation` or `position` move
 it in the right way. See them in `make clay m-<name>`.
 
 | Name | Object | Parts that move (`groups`) |
@@ -210,8 +224,17 @@ it in the right way. See them in `make clay m-<name>`.
 | `bench` | bench 4.8 long, 0.76 deep, seat top at y 0.74: `sitOn` it by `seat` | none |
 | `whiteboard` | whiteboard, face at z 0.09, x -2.5 to 2.5, y 3.1 to 6.0; `trace` on it by `board`, the wave inside x -1.6 to 1.2 | none |
 | `basket` | open basket 1.0 tall, inner radius 0.85: `toss` into it (land at y 0.42) | none |
+| `kickball` | ball to kick, radius 0.55, centre at y 0.55, two red bands (`models/play.js`) | its root rolls (`kick`) |
+| `hammer` | claw hammer, origin at the handle's end, handle along +z (1.62 to the head); face down at y -0.37, the claw up with a slot 0.13 wide | held (`hammer`) |
+| `nailboard` | workbench, top 3.6 by 1.2 at y 2.6, a nail at (0.9, 2.6, -0.3), head at y 3.1 | `nail` sinks 0.3 (pose) |
+| `broom` | broom 5.1 tall (1 m): a fan of five straw bundles 1.5 wide at the floor, three bands, a steel ferrule, a round knob; root at the bottom of the head | held (`sweep`) |
+| `dust` | dust pile 1.3 wide, 0.45 high | its root is pushed (`sweep`) |
+| `wateringCan` | watering can; handle top (the grip) at (-0.1, 1.53, 0), rose at (1.52, 1.15, 0) | held (`water`) |
+| `plant` | plant in a pot, soil at y 0.91, stem to 2.25, a flower of 5 petals at y 2.3 | `setPose(k)`: the stem grows (scale 0.45 to 1); then `setPose(k, 'bloom')`: the petals open (named pose, sets only the petals) |
+| `broomStand` | post 3.8 tall with a U hook at y 3.5: the broom leans into it at rest (`sweep` places both) | none |
+| `rug` | rug 9.6 by 3.8, top at y 0.08; its parts are named `floor...`, so his shoes may stand on it | none |
 
-The rows from `door` down are in `styles/library/clay/models/ipcv-*.js`, and `cat`, `mat` in `models/attention.js`. The head comment and the
+The rows from `door` down are in `styles/library/clay/models/ipcv-*.js`, `cat`, `mat` in `models/attention.js`, and `kickball` to `rug` in `models/play.js`. The head comment and the
 notes of each file give their sizes, joint positions and surface formulas.
 
 Small objects are larger than real size, so they stay readable. Set `k` for each scene.

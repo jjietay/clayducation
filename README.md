@@ -38,7 +38,7 @@ In Claude Code, in the conversation where the topic came up:
 
 ### New: clay, with a mascot
 
-The default for every video: soft 3D clay, plain backgrounds and flat text, 81 models that we made in
+The default for every video: soft 3D clay, plain backgrounds and flat text, 94 models that we made in
 code, and one silent mascot who pulls, pushes and holds the things that the voice talks about.
 [`styles/clay.md`](styles/clay.md) has the mascot, his controls and every model.
 
@@ -54,7 +54,9 @@ Frames from a series of six videos on image processing and computer vision.
 
 He does the work with his own hands, and a different action can go in each part of a video. He carries,
 crouches to lift, sits, kneels, types, writes on a board, throws, knocks, presses, and grips a door handle, a lever
-or a wheel while it moves. He can also point, nod, shake his head and shrug. Each action is one helper in
+or a wheel while it moves. He kicks a ball, jumps, hammers a nail in and pulls it out with the claw, sweeps dust
+with a broom, waters a plant that grows and flowers, and lies down to rest. He can also point, nod, shake his head
+and shrug. Each action is one helper in
 [`styles/library/clay.js`](styles/library/clay.js). The helpers place his hands with the same contact
 measures as the rest of the video, so a hand that misses or goes into a thing is a fault before the render.
 

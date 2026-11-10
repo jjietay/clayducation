@@ -84,7 +84,7 @@ The user chose the clay look over the old style mix for consistency across video
   walks, pulls, pushes, carries and turns things off with his own hands, so a force in the script is
   something the viewer sees him do. The user asked for this after a video where he only stood and
   watched. He stays deadpan by default, and `make check` WARNs when he stays in one spot. Vary the work: use a different action helper in each part (`carry`, `knock`, `press`, `grip`, `sitOn`,
-  `typeOn`, `trace`, `toss`, `pointAt`, `pushOn`, and `legsPose` to crouch or kneel; see "Use a different action" in `styles/clay.md`). The user found him pushing in every part.
+  `typeOn`, `trace`, `toss`, `pointAt`, `pushOn`, `kick`, `jump`, `hammer`, `sweep`, `water`, `lieDown`, `walkPath` for a smooth walk, and `legsPose` to crouch, kneel or sit on the floor; see "Use a different action" in `styles/clay.md`). The user found him pushing in every part.
 - **Things must connect.** A spring reaches its wall, a pin touches its map, a hand touches what it
   holds. The user found a spring that missed its wall after every check had passed. `make bake` measures
   every join in `models.js` (`JOINS`), so add new joins there, and look for contact in the stills.
