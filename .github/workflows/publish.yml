@@ -1,0 +1,35 @@
+# Publishes the setup package (npx clayducation) to npm when a release tag is pushed.
+# npm trusts this workflow through GitHub's OIDC login (trusted publishing), so no npm token is stored.
+# One-time setup on npmjs.com: the clayducation package's settings, "Trusted publisher": GitHub Actions,
+# repository jjietay/clayducation, workflow publish.yml.
+# It can also be started by hand (Actions tab, or: gh workflow run publish.yml) to publish the version
+# in package.json on main.
+name: Publish to npm
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm 11.5 or newer; Node 22 comes with npm 10.
+      - run: npm install -g npm@latest
+      # A tag must match package.json, so a forgotten version bump cannot publish the wrong version.
+      - name: The tag and package.json agree
+        if: startsWith(github.ref, 'refs/tags/')
+        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+      # npm refuses a version that is already published; then there is nothing to do.
+      - name: Publish, unless this version is on npm already
+        run: |
+          v=$(node -p "require('./package.json').version")
+          if npm view "clayducation@$v" version >/dev/null 2>&1; then echo "clayducation@$v is on npm already"; exit 0; fi
+          npm publish --provenance --access public
