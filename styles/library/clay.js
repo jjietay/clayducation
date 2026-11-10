@@ -153,6 +153,8 @@ function allowance(m, g, other, om) {
   if (m.hero) {
     if (/^(shoe|sole)/.test(p) && /^(floor|foot|base|plate)/.test(other.userData.part)) return null;   // he stands on it
     if (m.hero.seat && m.hero.seat.m === om && m.hero.seat.part === other.userData.part && /^(hip|leg|shin)/.test(p)) return null;   // he sits on it (sitOn)
+    // A short contact that a helper names for this frame only: a shoe on the ball at the kick, his body on the rug (lieDown).
+    for (const c of m.hero.touch || []) if (c.m === om && c.parts.test(p)) return null;
     // A hand that grips a part closes around it. hold() names the part; reach() only points.
     if (/^(hand|fore)/.test(p)) for (const gr of m.hero.gripped || []) if (gr.i === +p.slice(-1) && gr.m === om) return gr.part === other.userData.part ? null : 0.12;
   }
@@ -321,6 +323,55 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
     }
     else if (asHold) hero.hold(i, target, 1);
     else hero.reach(i, target, 1);
+  };
+  // ---------- for the play and tool actions (kick, jump, hammer, sweep, water, lieDown) ----------
+  const ease = (u) => { u = clamp(u, 0, 1); return u * u * (3 - 2 * u); };
+  const span = (t, a, d) => clamp((t - a) / d, 0, 1);
+  const V3 = (a) => new THREE.Vector3(...a);
+  // His forward and his right on the floor (unit vectors). His right is the side of hand 0.
+  const facing = (hero) => { hero.root.updateMatrixWorld(true); const f = new THREE.Vector3(0, 0, 1).applyQuaternion(hero.root.quaternion); f.y = 0; f.normalize(); return { f, r: new THREE.Vector3(-f.z, 0, f.x) }; };
+  const dirOf = (face) => new THREE.Vector3(Math.sin(face), 0, Math.cos(face));
+  const basisQ = (X, Y, Z) => new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(V3(X), V3(Y), V3(Z)));
+  // A point and a turn in the frame of a model (its root: place and turn; size 1) to world.
+  const toWorld = (ref, P) => { ref.root.updateMatrixWorld(true); return V3(P).applyMatrix4(ref.root.matrixWorld); };
+  const qWorld = (ref, Q) => ref.root.quaternion.clone().multiply(Q);
+  // A held tool: { Q, W } is its turn and the world point of its grip G (model coordinates). Its root goes where that puts it.
+  const placeTool = (m, { Q, W }, G) => { m.root.quaternion.copy(Q); m.root.position.copy(W).sub(V3(G).applyQuaternion(Q)); m.root.updateMatrixWorld(true); };
+  const mixPose = (A, B, e, arc = 0) => ({ Q: A.Q.clone().slerp(B.Q, e), W: A.W.clone().lerp(B.W, e).add(new THREE.Vector3(0, arc * Math.sin(Math.PI * e), 0)) });
+  // A tool's day: it rests until at; the hand comes to its grip (0.6 s), lifts it to the first work pose (0.8 s); work(t)
+  // runs until end - 1.4; it goes back to rest (0.8 s) and the hand lets go (0.6 s). Returns the pose and how far the hand is on.
+  const toolPath = (t, at, end, rest, work, arc = 0.5) => {
+    const a = at + 1.4, b = end - 1.4;
+    const P = t < at + 0.6 || t >= end - 0.6 ? rest : t < a ? mixPose(rest, work(a), ease((t - at - 0.6) / 0.8), arc) : t <= b ? work(t) : mixPose(work(b), rest, ease((t - b) / 0.8), arc);
+    const grip = t < at ? 0 : t < at + 0.6 ? ease((t - at) / 0.6) : t > end ? 0 : t > end - 0.6 ? 1 - ease((t - (end - 0.6)) / 0.6) : 1;
+    const take = t < at + 0.6 || t >= end - 0.6 ? 0 : t < a ? ease((t - at - 0.6) / 0.8) : t <= b ? 1 : 1 - ease((t - b) / 0.8);
+    return { P, grip, take, busy: t >= at && t <= end };
+  };
+  const holdTool = (hero, hand, W, grip) => { if (grip > 0) moveHand(hero, hand, W.toArray(), grip); };
+  // The hammer's claw on the bench (hammer() in "pull" mode), measured from the hammer's own shape. b: how far the
+  // handle leans away from him (0 upright). claw(b): the head centre's height over the bench top when the head rests on
+  // it. clawLift(b, slide): the top of the hammer under the nail's head (a disc of radius 0.16 round the shank, 0.75
+  // from the head centre, away from him, plus slide), over the bench top; -9 when the claw is not under it.
+  let clawTable = null, clawHead = null;
+  const clawFrame = (b) => { const D = [-Math.cos(b), Math.sin(b)], Y = [-Math.sin(b), -Math.cos(b)]; return (oy, oz) => [oy * Y[0] + oz * Y[1] + 0.06, oy * D[0] + oz * D[1] + 1.62]; };
+  const claw = (b) => {
+    if (!clawTable) {
+      clawHead = MODELS.hammer.make().parts.find((p) => p.name === 'head').f;
+      clawTable = [];
+      for (let i = 0; i <= 40; i++) {
+        const bb = i * 0.025, D = [-Math.cos(bb), Math.sin(bb)], Y = [-Math.sin(bb), -Math.cos(bb)];
+        let low = 9;
+        for (let ly = -0.45; ly <= 1.0; ly += 0.01) for (let lz = 0.95; lz <= 1.85; lz += 0.01) if (clawHead(0, ly, lz) < 0) low = Math.min(low, (ly - 0.06) * Y[0] + (lz - 1.62) * D[0]);
+        clawTable.push(-low);
+      }
+    }
+    const u = clamp(b, 0, 1) / 0.025, i = Math.min(39, Math.floor(u)), w = u - i;
+    return clawTable[i] + (clawTable[i + 1] - clawTable[i]) * w;
+  };
+  const clawLift = (b, slide) => {
+    const h = claw(b), loc = clawFrame(b); let top = -9;
+    for (let dz = -0.16; dz <= 0.161; dz += 0.04) for (const x of [0.09, 0.14]) for (let oy = -h; oy <= -h + 0.6; oy += 0.005) { const [ly, lz] = loc(oy, -0.75 - slide + dz); if (clawHead(x, ly, lz) < 0.01) top = Math.max(top, oy); }
+    return top < -8 ? -9 : top + h;
   };
   const g = {
     THREE, scene, camera, renderer: R,
@@ -653,6 +704,295 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
       hero.root.updateMatrixWorld(true);
       const H = new THREE.Vector3(0, -4.25, 0.05).applyMatrix4(hero.root.matrixWorld), r = new THREE.Vector3(-1, 0, 0).applyQuaternion(hero.root.quaternion);
       for (const i of [0, 1]) { const sg = i === 0 ? 1 : -1; hero.reach(i, [H.x + r.x * 1.55 * sg, H.y + 0.2, H.z + r.z * 1.55 * sg], k); }
+    },
+    // ---------- play and tool actions (the user asked, 2026-11-10): kick, jump, hammer, sweep, water, lieDown ----------
+    // Each one starts and ends with him standing, so they chain. A held tool rests at its own place until the action
+    // takes it, and goes back there after it. Times are scene seconds; draw only from t.
+    // Kick a ball (a 'kickball' model) from `from` to `to` ([x, z] on the floor) with leg (0: his right). He stands behind
+    // the ball, swings the leg back (hip +0.4, knee bent) and through (hip to -0.9, knee straight); the shoe meets the
+    // ball at `at`, and it rolls away and slows to a stop at `to` after roll s. spin: the turn of the ball at the start, so
+    // a kick back continues from the end of the first kick (its returned roll, negated). Walk him to the returned stand
+    // point (face) before at - 0.9. Returns { stand, face, end, roll }.
+    kick(hero, ball, t, { at = 1, from, to, leg = 0, roll = 2.0, spin = 0, r = 0.55 } = {}) {
+      const d = new THREE.Vector3(to[0] - from[0], 0, to[1] - from[1]), L = d.length(); d.normalize();
+      const face = Math.atan2(d.x, d.z), rgt = new THREE.Vector3(-d.z, 0, d.x), sg = leg === 0 ? 1 : -1;
+      // The leg at the moment of contact (hip -0.25, knee straight): the front of the sole is this far ahead of his feet.
+      const HC = -0.25, toe = 1.95 * Math.sin(-HC) + 0.06 * Math.sin(-HC) + 1.02 * Math.cos(HC) + 0.02;
+      const stand = [from[0] - d.x * (toe + r) - rgt.x * 0.57 * sg, from[1] - d.z * (toe + r) - rgt.z * 0.57 * sg];
+      // The ball: still until at, then a constant slowing: its speed at the start (2 L / roll) is more than the shoe's.
+      const u = clamp((t - at) / roll, 0, 1), s = L * (1 - (1 - u) * (1 - u));
+      const P = [from[0] + d.x * s, from[1] + d.z * s];
+      ball.root.position.set(P[0], 0, P[1]);
+      ball.root.quaternion.setFromAxisAngle(new THREE.Vector3(d.z, 0, -d.x), spin + s / r);
+      if (ball.shadow) { ball.shadow.position.x = P[0]; ball.shadow.position.z = P[1]; }
+      const end = at + 0.9;
+      if (t < at - 0.9 || t > end) return { stand, face, end, roll: L / r };
+      hero.place(stand[0], stand[1], { face, lean: -0.08 * Math.sin(Math.PI * span(t, at, 0.9)) });
+      // The hip: back (0 to +0.4, 0.6 s), through the ball (+0.4 to -0.9, eased, the contact at the middle), and back to 0.
+      let h, kn;
+      if (t < at - 0.3) { const e = ease(span(t, at - 0.9, 0.6)); h = 0.4 * e; kn = 1.2 * e; }
+      else if (t < at + 0.3) { const e = ease(span(t, at - 0.3, 0.6)); h = 0.4 - 1.3 * e; kn = 1.2 * (1 - ease(span(t, at - 0.3, 0.28))); }
+      else { const e = ease(span(t, at + 0.3, 0.6)); h = -0.9 * (1 - e); kn = 0.35 * Math.sin(Math.PI * e); }
+      const Lg = hero.legs[leg]; Lg.hip.rotation.x = h; Lg.knee.rotation.x = kn; Lg.ankle.rotation.x = -0.25 * Math.max(0, -h);
+      hero.posed = 1;   // a kick, not a frozen step
+      hero.arms[leg].shoulder.rotation.x += -0.5 * h; hero.arms[1 - leg].shoulder.rotation.x += 0.6 * h;
+      // The shoe meets the ball: for these frames it may touch it.
+      if (Math.abs(t - at) < 0.12) hero.touch.push({ m: ball, parts: /^(shoe|sole|shin)/ });
+      return { stand, face, end, roll: L / r };
+    },
+    // Jump at at: a short crouch, both feet leave the floor for air s in an arc height high, the arms bent and up (never
+    // straight), and a landing crouch. From (x, z) to `to` ([x, z], default the same place), facing face. Returns { end }.
+    jump(hero, t, { at = 1, x = 0, z = 0, to, face = 0, height = 1.3, air = 0.7 } = {}) {
+      const end = at + air + 0.5, T = to || [x, z], u = span(t, at, air), e = ease(u);
+      hero.place(x + (T[0] - x) * e, z + (T[1] - z) * e, { face });
+      if (t < at - 0.45 || t > end) return { end };
+      // The crouch before (0.4 s down, a fast push up) and after (down and up in 0.5 s).
+      const pre = t < at ? ease(span(t, at - 0.45, 0.35)) * (1 - span(t, at - 0.08, 0.08)) : 0;
+      const land = t > at + air ? Math.sin(Math.PI * span(t, at + air, 0.5)) : 0;
+      const tuck = t >= at && t <= at + air ? 0.3 * Math.sin(Math.PI * u) : 0;
+      const k = Math.max(pre * 0.55, land * 0.45, tuck);
+      if (k > 0) hero.legsPose('crouch', k);
+      hero.posed = 1;
+      if (t >= at && t <= at + air) hero.root.position.y += 4 * height * u * (1 - u);
+      // The arms: back in the crouch, then up beside his head with the elbows bent (the hands 0.95 from the shoulder).
+      const up = t < at ? 0 : t <= at + air ? Math.sin(Math.PI * Math.min(1, u * 1.6)) : 0;
+      if (pre > 0) for (const a of hero.arms) a.shoulder.rotation.x += 0.55 * pre;
+      if (up > 0) {
+        const { f, r } = facing(hero);
+        [0, 1].forEach((i) => { const S = hero.arms[i].shoulder.getWorldPosition(new THREE.Vector3()), sg = i === 0 ? 1 : -1;
+          hero.reach(i, [S.x + f.x * 0.35 + r.x * 0.55 * sg, S.y + 0.6, S.z + f.z * 0.35 + r.z * 0.55 * sg], up); });
+      }
+      return { end };
+    },
+    // Hammer a nail into a 'nailboard' (mode 'drive': count hits, gap s apart; the nail sinks a third on each) or pull it
+    // out with the claw (mode 'pull': he turns the hammer, the claw's slot takes the nail under its head, and he pulls the
+    // handle toward him so the head rocks on the bench and the claw levers the nail up). The 'hammer' model rests on the
+    // bench near him until at, and goes back there at the end. hand: 0 his right. The bench must have size 1. He stands
+    // at the bench's +z side and faces it; walk him to the returned stand point (face) before at. Returns { stand, face,
+    // hits, end }: the hit times are for s.sfx('thud', t).
+    hammer(hero, tool, board, t, { at = 1, mode = 'drive', count = 3, gap = 0.75, hand = 0, lean = 0.1 } = {}) {
+      // The grip: on the handle's axis, 0.3 from its end. At rest (the hammer on its side) the hand holds it 0.36 above the
+      // axis (local +x is up there), so the fist closes on the handle and stays clear of the bench.
+      const sg = hand === 0 ? 1 : -1, pull = mode === 'pull', G = [0, 0, 0.3], GR = [0.36, 0, 0.3];
+      // He stands with the nail 3.2 in front of him and 1.35 to the hand's side (drive), or 2.85 in front and 0.75 to the
+      // side (pull: the elbow then stays outside the hammer's head, which comes back toward him).
+      const sb = toWorld(board, [0.9 - sg * (pull ? 0.75 : 1.35), 0, pull ? 2.55 : 2.9]), stand = [sb.x, sb.z], face = board.root.rotation.y + Math.PI;
+      const pose = (QB, WB) => ({ Q: qWorld(board, QB), W: toWorld(board, WB) });
+      const rest = pose(basisQ([0, 1, 0], [0, 0, -1], [-1, 0, 0]), [0.9, 2.775 + 0.36, 0.45]);   // on its side on the bench, the claw away from him
+      const nail = (k) => board.setPose(clamp(k, 0, 1));
+      // Drive: the head turns about the hand, theta up from level (the face down on the nail at theta 0).
+      const swing = (th, W) => pose(basisQ([-1, 0, 0], [0, Math.cos(th), Math.sin(th)], [0, Math.sin(th), -Math.cos(th)]), W);
+      // The hand when the face is on the nail's head, the nail sunk k: the face is 0.37 below and 1.32 beyond the grip.
+      let hits = [], end, work, nk;
+      if (!pull) {
+        const h0 = at + 1.85; hits = Array.from({ length: count }, (_, j) => h0 + j * gap);
+        const last = hits[count - 1]; end = last + 0.55 + 1.4;
+        const sunk = (tt) => hits.reduce((s2, h) => s2 + span(tt, h, 0.06), 0) / count;
+        // The hand (bench frame) when the face is on the nail's head, the nail sunk k: the face is 0.37 below and 1.32 beyond the grip.
+        const strikeW = (k) => [0.9, 3.13 - 0.3 * k + 0.374, -0.3 + 1.32], raisedW = (k) => { const W = strikeW(k); return [W[0], W[1] + 0.45, W[2] + 0.3]; };
+        const lerp3 = (A, B, e) => A.map((v, i) => v + (B[i] - v) * e);
+        nk = sunk(t);
+        work = (tt) => {
+          const k = sunk(tt);
+          if (tt > last) { if (tt < last + 0.2) return swing(0, strikeW(k)); const e = ease(span(tt, last + 0.2, 0.35)); return swing(0.95 * e, lerp3(strikeW(k), raisedW(k), e)); }
+          const j = hits.findIndex((h) => h >= tt), u = (tt - (hits[j] - gap)) / gap, kp = j / count;   // kp: the nail before hit j
+          if (j > 0 && u < 0.12) return swing(0, strikeW(k));   // on the nail while it sinks
+          if (u < 0.55) { if (j === 0) return swing(0.95, raisedW(0)); const e = ease((u - 0.12) / 0.43); return swing(0.95 * e, lerp3(strikeW(kp), raisedW(kp), e)); }
+          const e = ((u - 0.55) / 0.45) ** 2;   // down, faster and faster
+          return swing(0.95 * (1 - e), lerp3(raisedW(kp), strikeW(kp), e));
+        };
+      } else {
+        // Pull: the claw's pose for lean b (0 upright); slide (toward him) and lift move the whole hammer.
+        const clawPose = (b, slide = 0, lift = 0) => {
+          const C = [0.9, 2.6 + claw(b) + lift, -0.3 + 0.75 + slide];
+          const D = [0, -Math.cos(b), Math.sin(b)], Y = [0, -Math.sin(b), -Math.cos(b)];
+          const QB = basisQ([-1, 0, 0], Y, D), W = V3([0, -0.06, 0.3 - 1.62]).applyQuaternion(QB).add(V3(C));
+          return pose(QB, W.toArray());
+        };
+        // The lever: b from 0.95 (the claw flat under the sunk nail's head) to 0.16 (the nail's head back at its rest
+        // height, 0.47 over the bench). The nail's head rides on the claw: its underside 0.17 (sunk) to 0.47 (out).
+        const a = at + 1.4; end = a + 2.6 + 1.4;
+        const lev = (tt) => 0.95 - 0.79 * ease(span(tt, a + 1.0, 1.2));
+        const slideOf = (tt) => tt < a + 1.0 ? 0.3 * (1 - ease(span(tt, a + 0.4, 0.6))) : 0.3 * ease(span(tt, a + 2.2, 0.4));
+        const under = (tt) => { if (tt < a + 0.4 || tt > a + 2.6) return -9; const sl = slideOf(tt); return clawLift(tt < a + 2.2 ? lev(tt) : 0.16, sl) + 0.005; };
+        nk = t < a + 2.2 ? 1 - clamp((under(t) - 0.17) / 0.3, 0, 1) : 0;
+        work = (tt) => {
+          if (tt < a + 0.4) return clawPose(0.95, 0.3, 0.3 * (1 - ease(span(tt, a, 0.4))));
+          if (tt < a + 1.0) return clawPose(0.95, slideOf(tt));
+          if (tt < a + 2.2) return clawPose(lev(tt));
+          return clawPose(0.16, slideOf(tt));
+        };
+      }
+      const { P, grip, take, busy } = toolPath(t, at, end, rest, work, 0.6);
+      placeTool(tool, P, GR.map((v, i) => v + (G[i] - v) * take));
+      nail(pull ? (t < at ? 1 : t > end ? 0 : nk) : (t < at ? 0 : t > end ? 1 : nk));
+      const ln = pull ? 0.15 : lean;
+      if (busy) { hero.place(stand[0], stand[1], { face, lean: ln }); holdTool(hero, hand, P.W, grip); }
+      return { stand, face, hits, end };
+    },
+    // Sweep a 'dust' pile with a 'broom' (both hands on the handle): the brush goes side to side on the floor in front of
+    // him, strokes times in dur s, and each stroke pushes the pile a little further along dir ([x, z] on the floor: the
+    // pile's way), dist in all. from: the pile's start [x, z]. He faces across the pile's way, to the camera's side (face:
+    // his facing, to choose it). The broom stands upright on its brush at rest ([x, z]) until at; he takes it there, walks
+    // with the brush lifted to the strokes, steps along with the pile, walks back, and stands the broom at rest again.
+    // His left hand holds the handle high, his right hand low; the strokes run 2.6 to his right.
+    // Walk him to the returned stand point (face) before at. Returns { stand, face, end, pileEnd, rest } (rest: where the
+    // broom stands, for the next sweep).
+    sweep(hero, broom, pile, t, { at = 1, dur = 4, strokes = 4, from, dist = 2.4, dir = [-1, 0], face, rest, reach = 4.3, amp = 0.75 } = {}) {
+      const s = new THREE.Vector3(dir[0], 0, dir[1]).normalize();
+      if (face == null) { const c = new THREE.Vector3(camera.position.x - from[0], 0, camera.position.z - from[1]); const p = new THREE.Vector3(-s.z, 0, s.x); face = Math.atan2(...(p.dot(c) >= 0 ? [p.x, p.z] : [-p.x, -p.z])); }
+      const f = dirOf(face), r = new THREE.Vector3(-f.z, 0, f.x), P0 = new THREE.Vector3(from[0], 0, from[1]), up = new THREE.Vector3(0, 1, 0);
+      // Along the pile's way (s), from its start: the brush's leading edge is 0.55 ahead of its centre, the pile's back
+      // edge 0.75 behind its centre. x0: the middle of the first stroke.
+      const x0 = -(0.75 + 0.55 + 0.15) - amp, mid = (tt) => x0 + dist * ease(span(tt, a0, dur));
+      // Where he stands to sweep: reach behind the pile's line, with the line of strokes 2.6 to his right.
+      const H = (tt) => P0.clone().addScaledVector(s, mid(tt)).addScaledVector(f, -reach).addScaledVector(r, -2.6);
+      // The rest: the broom upright at R; he takes it standing at Sr, 2.2 in front of him and 0.75 to his left. Default R: at the
+      // first stroke.
+      const H0 = P0.clone().addScaledVector(s, x0).addScaledVector(f, -reach).addScaledVector(r, -2.6);
+      const R = rest ? new THREE.Vector3(rest[0], 0, rest[1]) : H0.clone().addScaledVector(f, 2.2).addScaledVector(r, -0.75);
+      const Sr = R.clone().addScaledVector(f, -2.2).addScaledVector(r, 0.75);
+      const a = at + 1.4, w1 = Math.max(0.5, Sr.distanceTo(H0) / 2.2);
+      let a0 = a + w1;
+      const b0 = a0 + dur, w2 = Math.max(0.5, Sr.distanceTo(H(b0)) / 2.2), end = b0 + w2 + 1.4;
+      const brushX = (tt) => mid(tt) - amp * Math.cos(2 * Math.PI * strokes * span(tt, a0, dur));
+      // Where he is: at Sr, walking to the strokes, sweeping, walking back.
+      const Hp = (tt) => tt <= a ? Sr.clone() : tt < a0 ? Sr.clone().lerp(H(a0), ease(span(tt, a, w1))) : tt <= b0 ? H(tt) : tt < b0 + w2 ? H(b0).lerp(Sr, ease(span(tt, b0, w2))) : Sr.clone();
+      const lift = (tt) => tt < a0 ? 1.0 * (1 - ease(span(tt, a0 - 0.35, 0.35))) : tt > b0 ? 1.0 * ease(span(tt, b0, 0.35)) : 0;
+      // The pile: pushed ahead of the brush's furthest edge so far.
+      let push = -9; for (let tt = a0; tt <= Math.min(t, b0); tt += 1 / 60) push = Math.max(push, brushX(tt) + 0.55);
+      const px = Math.max(0, push + 0.75 + 0.15), pileEnd = [P0.x + s.x * (dist + 0.0), P0.z + s.z * (dist + 0.0)];
+      pile.root.position.set(P0.x + s.x * px, 0, P0.z + s.z * px);
+      if (pile.shadow) { pile.shadow.position.x = pile.root.position.x; pile.shadow.position.z = pile.root.position.z; }
+      // The broom: the brush at B, the handle up to U (2.6 in front of him, 0.5 to his left), where the upper hand holds it.
+      const G = [[0, 4.6, 0], [0, 3.8, 0]];   // the grips on the handle: upper hand (1, his left) and lower hand (0, his right)
+      const B = (tt) => { const h = Hp(tt), rel = tt >= a0 && tt <= b0 ? brushX(tt) - mid(tt) : -amp; return h.addScaledVector(f, reach).addScaledVector(r, 2.6).addScaledVector(s, rel).addScaledVector(up, lift(tt)); };
+      const U = (tt) => Hp(tt).addScaledVector(f, 2.6).addScaledVector(r, -0.5).setY(3.8);
+      const swPose = (tt) => { const Bv = B(tt), Q = new THREE.Quaternion().setFromUnitVectors(up, U(tt).sub(Bv).normalize()); return { Q, W: Bv.add(V3(G[0]).applyQuaternion(Q)) }; };
+      const rp = { Q: new THREE.Quaternion(), W: R.clone().add(V3(G[0])) };
+      const { P, grip, busy } = toolPath(t, at, end, rp, swPose, 0.3);
+      placeTool(broom, P, G[0]);
+      // The brush never goes into the floor: lift the broom when its lowest point is below y 0 (the bundle is round).
+      const brush = broom.groups.brush, pos = meshOf(brush).geometry.attributes.position, v = new THREE.Vector3(); let low = 9;
+      for (let i = 0; i < pos.count; i += 5) { v.fromBufferAttribute(pos, i).applyMatrix4(brush.matrixWorld); low = Math.min(low, v.y); }
+      if (low < 0) { broom.root.position.y -= low; broom.root.updateMatrixWorld(true); }
+      if (busy) {
+        const Hn = Hp(t), walked = t < a0 ? Sr.distanceTo(Hn) : t <= b0 ? Sr.distanceTo(H(a0)) + Math.abs(mid(t) - mid(a0)) : Sr.distanceTo(H(a0)) + dist + H(b0).distanceTo(Hn);
+        const moving = t > a && t < a0 ? Math.sin(Math.PI * span(t, a, w1)) : t > b0 && t < b0 + w2 ? Math.sin(Math.PI * span(t, b0, w2)) : t >= a0 && t <= b0 ? 0.4 * Math.sin(Math.PI * span(t, a0, dur)) : 0;
+        hero.place(Hn.x, Hn.z, { face, lean: 0.2 });
+        hero.stride(walked * hero.STEP, 0.4 * moving);
+        holdTool(hero, 1, V3(g.partPoint(broom, 'handle', G[0])), grip);
+        // The right hand comes to the lower grip from his right side (a path across his chest goes into his shirt).
+        const k1 = ease(span(t, a - 0.6, 0.6)) * (1 - ease(span(t, b0 + w2, 0.6)));
+        if (k1 > 0) {
+          const L = g.partPoint(broom, 'handle', G[1]), M = Hp(t).addScaledVector(f, 2.0).addScaledVector(r, 1.3).setY(3.2).toArray();
+          if (k1 < 0.5) hero.reach(0, M, ease(k1 / 0.5));
+          else if (k1 < 0.999) { hero.reach(0, M.map((v, i) => v + (L[i] - v) * ease((k1 - 0.5) / 0.5)), 1); (hero.holds ??= []).push({ i: 0, point: L, k: 0.94 }); }
+          else hero.hold(0, L, 1);
+        }
+      }
+      return { stand: [Sr.x, Sr.z], face, end, pileEnd, rest: [R.x, R.z] };
+    },
+    // Water a 'plant' (on the floor, size 1) with a 'wateringCan' held by its top handle. The can rests on a 'pedestal'
+    // (top y 2.2) at restAt (returned; put the pedestal there), to the side of the pour place away from the hand. He takes
+    // it there, walks sideways to the pour place, holds it out beside the pot, tilts it until the spout points down over
+    // the soil, and drops fall from the rose; then he walks back and sets it down. effect: 'grow' (the stem grows), 'open'
+    // (the flower opens) or 'close' (it closes again); the plant shows the state before at and after the end. drops:
+    // g.ball()s made in setup (6 is enough). He faces face (default: the plant's turn, so he looks along its +z). Walk him to the returned stand point (face) before at. Returns { stand, face, end, restAt }.
+    water(hero, can, plant, t, { at = 1, effect = 'grow', rest, drops = [], hand = 0, face } = {}) {
+      const sg = hand === 0 ? 1 : -1, G = [-0.1, 1.53, 0];
+      plant.root.updateMatrixWorld(true);
+      const C = plant.root.position.clone(); face ??= plant.root.rotation.y;
+      const f = dirOf(face), r = new THREE.Vector3(-f.z, 0, f.x), rs = r.clone().multiplyScalar(sg), up = new THREE.Vector3(0, 1, 0);
+      // The can's turn: its spout (+x) toward the pot, along f turned 0.5 in toward his middle (so the can's body, which
+      // swings back under the hand as it tilts, stays out beyond his forearm), tilted down by tau about its own z.
+      const sp = f.clone().multiplyScalar(Math.cos(0.5)).addScaledVector(rs, -Math.sin(0.5)), yaw = new THREE.Quaternion().setFromAxisAngle(up, Math.atan2(-sp.z, sp.x));
+      const Qc = (tau) => yaw.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -tau));
+      const ROSE = [1.52, 1.15, 0], roseOff = (tau) => V3([ROSE[0] - G[0], ROSE[1] - G[1], 0]).applyQuaternion(Qc(tau));
+      // The rose: over the soil, 0.3 from the stem on the spout's side, 0.5 above the soil (T). It comes there level from
+      // T1 (0.65 further out, 0.35 higher), under where the open petals reach, while the can tilts from 0.8 to 1.15.
+      // Carried, the can is level and the rose is high (y 3.6), 0.5 out from the stem: it goes down outside the petals.
+      const T = C.clone().addScaledVector(sp, -0.3).setY(1.45), T1 = T.clone().addScaledVector(sp, -0.65).setY(1.8);
+      const roseAt = (R, tau) => ({ Q: Qc(tau), W: R.clone().sub(roseOff(tau)) });   // the can's pose for its rose at R
+      // The pour place X: the hand at the pour is 2.0 in front of him and 2.0 to the hand's side.
+      const X = roseAt(T, 1.15).W.addScaledVector(f, -2.0).addScaledVector(rs, -2.0).setY(0);
+      const carryR = (H) => H.clone().add(C.clone().sub(X)).addScaledVector(sp, -0.5).setY(3.6);
+      const carry = (H) => roseAt(carryR(H), 0);
+      const pourPose = (u) => u < 0.5 ? (() => { const e = ease(u / 0.5); return roseAt(carryR(X).lerp(T1, e), 0.8 * e); })() : (() => { const e = ease((u - 0.5) / 0.5); return roseAt(T1.clone().lerp(T, e), 0.8 + 0.35 * e); })();
+      // The rest place Sr: 3.0 further to the hand's side; the can stands on its pedestal 2.2 in front of him there and
+      // 1.3 to the hand's side, so he walks away from it to the pour.
+      const Sr = X.clone().addScaledVector(rs, 3.0);
+      const restAt = rest ? V3(rest) : Sr.clone().addScaledVector(f, 2.2).addScaledVector(rs, 1.3).setY(2.2);
+      const rp = { Q: yaw.clone(), W: restAt.clone().add(V3(G).applyQuaternion(yaw)) };
+      const w1 = Sr.distanceTo(X) / 2.2, a = at + 1.4, a1 = a + w1, b1 = a1 + 4.0, end = b1 + w1 + 1.4;
+      const Hp = (tt) => tt <= a ? Sr.clone() : tt < a1 ? Sr.clone().lerp(X, ease(span(tt, a, w1))) : tt <= b1 ? X.clone() : tt < b1 + w1 ? X.clone().lerp(Sr, ease(span(tt, b1, w1))) : Sr.clone();
+      const wobble = (tt) => 0.06 * Math.sin(2 * Math.PI * (tt - a1) / 0.8) * Math.sin(Math.PI * span(tt, a1 + 1.3, 1.6));
+      const work = (tt) => {
+        if (tt < a1 || tt > b1) return carry(Hp(tt));
+        if (tt < a1 + 1.3) return pourPose(span(tt, a1, 1.3));
+        if (tt < a1 + 2.9) return roseAt(T, 1.15 + wobble(tt));
+        return pourPose(1 - span(tt, a1 + 2.9, 1.1));
+      };
+      const { P, grip, busy } = toolPath(t, at, end, rp, work, 0.25);
+      placeTool(can, P, G);
+      // The plant: before, during and after.
+      const e = ease(span(t, a1 + 1.5, 1.8));
+      if (effect === 'grow') plant.setPose(e);
+      else { plant.setPose(1); plant.setPose(effect === 'open' ? e : 1 - e, 'bloom'); }
+      // Drops: each falls from 0.22 below the rose to just above the soil, one after another, while he pours.
+      const rose = g.partPoint(can, 'rose', ROSE);
+      drops.forEach((d, i) => {
+        // Each falls at a steady 3 a second, so drops that follow each other stay apart; between falls it is hidden.
+        const top = rose[1] - 0.22, fall = Math.max(0.05, (top - 1.0) / 3);
+        const tt = t - (a1 + 1.35) - i * 0.3 / drops.length, cyc = tt - Math.floor(tt / 0.3) * 0.3, on = tt >= 0 && t <= a1 + 2.85 && cyc < fall;
+        const y = top - 3 * cyc;
+        d.position.set(rose[0] + 0.07 * Math.sin(i * 2.4), y, rose[2] + 0.07 * Math.cos(i * 2.4));
+        d.scale.setScalar(on && y > 1.0 ? 1 : 1e-4);
+      });
+      if (busy) {
+        const Hn = Hp(t), walked = t < a1 ? Sr.distanceTo(Hn) : t <= b1 ? Sr.distanceTo(X) : Sr.distanceTo(X) + X.distanceTo(Hn);
+        const moving = t > a && t < a1 ? Math.sin(Math.PI * span(t, a, w1)) : t > b1 && t < b1 + w1 ? Math.sin(Math.PI * span(t, b1, w1)) : 0;
+        hero.place(Hn.x, Hn.z, { face, lean: 0.1 });
+        hero.stride(walked * hero.STEP, 0.4 * moving);
+        holdTool(hero, hand, P.W, grip);
+      }
+      return { stand: [Sr.x, Sr.z], face, end, restAt: [restAt.x, restAt.y, restAt.z] };
+    },
+    // Lie down on a 'rug' and rest (k 0 standing, 1 lying flat), and get up again (k back to 0): he sits on the floor
+    // with his legs straight out (k 0 to 0.55: a crouch, then the sit), then leans back about his hips until he lies flat
+    // (0.55 to 1). Lying, he breathes slowly (from t) and sleeps: the sleepy face with his eyes shut (sleep: 0 to 1).
+    // His feet point to the rug's +x end; his hips are 1.5 from its middle. His body may touch the rug while k > 0. He
+    // stands on the rug (y 0.08) at the returned stand point, facing face: route him there with { y: 0.08 }.
+    lieDown(hero, rug, t, { k = 1, sleep = k } = {}) {
+      rug.root.updateMatrixWorld(true);
+      const H = toWorld(rug, [1.5, 0, 0]), ax = V3([1, 0, 0]).applyQuaternion(rug.root.quaternion), face = Math.atan2(ax.x, ax.z), stand = [H.x, H.z];
+      if (k <= 0) return { stand, face };
+      hero.place(H.x, H.z, { face, y: 0.08 });
+      hero.touch.push({ m: rug, parts: /./ });
+      const c = ease(span(k, 0, 0.3)), sit = ease(span(k, 0.3, 0.25)), back = ease(span(k, 0.55, 0.45));
+      if (sit <= 0) hero.legsPose('crouch', c * 0.8, { y: 0.08 });
+      else { hero.legsPose('crouch', 0.8 * (1 - sit), { y: 0.08 }); hero.legsPose('sitFloor', sit, { y: 0.08 }); }
+      if (back > 0) {
+        // Lean back about the hips; the thighs turn forward by the same angle, so the legs stay on the floor. Breathing
+        // lifts his chest a little.
+        const beta = (Math.PI / 2 - 0.03) * back - 0.03 * back * (0.5 + 0.5 * Math.sin(2 * Math.PI * t / 3.6));
+        hero.root.updateMatrixWorld(true);
+        const Pm = hero.legs[0].hip.getWorldPosition(new THREE.Vector3()).add(hero.legs[1].hip.getWorldPosition(new THREE.Vector3())).multiplyScalar(0.5);
+        const side = new THREE.Vector3(1, 0, 0).applyQuaternion(hero.root.quaternion), q = new THREE.Quaternion().setFromAxisAngle(side, -beta);
+        hero.root.position.sub(Pm).applyQuaternion(q).add(Pm); hero.root.quaternion.premultiply(q);
+        for (const l of hero.legs) l.hip.rotation.x += beta;
+        hero.plant(0.08, { body: true });
+      }
+      // Sitting, his hands rest on the rug beside his hips; they let go as he leans back, and his arms lie at his sides.
+      // Lying, they stay there, a little nearer his head, so his arms stay bent (a straight arm level with the shoulder
+      // reads as a salute).
+      if (sit > 0) {
+        hero.root.updateMatrixWorld(true);
+        const f = dirOf(face), r = new THREE.Vector3(-f.z, 0, f.x), HP = hero.legs[0].hip.getWorldPosition(new THREE.Vector3()).add(hero.legs[1].hip.getWorldPosition(new THREE.Vector3())).multiplyScalar(0.5);
+        for (const i of [0, 1]) { const sg = i === 0 ? 1 : -1, bk = 0.25 + 0.45 * back; hero.reach(i, [HP.x + r.x * 1.45 * sg - f.x * bk, 0.6, HP.z + r.z * 1.45 * sg - f.z * bk], sit); }
+      }
+      if (sleep > 0) { hero.blendExpression('neutral', 'sleepy', sleep); hero.blink(ease(span(sleep, 0.5, 0.5))); }
+      return { stand, face };
     },
     // A plain rounded post, to mark a place on the floor.
     post(color, h = 3, r = 0.12) {
