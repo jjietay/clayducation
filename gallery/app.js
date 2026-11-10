@@ -2096,7 +2096,7 @@ C[6] = {
     // The dream: three puffs and a round bubble in chapter 7's colour (in the scene, not a set).
     const clay = new THREE.MeshPhysicalMaterial({ color: '#f0e7d6', roughness: 0.6, sheen: 0.3 });
     this.puffs = [0.22, 0.34, 0.5].map((r) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 32, 20), clay); m.visible = false; scene.add(m); return m; });
-    this.bubble = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 40), new THREE.MeshBasicMaterial({ color: chs[7].dataset.bg, side: THREE.DoubleSide, toneMapped: false }));
+    this.bubble = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 40), new THREE.MeshBasicMaterial({ color: chs[7].dataset.bg, side: THREE.DoubleSide, toneMapped: false, transparent: true }));
     this.edge = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 40), new THREE.MeshPhysicalMaterial({ color: '#f0e7d6', roughness: 0.6, side: THREE.BackSide }));
     // Drawn over the world: as it grows, it covers him and then the whole screen.
     this.bubble.material.depthTest = false; this.bubble.renderOrder = 12; this.edge.material.depthTest = false; this.edge.renderOrder = 11;
@@ -2159,11 +2159,22 @@ C[6] = {
     this.puffs.forEach((m, i) => { const k = sm(0.02 + i * 0.05, 0.08 + i * 0.05, u) * (1 - sm(0.34, 0.4, u)); m.visible = on && k > 0.01; m.scale.setScalar(Math.max(k, 0.01)); m.position.copy(head).add(new THREE.Vector3(0, 2.0, 0.9)).lerp(c, 0.12 + i * 0.22);   /* above and in front of his head, clear of it */ });
     this.bubble.visible = on && r > 0.06; this.bubble.position.copy(c); this.bubble.scale.setScalar(r);
     this.edge.visible = this.bubble.visible && u < 0.42; this.edge.position.copy(c); this.edge.scale.setScalar(r * 1.035);
+    // After the cut, the bubble is round the camera and opens: the first frame after the cut is all chapter 7's
+    // colour, as the last frame before it, and the film set shows through as it fades (0.62 to 0.7).
+    const cover = u >= DREAM_CUT && u < 1 ? 1 - sm(DREAM_CUT, 0.7, u) : 0;
+    this.bubble.material.opacity = 1;
+    if (cover > 0) { this.bubble.visible = true; this.bubble.position.copy(cam.position); this.bubble.scale.setScalar(5); this.bubble.material.opacity = cover; }
     // (No film frames in the bubble: JJ asked for the bubble to open onto him holding the roll.)
   },
   shot(t) { const [x, z] = this.hip(); return { at: [x - 1.6, 1.8, z], dist: 26, az: 4 + 3 * pn.x, el: 26 - 2 * pn.y, sx: 0.14, sy: 0.12 }; },
 };
 const DREAM_CUT = 0.62;   // the dream's cut: the camera is inside the bubble, so the screen is chapter 7's colour
+let cutSide = -1;   // 0: chapter 6 and the dream before the cut; 1: after it
+// A cut: settle() starts again from the pose that the chapter asks for now, so nothing eases across the cut.
+function unease() {
+  ease.q.clear(); ease.p = null; ease.face = null; gaze.k = want.look ? want.look.k : 0;
+  hands.forEach((h, i) => { const w = want.hands[i]; h.k = w ? w.k : 0; h.p = w ? w.p.clone() : null; h.last = h.p && h.p.clone(); h.glide = false; });
+}
 
 // 7. The result is a real MP4: a film strip rolls out of his hands, from the title card of the visitor's own
 // topic to frames of six finished videos. A click brings a frame to the camera and plays it.
@@ -2270,7 +2281,7 @@ C[7] = {
     // hand 0 low), so his arms never cross.
     this.grip = [[-1, 3.9], [1, 5.2]].map(([s, y]) => { const r = rc + 0.08; return [SPOOL[0] + reachTo.x + r * this.d.x + s * 0.2 * this.p.x, y + Math.min(reachTo.y, 0.6), SPOOL[2] + r * this.d.y + s * 0.2 * this.p.y]; });
     if (!H) return;
-    const lean = 0.32 * sm(0.84, 0.88, t) * (1 - sm(0.91, 0.97, t)), hold = sm(0, 0.04, t) * (1 - sm(0.91, 0.96, t));
+    const lean = 0.32 * sm(0.84, 0.88, t) * (1 - sm(0.91, 0.97, t)), hold = 1 - sm(0.91, 0.96, t);   /* JJ: he holds the roll from the start of chapter 7 (it was sm(0, 0.04, t)), so he never lets go after the pull-back */
     H.pose.rest(); place(STAND[0], STAND[1], SFACE, { lean });
     const axis = this.spool.position, faceTo = (g) => [axis.x - g[0], 0, axis.z - g[2]];   // palms to the roll's axis
     H.hold(0, this.grip[0], hold, faceTo(this.grip[0])); H.hold(1, this.grip[1], hold, faceTo(this.grip[1]));
@@ -2605,6 +2616,10 @@ function frame() {
   if (H) { H.root.visible = true; H.root.scale.set(1, 1, 1); H.shadow?.scale.set(3.8, 2.4, 1); }   // chapter 0 squashes him on landing
   if (H) { H.shirt ??= H.shapes.find((m) => m.userData.part === 'shirt'); H.shirt.scale.z = 1; H.shirt.position.z = 0; }   // lieDown's breathing scales it
   if (pen) pen.visible = state.i === 1 || state.i === 2 || (state.i === 0 && state.u > 0);
+  // The dream's cut (0: chapter 6 and the dream before the cut; 1: after it): on the frame that crosses it, the
+  // sets go to their new places first, so his new pose is made on them.
+  const side = state.i >= 7 || (state.kind === 'dream' && state.u >= DREAM_CUT) ? 1 : state.i === 6 ? 0 : -1, cut = side >= 0 && cutSide >= 0 && side !== cutSide;
+  if (cut) morphs(state);
   for (let j = 0; j < C.length; j++) {
     if (!C[j].ready || !(j === state.i || (state.u > 0 && j === state.i + 1))) continue;
     const keep = H; if (!(state.u === 0 && j === state.i)) H = null;
@@ -2620,6 +2635,9 @@ function frame() {
     else if (state.kind === 'dream') { if (H) { if (state.u < DREAM_CUT) C[6].act(1); else C[7].act(0.04); } }   /* he holds the roll (chapter 7's holding pose) from the first frame of the pull-back */
     else walkBetween(state);
   } else walkFace = null;
+  // ... and his new pose is there at once (either way, or over the cut in one frame).
+  if (H && cut) unease();
+  cutSide = side;
   morphs(state);
   settle();
   plantFloor();   /* on the eased pose */

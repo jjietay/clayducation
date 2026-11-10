@@ -64,7 +64,7 @@ function PROBE() {
     const box = (o, b) => { const m = meshOf(o); m.geometry.boundingBox ?? m.geometry.computeBoundingBox(); return b.copy(m.geometry.boundingBox).applyMatrix4(m.matrixWorld); };
     const depth = (o, inv, p) => { u.copy(p).applyMatrix4(inv); const pv = o.userData.pv || [0, 0, 0]; return o.userData.f(u.x + pv[0], u.y + pv[1], u.z + pv[2]) * o.getWorldScale(sc).x; };
     const rootOf = (o) => { let p = o; while (p.parent && !p.parent.isScene && !(p.parent.type === 'Group' && p.parent.parent?.isScene)) p = p.parent; return p; };
-    let last = null, lastPix = null;
+    let last = null, lastPix = null, lastCut = -1;
     const small = document.createElement('canvas'); small.width = 64; small.height = 36; const sg = small.getContext('2d', { willReadFrequently: true });
     window.__chk = () => {
       const out = [];
@@ -108,16 +108,23 @@ function PROBE() {
       // Jumps: his feet place, and each joint, against the frame before.
       const J = [['root', H.root], ...H.arms.flatMap((a, i) => [[`shoulder${i}`, a.shoulder], [`elbow${i}`, a.elbow]]), ...H.legs.flatMap((l, i) => [[`hip${i}`, l.hip], [`knee${i}`, l.knee]])].filter((x) => x[1]);
       const now = { p: H.root.position.clone(), q: J.map((x) => x[1].quaternion.clone()) };
-      const st0 = window.__clayState(); if ((st0.kind === 'pen' && Math.abs(st0.u - 0.5) < 0.03) || (st0.kind === 'dream' && st0.u > 0.55 && st0.u < 0.65)) last = null;   // the two cuts, hidden by the pen's blue and by the bubble
+      const st0 = window.__clayState(); if (st0.kind === 'pen' && Math.abs(st0.u - 0.5) < 0.03) last = null;   // the pen's cut, hidden by the pen's blue
+      // The dream's cut (u = 0.62): only the one frame that crosses it, and only when the picture on both sides is one colour.
+      const cutNow = st0.kind === 'dream' ? (st0.u >= 0.62 ? 1 : 0) : -1, crossed = cutNow >= 0 && lastCut >= 0 && cutNow !== lastCut; lastCut = cutNow;
       if (last) { const dp = now.p.distanceTo(last.p); if (dp > 0.6) out.push(`jump: his body moves ${dp.toFixed(2)} in one frame`); now.q.forEach((q, i) => { const dq = q.angleTo(last.q[i]); if (dq > 0.35) out.push(`jump: ${J[i][0]} turns ${dq.toFixed(2)} rad in one frame`); }); }
       last = now;
-      sg.clearRect(0, 0, 64, 36); sg.drawImage(document.querySelector('canvas.world'), 0, 0, 64, 36); const px = sg.getImageData(0, 0, 64, 36).data;
+      // A 1-pixel read first: it waits for the GPU to finish the frame. Without it, drawImage sometimes copies a
+      // cleared buffer (a blank frame that is not on the screen; it moved from run to run in the dream).
+      const wc = document.querySelector('canvas.world'), gl = wc.getContext('webgl2') || wc.getContext('webgl'); gl?.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+      sg.clearRect(0, 0, 64, 36); sg.drawImage(wc, 0, 0, 64, 36); const px = sg.getImageData(0, 0, 64, 36).data;
       let diff = 0; if (lastPix) for (let i = 0; i < px.length; i += 4) diff += Math.abs(px[i] - lastPix[i]) + Math.abs(px[i + 1] - lastPix[i + 1]) + Math.abs(px[i + 2] - lastPix[i + 2]) + Math.abs(px[i + 3] - lastPix[i + 3]);
+      if (crossed) { const flat = (q) => { const m = [0, 1, 2].map((c) => { let t = 0; for (let i = c; i < q.length; i += 4) t += q[i]; return t / (q.length / 4); }); let w = 0; for (let i = 0; i < q.length; i += 4) for (let c = 0; c < 3; c++) w = Math.max(w, Math.abs(q[i + c] - m[c])); return w; };
+        const w0 = lastPix ? flat(lastPix) : 0, w1 = flat(px); if (w0 > 8 || w1 > 8) out.push(`the dream's cut can be seen: the picture is not one colour (${w0.toFixed(0)} before, ${w1.toFixed(0)} after)`); else out.splice(0, out.length, ...out.filter((f) => !/^jump: /.test(f))); }   /* a cut that cannot be seen: his move across it is no jump */
       lastPix = px;
       const s = window.__clayState();
       return { out, diff: diff / (64 * 36), s: `${s.i}${s.u > 0 ? '~' + s.u.toFixed(3) : ':' + s.t.toFixed(3)}` };
     };
-    window.__chkReset = () => { last = null; lastPix = null; };
+    window.__chkReset = () => { last = null; lastPix = null; lastCut = -1; };
   });
 }
 
@@ -144,7 +151,7 @@ try {
         const r = await page.ev(`scrollTo(0, ${y}); __clayFrame(1 / 60); __chk()`);
         note(r.s, r.out); series.push(r);
       }
-      note('scroll', jumps(series)); series.length = 0;
+      const pj = jumps(series); if (args.includes('--every')) pj.forEach((f) => console.log(dir > 0 ? 'down' : 'up', f)); note('scroll', pj); series.length = 0;
     }
   } else if (mode === 'clicks') {
     await page.ev(`scrollTo(0, __clayAt(5, 0.5)); for (let i = 0; i < 30; i++) __clayFrame(1 / 60); __chkReset(); true`);
@@ -267,6 +274,15 @@ try {
     // Debug: at chapter 5, click args[1], step args[2] seconds, print the value of args[3].
     await page.ev(`scrollTo(0, __clayAt(5, 0.5)); for (let i = 0; i < 30; i++) __clayFrame(1 / 60); { const s = __clayPlayer.stand('${args[1]}'); __clayPlayer.reset(s[0], s[1], s[2]); } __clayPlayer.click('${args[1]}'); for (let i = 0; i < ${Math.round(+args[2] * 60)}; i++) __clayFrame(1 / 60); true`);
     console.log(JSON.stringify(await page.ev(args[3])));
+  } else if (mode === 'trace') {
+    // Debug: scroll from chapter args[1] u args[2] to u args[3] (its transition when args[5] is "~") in args[4] frames; print each frame.
+    const tr = args[5] === '~', N = +args[4];
+    const y0 = await page.ev(`__clayAt(${args[1]}, ${args[2]}, ${tr})`), y1 = await page.ev(`__clayAt(${args[1]}, ${args[3]}, ${tr})`);
+    await page.ev(`scrollTo(0, ${y0}); for (let i = 0; i < 60; i++) __clayFrame(1 / 60); __chkReset(); __chk(); true`);
+    for (let f = 1; f <= N; f++) {
+      const r = await page.ev(`scrollTo(0, ${y0 + (y1 - y0) * f / N}); __clayFrame(1 / 60); (() => { const c = __chk(), H = __clayHero(), e = new H.root.rotation.constructor().setFromQuaternion(H.root.quaternion, 'YXZ'); return { ...c, p: H.root.position.toArray().map((v) => +v.toFixed(2)), ry: +e.y.toFixed(3), rx: +e.x.toFixed(3), rz: +e.z.toFixed(3), x: ${JSON.stringify(args[6] || 'null')} ? eval(${JSON.stringify(args[6] || 'null')}) : '' }; })()`);
+      console.log(r.s, 'pic', r.diff.toFixed(1), 'root', r.p.join(','), 'turn', r.ry, r.rx, r.rz, JSON.stringify(r.x), r.out.join(' | '));
+    }
   } else if (mode === 'shots') {
     const out = args[1]; fs.mkdirSync(out, { recursive: true });
     for (const spec of args[2].split(',')) {
