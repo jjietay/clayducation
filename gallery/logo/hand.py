@@ -73,7 +73,7 @@ for i, g in enumerate(G["glyphs"]):
     w = (SC[i] - 1) * g["adv"] * 1000
     SHIFT.append(run + w / 2); run += w
 SHIFT = [v - run / 2 for v in SHIFT]   # the word stays where it was, as a whole
-def build(ink):
+def build(ink, keep=("letters", "clay")):   # keep: the letters, the clay (pebble and dot), or both
     parts, k = [], 0
     for i, g in enumerate(G["glyphs"]):
         rot = TURN[i]                          # degrees, about the letter's middle
@@ -82,7 +82,7 @@ def build(ink):
         x = g["x"] * 1000 + g["adv"] * 500 + SHIFT[i]     # the letter's middle
         if g["ch"] == "o":
             D = XH * 1000 * 1.2; cx, cy = x, -XH * 500 - lift
-            parts.append(f'<g transform="translate({cx - D/2:.1f} {cy - D/2:.1f}) rotate({rot:.1f} {D/2:.1f} {D/2:.1f}) scale({D/200:.4f})"><path d="{PEB}" fill="url(#cf)" filter="url(#clay)"/>{RINGS}<path d="{PLAY}" fill="url(#hole)" filter="url(#press)"/></g>')
+            if "clay" in keep: parts.append(f'<g transform="translate({cx - D/2:.1f} {cy - D/2:.1f}) rotate({rot:.1f} {D/2:.1f} {D/2:.1f}) scale({D/200:.4f})"><path d="{PEB}" fill="url(#cf)" filter="url(#clay)"/>{RINGS}<path d="{PLAY}" fill="url(#hole)" filter="url(#press)"/></g>')
             continue
         cs = contours(g["path"])
         if g["ch"] == "i":
@@ -92,12 +92,16 @@ def build(ink):
             cs = stem
         d = d_of([p for c in cs for p in c], g["x"] * 1000 + SHIFT[i])
         tf = f'rotate({rot:.1f} {x:.1f} {-XH*500:.1f}) translate({x:.1f} {-XH*500 - lift:.1f}) scale({sc:.3f}) translate({-x:.1f} {XH*500:.1f})'
-        parts.append(f'<path d="{d}" fill="{ink}" transform="{tf}"/>')
+        if "letters" in keep: parts.append(f'<path d="{d}" fill="{ink}" transform="{tf}"/>')
         if g["ch"] == "i":
             R = 80; cx = g["x"] * 1000 + SHIFT[i] + dx; cy = -XH * 1000 - 170
-            parts.append(f'<g transform="rotate({rot:.1f} {x:.1f} {-XH*500:.1f}) translate(0 {-lift:.1f}) translate({cx - R:.1f} {cy - R:.1f}) scale({R/100:.3f})"><circle cx="100" cy="100" r="92" fill="url(#pop)" filter="url(#clay)"/></g>')
+            if "clay" in keep: parts.append(f'<g transform="rotate({rot:.1f} {x:.1f} {-XH*500:.1f}) translate(0 {-lift:.1f}) translate({cx - R:.1f} {cy - R:.1f}) scale({R/100:.3f})"><circle cx="100" cy="100" r="92" fill="url(#pop)" filter="url(#clay)"/></g>')
     W = G["width"] * 1000
     return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="-80 -1000 {W + 160:.0f} 1300" role="img" aria-label="Clayducation"><title>Clayducation</title>\n{DEFS}\n' + "\n".join(parts) + "\n</svg>\n"
 open(f"{out}/logo.svg", "w").write(build("#26262a"))
 open(f"{out}/logo-dark.svg", "w").write(build("#f3ede2"))
+# Two layers with the same frame, for a place that inverts the letters to show on any colour (the site's top
+# bar): the letters alone in white, and the clay alone (the pebble and the dot), in its own colours.
+open(f"{out}/logo-letters.svg", "w").write(build("#ffffff", keep=("letters",)))
+open(f"{out}/logo-clay.svg", "w").write(build("#ffffff", keep=("clay",)))
 print("ok")

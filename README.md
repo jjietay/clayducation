@@ -1,6 +1,6 @@
 <div align="center">
 
-# Clayducation
+<h1><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/jjietay/clayducation/main/gallery/logo/logo-dark-1200.png"><img src="https://raw.githubusercontent.com/jjietay/clayducation/main/gallery/logo/logo-1200.png" alt="Clayducation" width="460"></picture></h1>
 
 A Claude Code skill that makes a narrated teaching video about a topic.<br>
 <b>New:</b> soft 3D clay with a silent mascot who does the work. The classic 2D styles are still there.<br>One agent checks the script before the voice is made.

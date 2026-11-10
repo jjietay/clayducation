@@ -10,6 +10,8 @@ a ball of coral clay. The pebble alone is the mark and the icon.
 | `mark.svg`, `mark-512.png`, `mark-256.png` | The mark alone, with the fingerprint rings and a soft shadow. |
 | `logo.svg`, `logo-1200.png` | The word, with ink letters, for a light background. |
 | `logo-dark.svg`, `logo-dark-1200.png` | The word, with cream letters, for a dark background. |
+| `logo-letters.svg`, `logo-clay.svg` | The word in two layers with the same frame: the letters alone (white) and the clay alone (the pebble and the dot). The site's top bar inverts the letters so they show on every chapter's colour, and puts the clay on top in its own colours. |
+| `og.png` | The picture shown when a link to the site is shared (1200 x 630): the logo and the site's line, on the site's cream. |
 | `favicon.svg`, `favicon.ico`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | Icons: a simpler mark (no rings, no shadow, a larger play shape), so it stays clear at 16 px. |
 
 The letters are Plus Jakarta Sans ExtraBold (SIL Open Font License), turned into outlines, so the SVG files
@@ -19,7 +21,7 @@ To make the files again:
 
 - `python3 glyphs.py <PlusJakartaSans[wght].ttf> -0.05 > glyphs.json` (needs `fonttools` and `uharfbuzz`): the
   outline and the place of each letter, set 0.05 em closer than the font sets them.
-- `python3 hand.py glyphs.json .`: `logo.svg` and `logo-dark.svg`.
+- `python3 hand.py glyphs.json .`: `logo.svg`, `logo-dark.svg`, `logo-letters.svg` and `logo-clay.svg`.
 - `python3 logo.py .`: `mark.svg` and `favicon.svg`.
 - The PNG files are the SVG files drawn by Chrome on a clear background (`apple-touch-icon.png` on #f3ede2),
   and trimmed.

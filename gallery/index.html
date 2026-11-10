@@ -3,6 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta property="og:title" content="Clayducation">
+<meta property="og:description" content="Teaching videos, made of clay and code. A Claude Code skill.">
+<meta property="og:image" content="https://jjietay.github.io/clayducation/logo/og.png">
+<meta property="og:url" content="https://jjietay.github.io/clayducation/">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="logo/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="logo/favicon.ico" sizes="16x16 32x32 48x48">
 <link rel="apple-touch-icon" href="logo/apple-touch-icon.png">
@@ -61,9 +66,13 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 @media (pointer: fine) { .touch { display: none; } }
 
 /* The top bar and the chapter dots. */
-.bar { position: fixed; z-index: 5; left: 0; right: 0; top: 0; display: flex; align-items: center; justify-content: space-between; padding: 18px 5vw; pointer-events: none; mix-blend-mode: difference; color: #fff; }
+.bar { position: fixed; z-index: 5; left: 0; right: 0; top: 0; height: 66px; display: flex; align-items: center; justify-content: space-between; padding: 0 5vw; pointer-events: none; mix-blend-mode: difference; color: #fff; }
 .bar > * { pointer-events: auto; }
-.mark { font-weight: 800; font-size: 20px; letter-spacing: -.02em; text-decoration: none; }
+.mark { display: block; height: 30px; }
+.mark img, .bar-clay img { display: block; height: 30px; width: auto; }
+/* The logo in the top bar is two layers in the same place: its letters (white) invert with the bar, so they
+   show on every chapter's colour; the clay pebble and the coral dot sit on top, in their own colours. */
+.bar-clay { position: fixed; z-index: 6; left: 0; top: 0; height: 66px; display: flex; align-items: center; padding: 0 5vw; pointer-events: none; }
 .bar nav { display: flex; gap: 18px; align-items: center; font-weight: 700; font-size: 20px; }
 .bar nav a { text-decoration: none; }
 .dots { position: fixed; z-index: 5; right: 18px; top: 50%; transform: translateY(-50%); display: grid; gap: 12px; mix-blend-mode: difference; transition: z-index 0s .6s; }
@@ -159,9 +168,10 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 <canvas id="ink" aria-hidden="true"></canvas>
 
 <header class="bar">
-  <a class="mark" href="#c0">Clayducation</a>
+  <a class="mark" href="#c0" aria-label="Clayducation, to the top"><img src="logo/logo-letters.svg" alt=""></a>
   <nav><a href="https://github.com/jjietay/clayducation">GitHub</a></nav>
 </header>
+<div class="bar-clay" aria-hidden="true"><img src="logo/logo-clay.svg" alt=""></div>
 <nav class="dots" aria-label="Chapters"></nav>
 
 <main>
