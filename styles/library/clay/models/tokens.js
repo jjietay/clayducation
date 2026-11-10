@@ -16,12 +16,13 @@ for (const [v, n, off] of [[0.45, 6, 0], [0.05, 7, 0.45], [-0.35, 7, 0.1]]) for 
 
 export const MODELS = {
   // A strawberry, about 3.2 tall (much larger than real size, so it reads next to the mascot).
-  // The body is round on top and tapers to a blunt tip that rests on the floor.
+  // The body is round on top and narrows to a round bottom that rests on the floor.
   strawberry: {
     label: 'Strawberry',
     make() {
       const m = def();
-      const body = (x, y, z) => smin(ell(x, y, z, 0, BERRY.cy, 0, BERRY.rx, BERRY.ry, BERRY.rx), cone(x, y, z, 0, 1.6, 0, 0, 0.3, 0, 1.15, 0.3), 0.45);
+      // A round lower body (the user found the old cone tip too pointed, 2026-11-10); it rests on the floor at y 0.05.
+      const body = (x, y, z) => smin(ell(x, y, z, 0, BERRY.cy, 0, BERRY.rx, BERRY.ry, BERRY.rx), ell(x, y, z, 0, 0.98, 0, 0.92, 0.93, 0.92), 0.55);
       m.add('berry', body, C.berry, { step: 0.03 });
       m.add('seeds', (x, y, z) => { let d = 9; for (const [sx, sy, sz] of SEEDS) d = Math.min(d, ell(x, y, z, sx, sy, sz, 0.09, 0.12, 0.09)); return d; }, C.seed, { step: 0.02 });
       m.add('leaves', (x, y, z) => {

@@ -656,6 +656,9 @@ function pauses(tl, print) {
 // All scene WAVs placed at their start times in one track.
 function narration(dir, tl) {
   const voiced = tl.scenes.filter((s) => s.voice);
+  const out = path.join(dir, 'build', 'narration.wav');
+  // A video with no narration (a silent test of motion): a silent track of the video's length.
+  if (!voiced.length) { execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=mono', '-t', tl.duration.toFixed(3), out]); return; }
   const args = ['-v', 'error', '-y'];
   for (const s of voiced) args.push('-i', path.join(dir, s.voice.url));
   const chains = voiced.map((s, i) => `[${i}:a]aresample=48000,adelay=delays=${Math.round(s.voice.start * 1000)}:all=1[a${i}]`);
@@ -1240,11 +1243,13 @@ async function render() {
   const name = partial ? `part-${from}-${to}` : draft ? `${slug(dir)}-draft` : slug(dir);
   const final = path.join(dir, partial ? 'build' : 'out', `${name}.mp4`);
   const srt = path.join(dir, 'build', 'subtitles.srt'), useMusic = !!musicFile, useSfx = !!sfxFile;
+  // A silent video (no narration) has an empty .srt, which ffmpeg cannot open: then it gets no subtitle track.
+  const subs = !partial && fs.existsSync(srt) && fs.statSync(srt).size > 0;
   const ss = ['-ss', String(from)];
   const args = ['-v', 'error', '-y', '-i', silent, ...ss, '-i', path.join(dir, 'build', 'narration.wav')];
   if (useMusic) args.push(...ss, '-i', musicFile);
   if (useSfx) args.push(...ss, '-i', sfxFile);
-  if (!partial) args.push('-i', srt);
+  if (subs) args.push('-i', srt);
   // loudnorm holds back about 3 s and drops it at the end, so pad the voice first.
   // The music ducks gently (ratio 2, slow release): a hard duck pumps loud-soft-loud
   // between sentences (measured: 13.5 LU swing with ratio 8, 5.5 LU with this).
@@ -1256,12 +1261,12 @@ async function render() {
     ? `${voiceChain},asplit=2[v][key];[2:a]volume=${cfg.musicVolume}[m];[m][key]sidechaincompress=threshold=0.03:ratio=2:attack=250:release=1800:knee=6[md]${sx};[v][md]${sxIn}amix=inputs=${2 + useSfx}:normalize=0:duration=first,alimiter=limit=0.95[a]`
     : useSfx ? `${voiceChain}[v]${sx};[v][sx]amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.95[a]` : `${voiceChain},alimiter=limit=0.95[a]`);
   args.push('-map', '0:v', '-map', '[a]');
-  if (!partial) args.push('-map', `${2 + useMusic + useSfx}:s`, '-c:s', 'mov_text', '-metadata:s:s:0', 'language=eng');
+  if (subs) args.push('-map', `${2 + useMusic + useSfx}:s`, '-c:s', 'mov_text', '-metadata:s:s:0', 'language=eng');
   // loudnorm works at 192 kHz inside and passes that rate on. AAC at 96 kHz or
   // in mono plays silent in many players, so force 48 kHz stereo.
   args.push('-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2', '-t', String(to - from), '-movflags', '+faststart', final);
   execFileSync('ffmpeg', args);
-  if (!partial) fs.copyFileSync(srt, path.join(dir, 'out', `${name}.srt`));
+  if (subs) fs.copyFileSync(srt, path.join(dir, 'out', `${name}.srt`));
   console.log(final);
 }
 

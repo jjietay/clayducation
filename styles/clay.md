@@ -43,6 +43,26 @@ that line, he stands beside it and reaches with the near hand. `g.stance(...)` g
 moving him: `{ x, z, face, hands, low }`, for `route()` keys. Call it every frame for a model that moves. The
 computed torque video lost 4 look rounds to hands that missed a cart and shoes in its rail before this existed.
 
+**Use a different action in each part, not only pushOn (the user asked, 2026-11-10).** In the strawberry video he
+pushed in four of five parts, because pushOn was the only helper that passed the contact measures. These helpers
+place him and his hands the same safe way. Call them after `blendPose` (and after `route` when he walks); call
+`hero.stride()` before them, never after, or the arm swing undoes the hold. A point on a part is in model coordinates.
+
+| Helper | He does | Notes |
+|---|---|---|
+| `g.carry(hero, model, part, { k, grip, rest, restRy, height })` | lifts a thing off its rest place (k 0) into his hands (k 1), and carries it as he walks | a hand on each side of the part; `grip` brings the hands in first; set down by moving k back to 0 at the new `rest`. Rest it on a `pedestal` (top y 2.2, at his hips), with his feet 1.35 + the part's half depth from its centre |
+| `g.knock(hero, model, part, t, { side, at, count, gap, y })` | stands at a face and knocks `count` times | returns `{ hits }`, the times for `s.sfx('click', t)` |
+| `g.press(hero, model, part, k, { side })` | puts one hand on the top of a part | for `bigButton` by `cap`; set the model's pose from k |
+| `g.grip(hero, model, part, points, { k, hand, standOff, dir })` | holds one or two points on a part, and walks with them | a lever knob, a door handle, two points on a wheel rim. With `standOff` he stands that far along `dir` (floor direction) and faces the points, so he follows a part that moves |
+| `g.partPoint(model, part, P)` | (no action) | the world point of a model-space point on a part, as it moves now |
+| `g.pointAt(hero, point, { k, hand })` | points with a bent arm below the shoulder, and looks | never a straight raised arm |
+| `g.lookAt(hero, point, k)` | turns his head to a point | after `blendExpression` |
+
+He cannot sit, kneel or crouch: his legs have a hip and an ankle only. His shoulders are at y 4.52 and his hip joints
+at y 2.26: keep holds and knocks below the shoulders, and stands or tables below the hips when he works close to them. Face the object to the camera's side
+(turn the model with `ry`), so the viewer sees him from the side and not from the back. See
+`~/Videos/explainers/mascot-actions-test/scenes.js` for each helper in use.
+
 Three simple props: `g.arrow(color)` returns an arrow for a force or a gap (`a.set(from, to)` each frame),
 `g.post(color, h)` marks a place on the floor, and `g.ball(color, r)` is a pulse or a signal. Use these, and do
 not add your own meshes: the collision measures see only what the kit made.
@@ -170,6 +190,13 @@ it in the right way. See them in `make clay m-<name>`.
 | `tokenCone`, `tokenCube` | XOR tokens, blue and plum | none |
 | `bowl`, `terrain` | error bowl; bumpy slab with a local minimum, for a rolling ball | none |
 | `cat`, `mat` | sitting tabby cat, 3.05 tall; striped floor mat 5.2 by 3.4 (`models/attention.js`) | cat: `head` lifts and turns (pivot at the neck), `tail` swings |
+| `strawberry` | strawberry, 3.3 tall, round bottom; a seed gap faces +x for hands at y 2.85 when k 1.6 (`models/tokens.js`) | none |
+| `tokenBar`, `letterBlock` | a teal sleeve 13.8 long over ten letter blocks 1.3 wide, set 1.36 apart; print letters on the blocks with a canvas texture (`models/tokens.js`) | `sleeve` slides off in x |
+| `pedestal` | stand with its top at y 2.2, at his hips, for `carry` (`models/actions.js`) | none |
+| `parcel` | taped box 1.6 by 1.2 by 1.3, to carry by `box` | none |
+| `lever` | floor lever; grip the `arm` at [0, 4.1, 0.32] | `arm` tips 0.3 rad back (rest) to 0.3 rad forward (pose) |
+| `handwheel` | wheel on a post, centre (0, 4.2, 0.62), rim radius 1.0; grip `wheel` at [±1.12, 4.2, 0.62] | `wheel` turns a quarter turn per pose step |
+| `bigButton` | button on a post, cap top at y 3.3; `press` it by `cap` | `cap` sinks 0.18 |
 
 The rows from `door` down are in `styles/library/clay/models/ipcv-*.js`, and `cat`, `mat` in `models/attention.js`. The head comment and the
 notes of each file give their sizes, joint positions and surface formulas.
