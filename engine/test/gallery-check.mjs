@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url)), GALLERY = process.env.GALLERY_DIR || path.resolve(HERE, '..', '..', 'gallery');
 const args = process.argv.slice(2), mode = args[0];
 const opt = (k, d) => { const i = args.indexOf(`--${k}`); return i < 0 ? d : args[i + 1]; };
+const [SH, SN] = (opt('shard', '0/1')).split('/').map(Number); let caseNo = 0; const myShard = () => (caseNo++ % SN) === SH;   // --shard i/n: every n-th case, from i
 const W = +opt('w', 1440), Hh = +opt('h', 900), STILL = args.includes('--still'), TOUCH = args.includes('--touch');
 const CHROME = process.env.CHROME || ['google-chrome', 'google-chrome-stable', 'chromium'].find((c) => spawnSync('which', [c]).status === 0);
 const GPU = ['--use-gl=angle', '--use-angle=gl-egl', '--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--ozone-platform=headless'];
@@ -158,27 +159,31 @@ try {
     const acts = await page.ev('__clayPlayer.acts()'), W5 = (x, z) => page.ev(`__clayPlayer.w5(${x}, ${z})`);
     const starts = [await W5(0, 0), await page.ev(`__clayPlayer.stand('${acts[0]}')`), await page.ev(`__clayPlayer.stand('${acts[3]}')`)];
     const SHOTS = process.env.FAULT_SHOTS; if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
+    const ONLY = opt('acts', null)?.split(','), mine = (a) => !ONLY || ONLY.includes(a);   // --acts a,b: only these actions
     const run = async (label, max = 60 * 60) => {
+      let bad = 0, kinds = new Set();
       for (let i = 0; i < max; i++) {
         const r = await page.ev('__clayFrame(1 / 60); Object.assign(__chk(), { p: __clayPlayer.state().mode, t: __clayPlayer.state().t })');
         const fresh = r.out.filter((f) => !faults.has(f.replace(/[0-9.]+/g, '#')));
-        note(`${label} [${r.p} ${r.t.toFixed(2)}]`, r.out);
+        note(`${label} [${r.p} ${r.t.toFixed(2)}]`, r.out); if (r.out.length) { bad++; r.out.forEach((f) => kinds.add(f.replace(/[0-9.]+/g, '#'))); }
+        if (r.p === 'idle' && i > 5 && bad) console.log(`case ${label}: ${bad} fault frames: ${[...kinds].join('; ')}`);
         if (SHOTS && fresh.length) await page.shot(path.join(SHOTS, `${faults.size}-${fresh[0].replace(/[^a-z0-9]+/gi, '_')}.jpg`));
         if (r.p === 'idle' && i > 5) return i;
       }
       note(label, ['the player never got back to idle']); return max;
     };
-    for (const [k, s] of starts.entries()) for (const a of acts) for (const pass of [0, 1]) {
+    for (const [k, s] of starts.entries()) for (const a of acts.filter(mine)) for (const pass of [0, 1]) { if (!myShard()) continue;
       await page.ev(`__clayPlayer.reset(${s[0]}, ${s[1]}, ${s[2] ?? 0}); for (let i = 0; i < 30; i++) __clayFrame(1 / 60); __chkReset(); __clayPlayer.click('${a}'); true`);   // he settles where reset put him first
       await run(`${a} from start ${k}, use ${pass + 1}`);
     }
     // A click on another thing at 25, 50 and 75 % of each action.
-    for (const a of acts) for (const f of [0.25, 0.5, 0.75]) {
+    for (const a of acts.filter(mine)) for (const f of [0.25, 0.5, 0.75]) { if (!myShard()) continue;
       const other = acts[(acts.indexOf(a) + 2) % acts.length];
       await page.ev(`__clayPlayer.reset(...__clayPlayer.w5(0, 0)); for (let i = 0; i < 30; i++) __clayFrame(1 / 60); __chkReset(); __clayPlayer.click('${a}'); true`);
       let i = 0; for (; i < 1200; i++) { const st = await page.ev('__clayFrame(1 / 60); __chk(); __clayPlayer.state()'); if (st.mode === 'do') break; }
       const dur = await page.ev(`__clayPlayer.dur('${a}')`);
-      for (let j = 0; j < Math.round(dur * f * 60); j++) note(`${a} at ${f}`, (await page.ev('__clayFrame(1 / 60); __chk()')).out);
+      let pre = 0; for (let j = 0; j < Math.round(dur * f * 60); j++) { const o = (await page.ev('__clayFrame(1 / 60); __chk()')).out; note(`${a} at ${f}`, o); if (o.length) pre++; }
+      if (pre) console.log(`case ${a} at ${f} (before the second click): ${pre} fault frames`);
       await page.ev(`__clayPlayer.click('${other}'); true`);
       await run(`${a} interrupted at ${f} by ${other}`);
     }
@@ -227,8 +232,9 @@ try {
     await page.ev(`scrollTo(0, __clayAt(5, 0.5)); for (let i = 0; i < 30; i++) __clayFrame(1 / 60); true`);
     const pts = await page.ev(`(() => { const P = __clayPlayer, out = []; for (const a of P.acts()) { const s = P.stand(a); out.push([a, s]); } out.push(['start', [...P.w5(-6.5, 5.5), Math.PI / 2]]); out.push(['middle', [...P.w5(0, 2.5), 0]]); return out; })()`);
     let n = 0, back = 0, fast = 0, worstRatio = 0, sumRatio = 0;
+    const PAIRS = opt('pairs', null)?.split(',');   // --pairs a>b,c>d: only these walks
     for (const [na, A] of pts) for (const [nb, B] of pts) {
-      if (na === nb) continue;
+      if (na === nb || (PAIRS && !PAIRS.includes(`${na}>${nb}`)) || !myShard()) continue;
       const w = await page.ev(`__clayPlayer.reset(${A[0]}, ${A[1]}, ${A[2]}); for (let i = 0; i < 20; i++) __clayFrame(1 / 60); __chkReset(); __clayPlayer.walkTo(${B[0]}, ${B[1]}, ${B[2]})`);
       const r = await page.ev(`(() => { const H = __clayHero(), out = [], V = H.root.position.constructor; let last = null, lf = null, back = 0, fast = 0;
         for (let i = 0; i < 60 * 40; i++) { __clayFrame(1 / 60); const c = __chk(); out.push(...c.out); const st = __clayPlayer.state();
@@ -238,7 +244,8 @@ try {
           last = p; lf = d.clone(); if (st.mode !== 'walk') break; }
         return { out: [...new Set(out)], back, fast }; })()`);
       n++; back += r.back; fast += r.fast; note(`walk ${na} to ${nb}`, r.out); if (r.back) note(`walk ${na} to ${nb}`, [`he moves backwards on ${r.back} frames`]); if (r.fast) note(`walk ${na} to ${nb}`, [`he turns faster than 2.5 rad/s on ${r.fast} frames`]);
-      if (w.straight > 0.5) { const ratio = w.L / w.straight; sumRatio += ratio; worstRatio = Math.max(worstRatio, ratio); }
+      const ratio = w.straight > 0.5 ? w.L / w.straight : 1; if (w.straight > 0.5) { sumRatio += ratio; worstRatio = Math.max(worstRatio, ratio); }
+      if (r.out.length || r.back || r.fast || ratio > 1.8) console.log(`case ${na}>${nb}: ${r.out.map((f) => f.replace(/[0-9.]+/g, '#')).filter((f, i, a) => a.indexOf(f) === i).join('; ')}${r.back ? ` back ${r.back}` : ''}${r.fast ? ` fast ${r.fast}` : ''} ratio ${ratio.toFixed(2)} (L ${w.L.toFixed(1)}, straight ${w.straight.toFixed(1)})`);
     }
     console.log(`walks: ${n}, frames backwards ${back}, frames turning too fast ${fast}, path / straight: mean ${(sumRatio / n).toFixed(2)}, worst ${worstRatio.toFixed(2)}`);
   } else if (mode === 'walk1') {
@@ -296,6 +303,13 @@ try {
       console.log(a, 'frames', r.length, 'typical', JSON.stringify(r[Math.floor(r.length / 2)]));
     }
     console.log('hairscan: frames', n, 'light crown', light.length); light.slice(0, 20).forEach((l) => console.log('  ' + l));
+  } else if (mode === 'turns') {
+    // Debug: his turn speed along every walk, from the walk's own numbers (no drawing).
+    await page.ev(`scrollTo(0, __clayAt(5, 0.5)); for (let i = 0; i < 30; i++) __clayFrame(1 / 60); true`);
+    const r = await page.ev(`(() => { const P = __clayPlayer, pts = P.acts().map((a) => [a, P.stand(a)]); pts.push(['start', [...P.w5(-6.5, 5.5), Math.PI / 2]], ['middle', [...P.w5(0, 2.5), 0]]); const out = []; for (const [na, A] of pts) for (const [nb, B] of pts) if (na !== nb) out.push([na + '>' + nb, P.turnScan(A, B)]); return out; })()`);
+    const bad = r.filter(([, x]) => x.n > 0); const ph = {}; bad.forEach(([, x]) => { const k = x.at.split(' ')[0]; ph[k] = (ph[k] || 0) + 1; });
+    console.log('walks', r.length, 'with a turn faster than 2.5 rad/s:', bad.length, 'peak phase', JSON.stringify(ph), 'worst ratio', Math.max(...r.map(([, x]) => x.straight > 0.5 ? x.L / x.straight : 1)).toFixed(2));
+    bad.sort((a, b) => b[1].max - a[1].max).slice(0, +(opt('top', 15))).forEach(([k, x]) => console.log(' ', k, JSON.stringify(x)));
   } else if (mode === 'shots') {
     const out = args[1]; fs.mkdirSync(out, { recursive: true });
     for (const spec of args[2].split(',')) {

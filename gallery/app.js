@@ -1955,6 +1955,7 @@ window.__clayPlayer = { click: (n) => p5Click(n), state: () => snap(), acts: () 
   reset: (x, z, face = 0) => { p5Init(); Object.assign(P5, { mode: 'idle', at: [x, z], face, next: null, quiet: 0, act: null, w: null }); }, w5: W5,
   plan: (a, b) => ({ raw: footprints().map((r) => r.map((v) => +v.toFixed(2))), path: planPath(a, b).map((p) => p.map((v) => +v.toFixed(2))) }),
   face: () => { const w = P5.w; return w ? walkAt(w, w.t)[2] : P5.face; },
+  turnScan: (A, B) => { const w = makeWalk(A, B); let last = null, max = 0, at = '', n = 0; for (let t = 0; t <= w.dur + 1e-6; t += 1 / 60) { const f = walkAt(w, t)[2]; if (last !== null) { const v = Math.abs(Math.atan2(Math.sin(f - last), Math.cos(f - last))) * 60; if (v > 2.5) n++; if (v > max) { max = v; at = t < w.d0 ? 'turn0' : t < w.d0 + w.T ? 'path ' + ((t - w.d0) / w.T).toFixed(2) : 'turn1'; } } last = f; } return { max: +max.toFixed(2), at, n, L: +w.L.toFixed(1), straight: +(w.straight || 0).toFixed(1) }; },   /* test: his turn speed along a walk, without drawing */
   walkTo: (x, z, face) => { P5.w = { ...makeWalk([P5.at[0], P5.at[1], P5.face], [x, z, face]), t: 0 }; P5.act = null; P5.mode = 'walk'; return { L: P5.w.L, straight: P5.w.straight, dur: P5.w.dur }; } };
 
 // ---------- the 12-moves set ----------
