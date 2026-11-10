@@ -12,6 +12,7 @@ import * as IPCV5 from './models/ipcv-5.js';
 import * as IPCV6 from './models/ipcv-6.js';
 import * as CTC from './models/ee4268-ctc.js';
 import * as ATT from './models/attention.js';
+import * as TOK from './models/tokens.js';
 
 export const PAL = {
   robot: '#f2773a', ink: '#2a2a2e', cream: '#ede3cf', white: '#f1efe9', grey: '#b7b4ab', steel: '#a9adb2',
@@ -445,7 +446,7 @@ export const JOINS = {
 };
 
 // Add the model sets to the kit.
-for (const set of [IPCV1, IPCV2, IPCV3, IPCV4, IPCV5, IPCV6, CTC, ATT]) { Object.assign(MODELS, set.MODELS); Object.assign(JOINS, set.JOINS); }
+for (const set of [IPCV1, IPCV2, IPCV3, IPCV4, IPCV5, IPCV6, CTC, ATT, TOK]) { Object.assign(MODELS, set.MODELS); Object.assign(JOINS, set.JOINS); }
 
 // Finds the part's bounds from its distance field, and a mesh step from its size.
 function autoBox(f) {
