@@ -38,7 +38,7 @@ In Claude Code, in the conversation where the topic came up:
 
 ### New: clay, with a mascot
 
-The default for every video: soft 3D clay, plain backgrounds and flat text, 68 models that we made in
+The default for every video: soft 3D clay, plain backgrounds and flat text, 81 models that we made in
 code, and one silent mascot who pulls, pushes and holds the things that the voice talks about.
 [`styles/clay.md`](styles/clay.md) has the mascot, his controls and every model.
 
@@ -51,6 +51,14 @@ code, and one silent mascot who pulls, pushes and holds the things that the voic
 Frames from a series of six videos on image processing and computer vision.
 
 <img src="https://raw.githubusercontent.com/jjietay/clayducation/main/gallery/png/mascot.png" alt="The mascot's nine expressions: neutral, smile, surprised, confused, thinking, worried, unimpressed, understanding, sleepy" width="100%">
+
+He does the work with his own hands, and a different action can go in each part of a video. He carries,
+crouches to lift, sits, kneels, types, writes on a board, throws, knocks, presses, and grips a door handle, a lever
+or a wheel while it moves. He can also point, nod, shake his head and shrug. Each action is one helper in
+[`styles/library/clay.js`](styles/library/clay.js). The helpers place his hands with the same contact
+measures as the rest of the video, so a hand that misses or goes into a thing is a fault before the render.
+
+<img src="https://raw.githubusercontent.com/jjietay/clayducation/main/gallery/png/actions.png" alt="Twelve frames of the mascot's actions: carry, carry from the floor, sit, kneel, type, write on a board, toss, knock, grip a door handle, press a button, pull a lever, turn a wheel" width="100%">
 
 ### Classic: 29 flat styles
 
