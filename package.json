@@ -1,6 +1,6 @@
 {
   "name": "clayducation",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Set up Clayducation, an AI video engine built on Claude Code that makes narrated teaching videos.",
   "license": "MIT",
   "type": "module",
