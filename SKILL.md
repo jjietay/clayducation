@@ -17,12 +17,19 @@ node ~/.claude/skills/clayducation/engine/make.mjs <command> <project-dir>
 ## Before step 0: the update check
 
 Run `node ~/.claude/skills/clayducation/bin/update.mjs` first. It prints nothing when the install is
-the newest release, and it asks the network at most once a day. When it prints a newer release, give
-the user its lines in one short sentence before the step 0 questions, and add: "Say 'update
-Clayducation' when you want it." Do not add it to the AskUserQuestion call. Run the
-`update.mjs --apply` command only when the user asks for the update, and never while a video is in
-progress, because the update changes the engine. After the update, start the skill again from this
-file, because the new release can change these steps.
+the newest release, and it asks the network at most once a day. When it prints `UPDATE <old> -> <new>`,
+ask the user one AskUserQuestion before the step 0 questions, in its own call:
+
+- Question: "Clayducation <new> is available (you have <old>). Update now?"
+- Header: "Update"
+- Options: **Update now (Recommended)**: put the release messages here, copied word for word from
+  the output (each `vX.Y.Z: ...` line), with no words of your own · **Later**: "Make this video with
+  <old>; you will be asked again tomorrow"
+
+On "Update now", run the `To update:` command from the output, tell the user in one line whether it
+worked, then read this file again and start from step 0, because the new release can change these
+steps. On "Later", or when the update fails, go on to step 0 with the old version. Never update while
+a video is in progress, because the update changes the engine.
 
 ## Step 0: ask first (every time the skill starts)
 

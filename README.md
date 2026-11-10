@@ -107,7 +107,8 @@ Whisper (1.6 GB), and explainroo with its small models (1 GB). Chrome, Node and 
 they are not installed yet.
 
 **Updates.** The setup installs the newest release (a `vX.Y.Z` tag). Once a day, the skill checks for a
-newer release and tells you about it before a video. Say "update Clayducation" to install it, or run
+newer release. If there is one, it shows you what changed ([`RELEASES.md`](RELEASES.md)) and asks
+whether to update before the video. You can also update at any time with
 `node ~/.claude/skills/clayducation/bin/update.mjs --apply`. Your settings stay. To follow the newest
 work on `main` before it is released, run `npx clayducation --main`.
 

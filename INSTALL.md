@@ -66,10 +66,11 @@ Users install the newest `vX.Y.Z` tag, and the skill tells them about a newer on
 reaches them only when you tag it:
 
 ```bash
-# 1. Set the same version in package.json, then commit and push to main.
+# 1. Set the version in package.json, and add a "## v0.4.0" section with a short message at the
+#    top of RELEASES.md (Claude shows it to users word for word). Commit and push to main.
 git tag -a v0.4.0 -m "One line about what changed"
 git push origin v0.4.0
-# 2. Optional: release notes on the page that the update notice links to.
+# 2. Optional: the same message on the release page that the update notice links to.
 gh release create v0.4.0 --verify-tag --notes "What changed"
 # 3. Only when bin/ changed: npm publish (npx clayducation runs the setup from npm).
 ```
