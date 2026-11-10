@@ -70,9 +70,9 @@ reaches them only when you tag it:
 #    top of RELEASES.md (Claude shows it to users word for word). Commit and push to main.
 git tag -a v0.4.0 -m "One line about what changed"
 git push origin v0.4.0
-# 2. Optional: the same message on the release page that the update notice links to.
-gh release create v0.4.0 --verify-tag --notes "What changed"
-# 3. Nothing to do for npm: the tag starts .github/workflows/publish.yml, which publishes the
-#    package.json version (npx clayducation runs the setup from npm). It needs the trusted publisher
-#    set once on npmjs.com; see the head of that file. To publish main by hand: gh workflow run publish.yml
+# 2. Nothing more to do: the tag starts .github/workflows/publish.yml. It makes the GitHub release page
+#    from the tag's RELEASES.md section (the page that the update notice links to), and publishes the
+#    package.json version to npm (npx clayducation runs the setup from npm). npm needs the trusted
+#    publisher set once on npmjs.com; see the head of that file.
+#    By hand: gh workflow run publish.yml (npm from main), add -f tag=v0.4.0 for a missing release page.
 ```

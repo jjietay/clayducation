@@ -1,17 +1,22 @@
-# Publishes the setup package (npx clayducation) to npm when a release tag is pushed.
+# On each release tag: makes the GitHub release page from that version's section of RELEASES.md, and
+# publishes the setup package (npx clayducation) to npm.
 # npm trusts this workflow through GitHub's OIDC login (trusted publishing), so no npm token is stored.
 # One-time setup on npmjs.com: the clayducation package's settings, "Trusted publisher": GitHub Actions,
 # repository jjietay/clayducation, workflow publish.yml.
 # It can also be started by hand (Actions tab, or: gh workflow run publish.yml) to publish the version
-# in package.json on main.
-name: Publish to npm
+# in package.json on main; with -f tag=v0.5.1 it also makes that tag's release page, if it is missing.
+name: Publish a release
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Make the release page of this tag too (for example v0.5.1)'
+        required: false
 permissions:
-  contents: read
-  id-token: write
+  contents: write   # the release page
+  id-token: write   # trusted publishing: npm checks GitHub's OIDC token
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -27,6 +32,17 @@ jobs:
       - name: The tag and package.json agree
         if: startsWith(github.ref, 'refs/tags/')
         run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+      # The release page has the same words as the update notice: the "## vX.Y.Z" section of RELEASES.md.
+      - name: Release page from RELEASES.md
+        if: startsWith(github.ref, 'refs/tags/') || inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then echo "The release page of $TAG is there already"; exit 0; fi
+          awk -v h="## $TAG" '$0 == h { f = 1; next } /^## v/ { if (f) exit } f' RELEASES.md > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then echo "RELEASES.md has no \"## $TAG\" section"; exit 1; fi
+          gh release create "$TAG" --verify-tag --title "$TAG" --notes-file notes.md
       # npm refuses a version that is already published; then there is nothing to do.
       - name: Publish, unless this version is on npm already
         run: |
