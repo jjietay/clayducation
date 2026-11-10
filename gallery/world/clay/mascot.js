@@ -345,6 +345,8 @@ export function createMascot(THREE, opts = {}) {
     sit: { j: [[-1.5, 1.35, 0.15], [-1.5, 1.35, 0.15]], lean: 0 },   // shins a little forward, clear of the seat's edge
     crouch: { j: [[-1.3, 2.35, -1.05], [-1.3, 2.35, -1.05]], lean: 0.6 },
     kneel: { j: [[-1.2, 1.2, 0], [0.05, 1.5, -0.55]], lean: 0.08 },
+    // On the floor, legs straight out in front (lieDown in clay.js starts from it).
+    sitFloor: { j: [[-1.5, 0, 0.15], [-1.5, 0, 0.15]], lean: 0 },
   };
   function setExpression(e) {
     const p = typeof e === 'string' ? EXPRESSIONS[e] : e;
@@ -383,7 +385,7 @@ export function createMascot(THREE, opts = {}) {
   const STEP = 1.25; api.STEP = STEP;
   // Feet at (x, z) on the floor. face: 0 looks at +z, Math.PI / 2 looks at +x, -Math.PI / 2 looks at -x. lean: + forward, - back.
   function place(x, z = 0, { face = 0, lean = 0, y = 0 } = {}) {
-    api.held = [0, 0]; api.grips = []; api.holds = []; api.feet = [x, z]; api.seat = null; api.posed = 0;   // sitOn() sets the seat, legsPose() posed, after place()   // reach() and hold() fill them: a hand that holds something may touch it
+    api.held = [0, 0]; api.grips = []; api.holds = []; api.feet = [x, z]; api.seat = null; api.posed = 0; api.touch = [];   // touch: allowed contacts for this frame (kick, lieDown)   // sitOn() sets the seat, legsPose() posed, after place()   // reach() and hold() fill them: a hand that holds something may touch it
     eul.set(lean, face, 0, 'YXZ'); root.quaternion.setFromEuler(eul);
     up.set(0, 6.82, 0).applyEuler(eul); root.position.set(x + up.x, up.y + y, z + up.z);
     if (api.shadow) { api.shadow.position.x = x; api.shadow.position.z = z; }
@@ -449,7 +451,7 @@ export function createMascot(THREE, opts = {}) {
   // Bend the legs to sit, crouch or kneel (k from 0, as they are now, to 1), then lower him so the lowest part of his
   // legs (a sole, or a knee when he kneels) is on the floor at y (default 0). Call it after place() or route(), and
   // before reach() and hold(): his shoulders come down with him.
-  function legsPose(name, k = 1, { y = 0 } = {}) {
+  function legsPose(name, k = 1, { y = 0, body = false } = {}) {
     const L = LEGS[name]; if (!L) throw new Error(`legsPose: no leg pose "${name}". Poses: ${Object.keys(LEGS).join(', ')}`);
     if (k <= 0) return;
     api.posed = Math.max(api.posed || 0, k);   // bent legs are a pose, not a frozen step
@@ -463,13 +465,20 @@ export function createMascot(THREE, opts = {}) {
       root.position.sub(P).applyQuaternion(q).add(P); root.quaternion.premultiply(q);
       for (const l of legs) l.hip.rotation.x -= L.lean * k;
     }
-    plant(y);
+    plant(y, { body });
   }
-  // Move him up or down so the lowest point of his legs is at y. Feet stay where place() put them.
-  const lowBox = new THREE.Box3(), tmpBox = new THREE.Box3();
-  function plant(y = 0) {
+  // Move him up or down so the lowest point of his legs is at y. Feet stay where place() put them. body: true looks at
+  // every part of him, not only the legs (he lies on the floor: his back or head can be lowest). The default is the legs.
+  const lowBox = new THREE.Box3(), tmpBox = new THREE.Box3(), tmpV = new THREE.Vector3();
+  function plant(y = 0, { body = false } = {}) {
     root.updateMatrixWorld(true); lowBox.makeEmpty();
-    for (const sh of shapes) if (/^(sole|shoe|shin|leg)/.test(sh.userData.part)) { const g = sh.geometry; g.boundingBox ?? g.computeBoundingBox(); lowBox.union(tmpBox.copy(g.boundingBox).applyMatrix4(sh.matrixWorld)); }
+    for (const sh of shapes) {
+      if (!body && !/^(sole|shoe|shin|leg)/.test(sh.userData.part)) continue;
+      const g = sh.geometry; g.boundingBox ?? g.computeBoundingBox();
+      // A bounding box turned on its side reaches far below the shape: use the lowest vertex for the whole body.
+      if (body) { const P = g.attributes.position, st = Math.max(1, Math.floor(P.count / 400)); for (let i = 0; i < P.count; i += st) { tmpV.fromBufferAttribute(P, i).applyMatrix4(sh.matrixWorld); if (tmpV.y < (lowBox.min.y)) lowBox.min.y = tmpV.y; } }
+      else lowBox.union(tmpBox.copy(g.boundingBox).applyMatrix4(sh.matrixWorld));
+    }
     root.position.y += y - lowBox.min.y;
   }
   // Head gestures on top of the expression (call after blendExpression): count nods (yes) or shakes (no) from at.

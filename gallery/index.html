@@ -100,6 +100,7 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 /* 4: the graph of the cart, drawn frame by frame. */
 .graph { position: absolute; right: 6vw; top: 16vh; width: min(40vw, 560px); height: min(24vw, 330px); cursor: crosshair; }
 
+html { overflow-x: clip; }   /* the page never scrolls sideways (a statement was cut off at the left) */
 /* 6: the console of "make look": over everything, beside him. 5: the hover label of a helper. */
 .console { position: fixed; z-index: 7; left: 0; top: 0; width: min(470px, 40vw); pointer-events: none; opacity: 0; visibility: hidden; will-change: transform; padding: 14px 16px 16px; border-radius: 14px; background: #1f1e24; color: #e9e4da;
   font: 500 14px/1.45 'JetBrains Mono', monospace; box-shadow: 0 24px 50px -28px rgba(20, 20, 30, .6); }

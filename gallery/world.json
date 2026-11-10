@@ -1,4 +1,6 @@
 {
   "out": "world",
-  "models": ["book", "table", "cart", "parcel", "pedestal", "bench", "laptop", "strawberry", "whiteboard", "basket", "handwheel"]
+  "models": [
+    "book", "table", "cart", "parcel", "pedestal", "bench", "laptop", "strawberry", "whiteboard", "basket", "handwheel", "kickball", "hammer", "nailboard", "broom", "broomStand", "dust", "wateringCan", "plant", "rug"
+  ]
 }

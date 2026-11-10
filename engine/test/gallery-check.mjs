@@ -44,11 +44,12 @@ async function open() {
   if (STILL) await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   if (TOUCH) await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
   const errors = [];
-  await send('Runtime.enable'); ws.addEventListener('message', (e) => { const m = JSON.parse(e.data); if (m.method === 'Runtime.exceptionThrown') errors.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text); });
+  await send('Runtime.enable'); ws.addEventListener('message', (e) => { const m = JSON.parse(e.data); if (m.method === 'Runtime.exceptionThrown') errors.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text); if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') errors.push(m.params.args.map((x) => x.description || x.value).join(' ')); });
   await send('Page.enable'); await send('Page.navigate', { url: `http://127.0.0.1:${port}/?check` });
   for (let i = 0; i < 600; i++) { if (await ev("document.documentElement.classList.contains('ready') || document.documentElement.classList.contains('no3d')").catch(() => false)) break; await new Promise((r) => setTimeout(r, 100)); }
   if (!(await ev("document.documentElement.classList.contains('ready')"))) throw new Error('the page did not get ready: ' + errors.join(' | '));
   await ev(`(${PROBE.toString()})()`);
+  await ev('for (let i = 0; i < 120; i++) __clayFrame(1 / 60); true');   // 2 s on the page clock first, as a visitor's load
   const close = async () => { ws.close(); proc.kill(); srv.kill(); await new Promise((r) => setTimeout(r, 300)); fs.rmSync(profile, { recursive: true, force: true, maxRetries: 5 }); };
   const shot = async (file) => fs.writeFileSync(file, Buffer.from((await send('Page.captureScreenshot', { format: 'jpeg', quality: 80 })).data, 'base64'));
   return { send, ev, close, shot, errors };
@@ -80,9 +81,10 @@ function PROBE() {
           const pb = b.userData.part;
           if (/^(shoe|sole)/.test(pa) && /^(floor|foot|base|plate|rug)/.test(pb)) continue;
           if (H.seat && /^(hip|leg|shin)/.test(pa) && H.seat.m.groups?.[H.seat.part] === b) continue;
+          if ((H.touch || []).some((c) => c.m.root === rootOf(b) && (!c.parts || c.parts.test(pa)))) continue;   // the kit's rule for a short contact (a kick, lying on the rug)
           let tol = 0.02;
           const hi = /^(hand|fore)(\d)/.exec(pa);
-          if (hi) { const hs = held[+hi[2]]; if (hs.includes(b)) continue; if (hs.some((x) => rootOf(x) === rootOf(b))) tol = 0.12; }
+          if (hi) { const hs = held[+hi[2]]; if (hs.some((x) => rootOf(x) === rootOf(b))) continue; }   // a hand holds the whole thing (a can by its handle touches its body)
           if (pb === 'rug') tol = 0.05;   // lying on the rug: the console of chapter 6 measures it
           if (!A.intersectsBox(box(b, B))) continue;
           I.copy(A).intersect(B); mj.copy(b.matrixWorld).invert();
@@ -167,18 +169,21 @@ try {
       const other = acts[(acts.indexOf(a) + 2) % acts.length];
       await page.ev(`__clayPlayer.reset(...__clayPlayer.w5(0, 0)); for (let i = 0; i < 30; i++) __clayFrame(1 / 60); __chkReset(); __clayPlayer.click('${a}'); true`);
       let i = 0; for (; i < 1200; i++) { const st = await page.ev('__clayFrame(1 / 60); __chk(); __clayPlayer.state()'); if (st.mode === 'do') break; }
-      const dur = await page.ev(`({ carry: 4.9, sit: 5.6, kneel: 4.4, write: 5.1, toss: 4.2, wheel: 2.8 })['${a}'] ?? 4`);
+      const dur = await page.ev(`__clayPlayer.dur('${a}')`);
       for (let j = 0; j < Math.round(dur * f * 60); j++) note(`${a} at ${f}`, (await page.ev('__clayFrame(1 / 60); __chk()')).out);
       await page.ev(`__clayPlayer.click('${other}'); true`);
       await run(`${a} interrupted at ${f} by ${other}`);
     }
   } else if (mode === 'strip') {
     // One action from its stand point: a crop round him every 0.4 s, tiled into one sheet (needs ffmpeg).
-    const out = args[1], act = args[2], uses = +(args[3] || 1), every = +(args[4] || 24); fs.mkdirSync(out, { recursive: true });
+    const out = args[1], act = args[2], uses = +(args[3] || 1), every = +(args[4] || 24), from = +(args[5] || 0); fs.mkdirSync(out, { recursive: true });
     await page.ev(`scrollTo(0, __clayAt(5, 0.5)); for (let i = 0; i < 30; i++) __clayFrame(1 / 60); true`);
     let n = 0;
+    const skip = +(args[6] || 0);   // uses played first with no pictures
+    for (let k = 0; k < skip; k++) await page.ev(`{ const s = __clayPlayer.stand('${act}'); __clayPlayer.reset(s[0], s[1], s[2]); __clayPlayer.click('${act}'); } for (let i = 0; i < 60 * 15 && !(__clayPlayer.state().mode === 'idle' && i > 30); i++) __clayFrame(1 / 60); true`);
     for (let use = 0; use < uses; use++) {
       await page.ev(`{ const s = __clayPlayer.stand('${act}'); __clayPlayer.reset(s[0], s[1], s[2]); __clayPlayer.click('${act}'); } true`);
+      if (from) await page.ev(`for (let k = 0; k < ${Math.round(from * 60)}; k++) __clayFrame(1 / 60); true`);
       for (let f = 0; f < 60 * 12; f += every) {
         const st = await page.ev(`for (let k = 0; k < ${every}; k++) __clayFrame(1 / 60); __clayProbe(({ H, toScreen }) => { const p = toScreen(H.root.getWorldPosition(new (H.root.position.constructor)())); return { x: p[0], y: p[1] + scrollY, m: __clayPlayer.state().mode }; })`);
         const r = await page.send('Page.captureScreenshot', { format: 'jpeg', quality: 70, clip: { x: Math.max(0, st.x - 260), y: st.y - 200, width: 520, height: 420, scale: 1 } });
@@ -209,6 +214,37 @@ try {
       if (st.act !== a || st.mode === 'idle') note(`${TOUCH ? 'tap' : 'click'} ${a}`, [`a ${TOUCH ? 'tap' : 'click'} on ${a} did not start it (mode ${st.mode}, act ${st.act})`]);
       else console.log(`${TOUCH ? 'tap' : 'click'} ${a}: starts ${st.act} (${st.mode})`);
     }
+  } else if (mode === 'walks') {
+    // Every ordered pair of points: each action's stand and end points, the scene's start, the middle, the rug's stand.
+    await page.ev(`scrollTo(0, __clayAt(5, 0.5)); for (let i = 0; i < 30; i++) __clayFrame(1 / 60); true`);
+    const pts = await page.ev(`(() => { const P = __clayPlayer, out = []; for (const a of P.acts()) { const s = P.stand(a); out.push([a, s]); } out.push(['start', [...P.w5(-6.5, 5.5), Math.PI / 2]]); out.push(['middle', [...P.w5(0, 2.5), 0]]); return out; })()`);
+    let n = 0, back = 0, fast = 0, worstRatio = 0, sumRatio = 0;
+    for (const [na, A] of pts) for (const [nb, B] of pts) {
+      if (na === nb) continue;
+      const w = await page.ev(`__clayPlayer.reset(${A[0]}, ${A[1]}, ${A[2]}); for (let i = 0; i < 20; i++) __clayFrame(1 / 60); __chkReset(); __clayPlayer.walkTo(${B[0]}, ${B[1]}, ${B[2]})`);
+      const r = await page.ev(`(() => { const H = __clayHero(), out = [], V = H.root.position.constructor; let last = null, lf = null, back = 0, fast = 0;
+        for (let i = 0; i < 60 * 40; i++) { __clayFrame(1 / 60); const c = __chk(); out.push(...c.out); const st = __clayPlayer.state();
+          const f = H.root.rotation.y, d = new V(0, 0, 1).applyQuaternion(H.root.quaternion); d.y = 0; d.normalize(); const p = H.root.position.clone(); p.y = 0;
+          if (last) { const v = p.clone().sub(last); if (v.length() > 0.004 && v.normalize().dot(d) < -0.1) back++; }
+          if (lf && st.mode === 'walk') { const q = new V(0, 0, 1).applyQuaternion(H.root.quaternion); q.y = 0; q.normalize(); const ang = Math.acos(Math.min(1, Math.max(-1, q.dot(lf)))) * 60; if (ang > 2.5) fast++; }
+          last = p; lf = d.clone(); if (st.mode !== 'walk') break; }
+        return { out: [...new Set(out)], back, fast }; })()`);
+      n++; back += r.back; fast += r.fast; note(`walk ${na} to ${nb}`, r.out); if (r.back) note(`walk ${na} to ${nb}`, [`he moves backwards on ${r.back} frames`]); if (r.fast) note(`walk ${na} to ${nb}`, [`he turns faster than 2.5 rad/s on ${r.fast} frames`]);
+      if (w.straight > 0.5) { const ratio = w.L / w.straight; sumRatio += ratio; worstRatio = Math.max(worstRatio, ratio); }
+    }
+    console.log(`walks: ${n}, frames backwards ${back}, frames turning too fast ${fast}, path / straight: mean ${(sumRatio / n).toFixed(2)}, worst ${worstRatio.toFixed(2)}`);
+  } else if (mode === 'walk1') {
+    // Debug: one walk from action A's stand to action B's stand; logs frames where his facing target jumps.
+    await page.ev(`scrollTo(0, __clayAt(5, 0.5)); for (let i = 0; i < 30; i++) __clayFrame(1 / 60); true`);
+    const r = await page.ev(`(() => { const P = __clayPlayer, A = P.stand('${args[1]}'), B = P.stand('${args[2]}'); P.reset(...A); for (let i = 0; i < 20; i++) __clayFrame(1 / 60);
+      const w = P.walkTo(...B), out = [w]; let lf = null;
+      for (let i = 0; i < 2400; i++) { __clayFrame(1 / 60); const s = P.state(); if (s.mode !== 'walk') break; const f = P.face(); if (lf !== null) { let d = f - lf; d = Math.atan2(Math.sin(d), Math.cos(d)); if (Math.abs(d) > 0.08) out.push({ i, t: +s.w.t.toFixed(3), d: +d.toFixed(3), d0: s.w.d0, T: s.w.T }); } lf = f; }
+      return out; })()`);
+    console.log(JSON.stringify(r).slice(0, 3000));
+  } else if (mode === 'eval') {
+    // Debug: at chapter 5, click args[1], step args[2] seconds, print the value of args[3].
+    await page.ev(`scrollTo(0, __clayAt(5, 0.5)); for (let i = 0; i < 30; i++) __clayFrame(1 / 60); { const s = __clayPlayer.stand('${args[1]}'); __clayPlayer.reset(s[0], s[1], s[2]); } __clayPlayer.click('${args[1]}'); for (let i = 0; i < ${Math.round(+args[2] * 60)}; i++) __clayFrame(1 / 60); true`);
+    console.log(JSON.stringify(await page.ev(args[3])));
   } else if (mode === 'shots') {
     const out = args[1]; fs.mkdirSync(out, { recursive: true });
     for (const spec of args[2].split(',')) {
