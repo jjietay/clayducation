@@ -132,6 +132,20 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 .folder figcaption { margin-top: 10px; font-size: 16px; line-height: 1.45; color: #b9b4a8; }
 .folder figcaption b { color: var(--paper); }
 
+/* The pointer (only with a mouse): a soft blob of clay that follows it like a spring, stretches as it moves and
+   squashes when pressed; each click pops it to the next bright colour. The small dot is the exact point. */
+html.clay-pointer, html.clay-pointer * { cursor: none !important; }
+html.clay-pointer [contenteditable], html.clay-pointer input, html.clay-pointer textarea { cursor: text !important; }
+.clay-cursor { --c: #ff5a4e; position: fixed; z-index: 40; inset: 0; pointer-events: none; opacity: 0; transition: opacity .25s ease; }
+.clay-cursor.on { opacity: 1; }
+.clay-cursor.text { opacity: 0; }
+.clay-cursor .blob { position: absolute; left: 0; top: 0; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 55% 45% 52% 48% / 47% 56% 44% 53%;
+  background: radial-gradient(circle at 33% 28%, color-mix(in srgb, var(--c) 45%, #fff) 0 7%, var(--c) 45%, color-mix(in srgb, var(--c) 70%, #000) 100%);
+  box-shadow: inset -3px -4px 6px rgba(0, 0, 0, .2), inset 2px 3px 4px rgba(255, 255, 255, .28), 0 7px 14px -6px rgba(20, 20, 30, .6);
+  transition: background .3s ease, opacity .25s ease, width .25s ease, height .25s ease, margin .25s ease; will-change: transform; }
+.clay-cursor .dot { position: absolute; left: 0; top: 0; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: #1f1e24; box-shadow: 0 0 0 1.5px #fff; will-change: transform; }
+.clay-cursor.link .blob { width: 52px; height: 52px; margin: -26px 0 0 -26px; opacity: .55; }
+
 /* Without WebGL: a still frame on each screen that has one. */
 .still { display: none; position: absolute; right: 5vw; top: 50%; transform: translateY(-50%); width: min(46vw, 640px); border-radius: 18px; }
 .no3d .still { display: block; }
@@ -207,7 +221,7 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 <section class="ch" id="c5" data-bg="#e6bfae" style="background:#e6bfae" data-name="Checks">
   <div class="pin">
     <h2 class="say tl">Nothing renders until the <b>checks pass</b>.</h2>
-    <p class="hint bl"><span class="mouse">Move the pointer: his hand follows it, and the hold check of the clay kit runs on every frame.</span><span class="touch">Scroll, and his hand moves onto the cart.</span></p>
+    <p class="hint bl">Scroll, and his hand comes down onto the cart. The hold check of the clay kit runs on every frame.</p>
     <img class="still" src="png/check-strip.png" alt="A movement strip from a build, with its check digit.">
   </div>
 </section>
@@ -261,6 +275,7 @@ canvas.world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 
 </main>
 
 <!-- 5: the console of "make look" and the ring round hand 1. They follow his hand, on the top layer. -->
+<div class="clay-cursor" aria-hidden="true"><i class="blob"></i><i class="dot"></i></div>
 <div class="console" aria-live="polite"><span class="cmdname">make look</span><span class="line"><i></i><span class="msg"></span></span></div>
 <div class="ring" aria-hidden="true"></div>
 
