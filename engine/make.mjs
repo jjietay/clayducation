@@ -480,7 +480,7 @@ function alignWords(scriptWords, heard) {
 // sometimes paused longer at a comma than at a full stop.
 async function shapePauses(raw, text, { stopGap = 0.6, commaMax = 0.3 } = {}) {
   const { readWav, writeWav } = await import(pathToFileURL(path.join(EXR, 'src', 'wav.js')).href);
-  const out = raw.replace(/\.wav$/, `.shaped2-${stopGap}-${commaMax}.wav`), missFile = out.replace(/\.wav$/, '.missed.json');
+  const out = raw.replace(/\.wav$/, `.shaped3-${stopGap}-${commaMax}.wav`), missFile = out.replace(/\.wav$/, '.missed.json');
   if (fs.existsSync(out) && fs.existsSync(missFile)) { const m = JSON.parse(fs.readFileSync(missFile, 'utf8')); return { ...readWav(out), missed: Array.isArray(m) ? m : m.missed || [] }; }
   const { samples, sampleRate: sr } = readWav(raw);
   const heard = await heardWords(raw);
@@ -509,7 +509,14 @@ async function shapePauses(raw, text, { stopGap = 0.6, commaMax = 0.3 } = {}) {
     if (h < 0 || h + 1 >= heard.length || end[i + 1] === h) { missed.push(words[i]); continue; }
     // The pause lies between the two heard words. A breath in it is louder than silence,
     // so look at -30 dB here; the breath is replaced by silence with the rest.
-    const lo = Math.max(0, Math.floor((heard[h].end - 0.15) * sr / hop)), hi = Math.min(n, Math.ceil((heard[h + 1].start + 0.15) * sr / hop));
+    // The search starts at Whisper's word end, never before it: a window that started 0.15 s
+    // earlier found the silent closure of a "k" or "t" inside the word and split it ("to… kens").
+    // Whisper ends a word early (by up to 0.3 s) and starts the next one early, so when the voice
+    // runs on, the real silence is after the next word's heard start: look up to the next word's
+    // end, at most 0.35 s after its start. Checked against forced alignment on 76 takes:
+    // 0 pauses inside a word (the old window put 5 of 118 inside a word).
+    const lo = Math.max(0, Math.floor(heard[h].end * sr / hop));
+    const hi = Math.min(n, Math.max(lo + 1, Math.ceil(Math.min(heard[h + 1].end, heard[h + 1].start + 0.35) * sr / hop)));
     const here = quietRuns(-30, lo, hi).sort((x, y) => (y.b - y.a) - (x.b - x.a))[0];
     if (kind === 'stop') {
       if (here) edits.set(here.a, { ...here, len: stopGap });
