@@ -15,6 +15,7 @@ import * as ATT from './models/attention.js';
 import * as TOK from './models/tokens.js';
 import * as ACT from './models/actions.js';
 import * as PLAY from './models/play.js';
+import * as SENSE from './models/sensing.js';
 
 export const PAL = {
   robot: '#f2773a', ink: '#2a2a2e', cream: '#ede3cf', white: '#f1efe9', grey: '#b7b4ab', steel: '#a9adb2',
@@ -448,7 +449,7 @@ export const JOINS = {
 };
 
 // Add the model sets to the kit.
-for (const set of [IPCV1, IPCV2, IPCV3, IPCV4, IPCV5, IPCV6, CTC, ATT, TOK, ACT, PLAY]) { Object.assign(MODELS, set.MODELS); Object.assign(JOINS, set.JOINS); }
+for (const set of [IPCV1, IPCV2, IPCV3, IPCV4, IPCV5, IPCV6, CTC, ATT, TOK, ACT, PLAY, SENSE]) { Object.assign(MODELS, set.MODELS); Object.assign(JOINS, set.JOINS); }
 
 // Finds the part's bounds from its distance field, and a mesh step from its size.
 function autoBox(f) {

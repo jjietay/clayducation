@@ -237,8 +237,9 @@ it in the right way. See them in `make clay m-<name>`.
 | `plant` | plant in a pot, soil at y 0.91, stem to 2.25, a flower of 5 petals at y 2.3 | `setPose(k)`: the stem grows (scale 0.45 to 1); then `setPose(k, 'bloom')`: the petals open (named pose, sets only the petals) |
 | `broomStand` | post 3.8 tall with a U hook at y 3.5: the broom leans into it at rest (`sweep` places both) | none |
 | `rug` | rug 9.6 by 3.8, top at y 0.08; its parts are named `floor...`, so his shoes may stand on it | none |
+| `wall` | hallway wall panel 8 wide, 7 tall, 0.5 deep (front face at z 0.25), a pale band at y 2.4 to 3.6 for a LiDAR beam to hit; turn it with `ry` (`models/sensing.js`) | none |
 
-The rows from `door` down are in `styles/library/clay/models/ipcv-*.js`, `cat`, `mat` in `models/attention.js`, and `kickball` to `rug` in `models/play.js`. The head comment and the
+The rows from `door` down are in `styles/library/clay/models/ipcv-*.js`, `cat`, `mat` in `models/attention.js`, `kickball` to `rug` in `models/play.js`, and `wall` in `models/sensing.js`. The head comment and the
 notes of each file give their sizes, joint positions and surface formulas.
 
 Small objects are larger than real size, so they stay readable. Set `k` for each scene.
