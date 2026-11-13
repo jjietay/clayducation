@@ -220,6 +220,7 @@ it in the right way. See them in `make clay m-<name>`.
 | `cat`, `mat` | sitting tabby cat, 3.05 tall; striped floor mat 5.2 by 3.4 (`models/attention.js`) | cat: `head` lifts and turns (pivot at the neck), `tail` swings |
 | `strawberry` | strawberry, 3.3 tall, round bottom; a seed gap faces +x for hands at y 2.85 when k 1.6 (`models/tokens.js`) | none |
 | `tokenBar`, `letterBlock` | a teal sleeve 13.8 long over ten letter blocks 1.3 wide, set 1.36 apart; print letters on the blocks with a canvas texture (`models/tokens.js`) | `sleeve` slides off in x |
+| `summaryBlock` | a teal block the size of a `letterBlock`, three cream text lines on its +z face: the summary that replaces old messages (`models/tokens.js`) | none |
 | `pedestal` | stand with its top at y 2.2, at his hips, for `carry` (`models/actions.js`) | none |
 | `parcel` | taped box 1.6 by 1.2 by 1.3, to carry by `box` | none |
 | `lever` | floor lever; grip the `arm` at [0, 4.1, 0.32] | `arm` tips 0.3 rad back (rest) to 0.3 rad forward (pose) |

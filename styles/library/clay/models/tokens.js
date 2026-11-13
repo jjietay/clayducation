@@ -61,8 +61,21 @@ export const MODELS = {
     },
     moving: 'No moving parts',
   },
+  // A teal summary block, the same size as a letter block, with three cream lines of "text" on its +z face: the
+  // short summary that replaces old messages when an agent's context window fills (agentic-harness video).
+  summaryBlock: {
+    label: 'Summary block',
+    make() {
+      const m = def();
+      m.add('block', (x, y, z) => rbox(x, y, z, 0, 0.65, 0, 0.65, 0.65, 0.65, 0.14), C.token, { step: 0.025 });
+      m.add('lines', (x, y, z) => { let d = 9; for (const [cy, hw] of [[0.95, 0.38], [0.65, 0.38], [0.35, 0.24]]) d = Math.min(d, rbox(x, y, z, hw - 0.38, cy, 0.655, hw, 0.06, 0.03, 0.025)); return d; }, C.block, { step: 0.015 });
+      return m;
+    },
+    moving: 'No moving parts',
+  },
 };
 
 export const JOINS = {
+  summaryBlock: [['lines', 'block']],
   strawberry: [['seeds', 'berry'], ['leaves', 'berry'], ['stem', 'leaves']],
 };
