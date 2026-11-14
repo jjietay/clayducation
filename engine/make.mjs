@@ -1048,14 +1048,15 @@ async function check() {
     const f = path.join(dir, 'build', 'manim', id, 'timing.json');
     if (fs.existsSync(f)) for (const l of JSON.parse(fs.readFileSync(f, 'utf8')).late) layout.add(`${id} (Manim): ${l}`);
   }
-  const ALIGN = {};
+  const ALIGN = {}, clayLook = JSON.parse(fs.readFileSync(path.join(dir, 'video.json'), 'utf8'))._look === 'clay';
   await withPage(dir, async (page) => {
     for (const s of tl.scenes) {
       const ts = new Set([0.05, s.dur / 2, s.dur - 0.1, ...Object.values(s.marks).map((m) => m + 0.7)]);
       for (let t = 1; t < s.dur; t += 1.5) ts.add(t);
       for (const t of [...ts].filter((x) => x >= 0 && x < s.dur).sort((a, b) => a - b)) {
         await page.evaluate(`seek(${s.start + t})`);
-        for (const i of await page.evaluate('layoutIssues()')) layout.add(`${s.id}: ${i}`);
+        // In the clay look, small content text is an ERROR (the user asked, 2026-11-14: font size matters).
+        for (const i of await page.evaluate('layoutIssues()')) (clayLook && /content text is 34 px/.test(i) ? problems : layout).add(`${s.id}: ${i}`);
         for (const m of await page.evaluate('alignIssues()')) { const k = `${s.id}|${m.a}|${m.b}|${m.axis}`, o = (ALIGN[k] ??= { ...m, scene: s.id, n: 0 }); o.n++; o.d = Math.min(o.d, m.d); }
         // Maths in a plain text label looks like notes, not a formula (the user saw "ωres = 16 → ωn = 8" at 10:00 of the
         // computed torque video). Typeset it with eqn() or s.tex().
@@ -1063,7 +1064,8 @@ async function check() {
       }
     }
     // A near-miss seen at 3 or more sampled times is a layout choice, not a label passing by.
-    for (const o of Object.values(ALIGN).filter((x) => x.n >= 3)) layout.add(`${o.scene}: ${o.a} and ${o.b} are ${o.d} px out of ${o.axis === 'x' ? 'column (left, centre or right edge)' : 'row (top or middle)'}. Align them exactly, or set them clearly apart`);
+    // In the clay look, text out of column or row is an ERROR (the user asked, 2026-11-14: alignment matters).
+    for (const o of Object.values(ALIGN).filter((x) => x.n >= 3)) (clayLook ? problems : layout).add(`${o.scene}: ${o.a} and ${o.b} are ${o.d} px out of ${o.axis === 'x' ? 'column (left, centre or right edge)' : 'row (top or middle)'}. Align them exactly, or set them clearly apart`);
     for (const f of await page.evaluate('window.__fits()')) layout.add(`${f.scene}: auto-fit ${f.k < 0.999 ? `shrank "${f.label}" to ${Math.round(f.k * 100)} %` : `moved "${f.label}" ${Math.round(f.d)} px`} into the safe area (${fmt(f.from)} to ${fmt(f.to)} s). Place it there yourself`);
     for (const e of await page.evaluate('window.__errors')) problems.add(e.split('\n')[0]);
     const looks = await page.evaluate('window.__looks()');
@@ -1078,6 +1080,8 @@ async function check() {
       if (none.length) layout.add(`the mascot is not in: ${none.join(', ')}`);
       const still = looks.filter((x) => x.heroTravel !== null && x.heroTravel < 0.5).map((x) => x.id);
       if (still.length) layout.add(`the mascot stays in one spot in: ${still.join(', ')}. Have him walk, pull, push or carry something (styles/clay.md)`);
+      const { unlabeledItems } = await import('./labels.mjs');
+      for (const u of unlabeledItems(fs.readFileSync(path.join(dir, 'scenes.js'), 'utf8'))) problems.add(u);
     }
     // Sound effects: too many, two accents close together, an accent on a word.
     if (renderCfg(dir).sfx) for (const w of sfxLint(Object.values(await page.evaluate('window.__sfx || {}')), timelineWords(tl))) layout.add(`sfx ${w}`);

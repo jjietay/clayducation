@@ -55,6 +55,10 @@ const CASES = {
   formulaSitsStill: { dur: 4, code: `${world("s.f = await s.tex('x = 1', { x: 1500, y: 200, size: 60, color: '#222' });")} draw(s) { s.hero.place(-9, 0); s.g.render(); } }`, expect: /a formula sits still/ },
   voiceCancelsNothing: { code: `${world('')} draw(s) { s.hero.place(-9 + s.t, 0, { face: 1.57 }); s.g.render(); } }`, voice: 'The mass cancels here.', expect: /the voice says something cancels/ },
   voiceMovesNothing: { code: `${world('')} draw(s) { s.hero.place(-9, 0); s.g.render(); } }`, voice: 'Now move this term across.', expect: /the voice says something moves/ },
+  // Font size and alignment matter (the JEV video, 2026-11-14): 30 px labels, and labels a few px out of column.
+  smallLabel: { code: `${world("s.lab = s.text('Small label', { x: 1500, y: 600, size: 30, color: '#222' });")} draw(s) { s.hero.place(-9, 0); s.g.render(); } }`, expect: /content text is 34 px/, via: 'check' },
+  outOfColumn: { code: `${world("s.a = s.text('First note', { x: 1400, y: 300, size: 36, color: '#222', anchor: 'l' }); s.b = s.text('Second note', { x: 1415, y: 360, size: 36, color: '#222', anchor: 'l' });")} draw(s) { s.hero.place(-9, 0); s.g.render(); } }`, expect: /out of column/, via: 'check' },
+  alignedLabels: { code: `${world("s.a = s.text('First note', { x: 1400, y: 300, size: 36, color: '#222', anchor: 'l' }); s.b = s.text('Second note', { x: 1400, y: 360, size: 36, color: '#222', anchor: 'l' });")} draw(s) { s.hero.place(-9, 0); s.g.render(); } }`, expect: null, via: 'check' },
   overwritesStageSize: { code: "{ bg: BG.cream, setup(s) { s.H = 3; } }", expect: /read only|Cannot assign/ },
   overwritesTime: { code: "{ bg: BG.cream, setup(s) { s.t = {}; } }", expect: /only a getter|Cannot set/ },
 };
@@ -85,11 +89,25 @@ try {
   // ---------- the measures on each frame ----------
   const r = make('collide', dir);
   const lines = r.out.split('\n').filter((l) => l.startsWith('ERROR'));
-  for (const id of ids) {
+  // The text rules live in "check": its lines name the scene as "<id>: ...".
+  const rc = make('check', dir), checkLines = rc.out.split('\n').filter((l) => l.startsWith('ERROR'));
+  for (const id of ids.filter((x) => CASES[x].via === 'check')) {
+    const mine = checkLines.filter((l) => l.includes(` ${id}: `)), want = CASES[id].expect;
+    if (!want) report(`${id} gives no fault`, mine.length === 0, mine.join('\n') || rc.out);
+    else report(`${id} is caught`, mine.some((l) => want.test(l)), mine.join('\n') || rc.out.slice(0, 400));
+  }
+  for (const id of ids.filter((x) => CASES[x].via !== 'check')) {
     const mine = lines.filter((l) => l.includes(`, ${id}:`) || l.includes(`scene ${id} `)), want = CASES[id].expect;
     if (!want) report(`${id} gives no fault`, mine.length === 0, mine.join('\n') || r.out);
     else report(`${id} is caught`, mine.some((l) => want.test(l)), mine.join('\n') || 'nothing reported');
   }
+
+  // ---------- a plain box with no label on it (the JEV video, 2026-11-14) ----------
+  const { unlabeledItems } = await import(pathToFileURL(path.join(HERE, '..', 'labels.mjs')).href);
+  const boxScene = (extra) => `scene('carry', { async setup(s) { s.p = await s.g.model('parcel', { x: 0 }); ${extra} } });`;
+  report('a box with no label is caught', unlabeledItems(boxScene('')).some((m) => /carry: parcel with no label/.test(m)));
+  report('a box with a label gives no fault', unlabeledItems(boxScene("await s.g.print(s.p, 'box', 'ticket', { at: [0, 0.6, 0.66] });")).length === 0);
+  report('a scene with no box gives no fault', unlabeledItems("scene('a', { async setup(s) { s.m = await s.g.model('tank'); } });").length === 0);
 
   // ---------- loose parts: a spring that stops short of its wall ----------
   const { measureJoins } = await import(pathToFileURL(path.join(HERE, '..', '..', 'styles', 'library', 'clay', 'joins.js')).href);

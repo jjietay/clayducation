@@ -604,6 +604,10 @@ window.layoutIssues = function () {
       out.push(`"${label}" leaves the safe area (box ${Math.round(r.left)},${Math.round(r.top)} to ${Math.round(r.right)},${Math.round(r.bottom)})`);
     if (!n.dataset.tex && parseFloat(cs.fontSize) * (r.height / (n.offsetHeight || r.height)) < 28)
       out.push(`"${label}" is ${Math.round(parseFloat(cs.fontSize))} px; 28 px is the smallest readable size`);
+    // Content text (labels, captions, notes) is 34 px or more: the user found 30 px labels too small in the JEV video
+    // (2026-11-14). The kicker and the title, top left above y 200, keep their own sizes.
+    else if (!n.dataset.tex && parseFloat(cs.fontSize) * (r.height / (n.offsetHeight || r.height)) < 34 && !(r.top < 200 && r.left < 900))
+      out.push(`"${label}" is ${Math.round(parseFloat(cs.fontSize))} px; content text is 34 px or more`);
     if (seenOpacity(n, current.root) > 0.3) shown.push({ n, r, label });
   }
   for (let i = 0; i < shown.length; i++) for (let j = i + 1; j < shown.length; j++) {

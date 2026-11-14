@@ -68,7 +68,7 @@ active with `style.display = 'none'`: a canvas that is only cleared can keep its
 | `s.words`, `s.marks` | the word timings and markers, in scene seconds |
 | `W`, `H`, `s.SAFE` | 1920, 1080, and the safe area `{x: 96, y: 72, w: 1728, h: 936}` |
 
-Text must stay inside the safe area and be at least 28 px (labels 36 px or more is better).
+Text must stay inside the safe area and be at least 28 px. In the clay look, content text outside the top-left head zone is 34 px or more (an ERROR in `check`), and nearby texts are aligned exactly (an ERROR for 4 to 40 px out of column or row).
 `check` warns about HTML text that breaks these. It cannot see canvas text, so check that
 on the contact sheet.
 

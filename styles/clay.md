@@ -94,6 +94,21 @@ To put a letter or a number on a model, use `await g.print(model, part, 'R', { a
 in setup: a cut-out print on the part's +z face that moves with the part. To change a print (a black R that turns red),
 make both and move the one not in use inside the part (`mesh.position.z = 0`); do not shrink it to a speck.
 
+## Label plain items (the user asked, 2026-11-14)
+
+A plain item that stands for something in the story (a `parcel`, a `crate`) gets a label on its front, so the viewer
+sees what it is without the text column. In the JEV video the mascot carried three plain boxes (a ticket, a LoRA
+adapter, an unsure ticket), and no box said what it was. In setup, print one to three short words on the +z face:
+
+```js
+await s.g.print(s.parcel, 'box', 'ticket', { at: [0, 0.6, 0.66], w: 1.3, h: 0.5 });   // parcel: front at z 0.65, 1.6 wide, 1.2 tall
+await s.g.print(s.crate, 'box', 'JEV', { at: [0, 0.95, 0.81], w: 1.2, h: 0.5 });      // crate: front at z 0.8, 1.9 wide, 1.64 tall
+```
+
+Turn the item so its front faces the camera's side while it is on screen (`ry`, and `restRy` for `carry`). For a
+common item that later videos use again, add its label to the kit. `make check` gives an ERROR for a scene that makes
+a parcel or a crate and prints no label (`engine/labels.mjs`).
+
 ## Fixed layout (start every clay scene from it)
 
 The user asked for a fixed frame for each scene on 2026-11-09, after the first look of the computed
@@ -118,10 +133,15 @@ them only when that still shows a reason.
 | distance to a rail or a base | stand 1.6 or more from its edge, measured to his centre. Closer, his shoes go into it while he walks |
 | label on a moving object | above it or below it, never on it; hide a label when its arrow is shorter than the label |
 
-**Text keeps to a grid (the user asked, 2026-11-09).** Words scattered "all over the page" lose the harmony of
+**Font size matters (the user asked, 2026-11-14).** Content text (labels, captions, notes, the right column) is 34 px
+or more; 36 to 40 px is better. Only the kicker (30 px) and the title (58 px) in the top-left head zone keep their own
+sizes. In the JEV video the right-column labels were 30 to 32 px and hard to read. A smaller label is an ERROR in
+`make check`. When a column of labels does not fit at 34 px, cut words or use fewer labels; never shrink the text.
+
+**Text keeps to a grid (the user asked, 2026-11-09; an ERROR since 2026-11-14).** Words scattered "all over the page" lose the harmony of
 the frame. Stack the formulas and labels of one zone on one column: the same left edge (or the same centre for a
 centred block), with even row gaps. Texts side by side share a top or a middle. Exact or clearly apart, never a
-few pixels off: `make check` WARNs for nearby texts 4 to 40 px out of column or row. A label pinned to a 3D object
+few pixels off: `make check` gives an ERROR for nearby texts 4 to 40 px out of column or row (a WARN in the classic look). In the JEV video nine of these WARNs were left open: fix each one, do not pass it by. A label pinned to a 3D object
 follows the object and is judged only against its neighbours.
 
 ## Backgrounds
