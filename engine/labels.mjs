@@ -11,7 +11,7 @@ export function unlabeledItems(src) {
   starts.forEach((m, i) => {
     const block = src.slice(m.index, i + 1 < starts.length ? starts[i + 1].index : src.length);
     const made = [...new Set([...block.matchAll(/\.model\(\s*['"](\w+)['"]/g)].map((x) => x[1]).filter((n) => LABEL_ITEMS.includes(n)))];
-    if (made.length && !/\.print\(/.test(block)) out.push(`${m[1]}: ${made.join(', ')} with no label. Print what it stands for on its front: await g.print(model, 'box', 'ticket', { at: [...] }) (styles/clay.md, "Label plain items")`);
+    if (made.length && !/\.(print|labelBox)\(/.test(block)) out.push(`${m[1]}: ${made.join(', ')} with no label. Print what it stands for on its front: await g.labelBox(model, 'ticket') (styles/clay.md, "Label plain items")`);
   });
   return out;
 }

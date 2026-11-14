@@ -101,9 +101,12 @@ sees what it is without the text column. In the JEV video the mascot carried thr
 adapter, an unsure ticket), and no box said what it was. In setup, print one to three short words on the +z face:
 
 ```js
-await s.g.print(s.parcel, 'box', 'ticket', { at: [0, 0.6, 0.66], w: 1.3, h: 0.5 });   // parcel: front at z 0.65, 1.6 wide, 1.2 tall
-await s.g.print(s.crate, 'box', 'JEV', { at: [0, 0.95, 0.81], w: 1.2, h: 0.5 });      // crate: front at z 0.8, 1.9 wide, 1.64 tall
+await s.g.labelBox(s.parcel, 'ticket');                // all four sides, above the hands: for a box he carries and turns
+await s.g.labelBox(s.crate, 'A', { sides: 1 });        // the +z face only: for a box that stays still, facing the camera
 ```
+
+`labelBox` measures the part (`box` by default) and puts the print in the upper part of each face. For any other
+place, use `g.print` directly.
 
 Turn the item so its front faces the camera's side while it is on screen (`ry`, and `restRy` for `carry`). For a
 common item that later videos use again, add its label to the kit. `make check` gives an ERROR for a scene that makes
