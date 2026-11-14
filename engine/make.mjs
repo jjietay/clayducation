@@ -1056,6 +1056,7 @@ async function check() {
       for (const t of [...ts].filter((x) => x >= 0 && x < s.dur).sort((a, b) => a - b)) {
         await page.evaluate(`seek(${s.start + t})`);
         // In the clay look, small content text is an ERROR (the user asked, 2026-11-14: font size matters).
+        if (clayLook) for (const i of await page.evaluate('listIssues()')) problems.add(`${s.id}: ${i}`);
         for (const i of await page.evaluate('layoutIssues()')) (clayLook && /content text is 34 px/.test(i) ? problems : layout).add(`${s.id}: ${i}`);
         for (const m of await page.evaluate('alignIssues()')) { const k = `${s.id}|${m.a}|${m.b}|${m.axis}`, o = (ALIGN[k] ??= { ...m, scene: s.id, n: 0 }); o.n++; o.d = Math.min(o.d, m.d); }
         // Maths in a plain text label looks like notes, not a formula (the user saw "ωres = 16 → ωn = 8" at 10:00 of the

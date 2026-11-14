@@ -545,6 +545,32 @@ window.__alignBlocks = () => {
   }
   return [...groups.values()];
 };
+// Lists (the user asked, 2026-11-14): 3 or more plain text lines stacked on one left edge (within 4 px, each gap
+// under 40 px) are a list, and each line starts with a bullet "•" or a number ("1 ·", "2."). The head zone (kicker and
+// title, top left above y 200) is not a list.
+window.listIssues = () => {
+  if (!current) return [];
+  const T = [];
+  for (const n of current.root.querySelectorAll('[data-text="1"]')) {
+    if (n.dataset.pass === '1' || seenOpacity(n, current.root) < 0.5) continue;
+    const r = n.getBoundingClientRect(), txt = n.textContent.trim();
+    if (r.width < 2 || !txt || (r.top < 200 && r.left < 900)) continue;
+    T.push({ l: r.left, t: r.top, b: r.bottom, txt });
+  }
+  T.sort((a, b) => a.t - b.t);
+  const out = [], used = new Set();
+  for (let i = 0; i < T.length; i++) {
+    if (used.has(i)) continue;
+    const col = [T[i]]; used.add(i);
+    for (let j = i + 1; j < T.length; j++) {
+      const last = col[col.length - 1];
+      if (!used.has(j) && Math.abs(T[j].l - T[i].l) < 4 && T[j].t - last.b < 40 && T[j].t >= last.t) { col.push(T[j]); used.add(j); }
+    }
+    const bare = col.filter((x) => !/^(•|\d+\s*[·.)])/.test(x.txt));
+    if (col.length >= 3 && bare.length) out.push(`a list of ${col.length} lines with no bullet points ("${bare[0].txt.slice(0, 30)}"). Start each line with "• " (or "1 · " when the order matters)`);
+  }
+  return out;
+};
 window.alignIssues = () => {
   const B = window.__alignBlocks(), out = [];
   const near = (a, b) => { const d = Math.abs(a - b); return d >= 4 && d <= 40 ? Math.round(d) : 0; };
@@ -606,7 +632,7 @@ window.layoutIssues = function () {
       out.push(`"${label}" is ${Math.round(parseFloat(cs.fontSize))} px; 28 px is the smallest readable size`);
     // Content text (labels, captions, notes) is 34 px or more: the user found 30 px labels too small in the JEV video
     // (2026-11-14). The kicker and the title, top left above y 200, keep their own sizes.
-    else if (!n.dataset.tex && parseFloat(cs.fontSize) * (r.height / (n.offsetHeight || r.height)) < 34 && !(r.top < 200 && r.left < 900))
+    else if (!n.dataset.tex && parseFloat(cs.fontSize) * (r.height / (n.offsetHeight || r.height)) < 33.5 && !(r.top < 200 && r.left < 900))
       out.push(`"${label}" is ${Math.round(parseFloat(cs.fontSize))} px; content text is 34 px or more`);
     if (seenOpacity(n, current.root) > 0.3) shown.push({ n, r, label });
   }

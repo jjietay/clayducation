@@ -59,6 +59,10 @@ const CASES = {
   smallLabel: { code: `${world("s.lab = s.text('Small label', { x: 1500, y: 600, size: 30, color: '#222' });")} draw(s) { s.hero.place(-9, 0); s.g.render(); } }`, expect: /content text is 34 px/, via: 'check' },
   outOfColumn: { code: `${world("s.a = s.text('First note', { x: 1400, y: 300, size: 36, color: '#222', anchor: 'l' }); s.b = s.text('Second note', { x: 1415, y: 360, size: 36, color: '#222', anchor: 'l' });")} draw(s) { s.hero.place(-9, 0); s.g.render(); } }`, expect: /out of column/, via: 'check' },
   alignedLabels: { code: `${world("s.a = s.text('First note', { x: 1400, y: 300, size: 36, color: '#222', anchor: 'l' }); s.b = s.text('Second note', { x: 1400, y: 360, size: 36, color: '#222', anchor: 'l' });")} draw(s) { s.hero.place(-9, 0); s.g.render(); } }`, expect: null, via: 'check' },
+  // A stacked list of text with no bullet points (the JEV video, 2026-11-14).
+  unbulletedList: { code: `${world("['Alpha one', 'Beta two', 'Gamma three'].forEach((t, j) => s.text(t, { x: 1300, y: 300 + 60 * j, size: 36, color: '#222', anchor: 'l' }));")} draw(s) { s.hero.place(-9, 0); s.g.render(); } }`, expect: /list of 3 lines with no bullet points/, via: 'check' },
+  exactSizeLabel: { code: `${world("s.lab = s.text('Size ok', { x: 1500, y: 600, size: 34, color: '#222' });")} draw(s) { s.hero.place(-9, 0); s.g.render(); } }`, expect: null, via: 'check' },
+  bulletedList: { code: `${world("['• Alpha one', '• Beta two', '• Gamma three'].forEach((t, j) => s.text(t, { x: 1300, y: 300 + 60 * j, size: 36, color: '#222', anchor: 'l' }));")} draw(s) { s.hero.place(-9, 0); s.g.render(); } }`, expect: null, via: 'check' },
   overwritesStageSize: { code: "{ bg: BG.cream, setup(s) { s.H = 3; } }", expect: /read only|Cannot assign/ },
   overwritesTime: { code: "{ bg: BG.cream, setup(s) { s.t = {}; } }", expect: /only a getter|Cannot set/ },
 };

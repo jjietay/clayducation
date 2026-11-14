@@ -138,6 +138,11 @@ or more; 36 to 40 px is better. Only the kicker (30 px) and the title (58 px) in
 sizes. In the JEV video the right-column labels were 30 to 32 px and hard to read. A smaller label is an ERROR in
 `make check`. When a column of labels does not fit at 34 px, cut words or use fewer labels; never shrink the text.
 
+**A list of text uses bullet points (the user asked, 2026-11-14).** When 3 or more short lines stack on one left
+edge (a right-column list, the recap points), start each line with "• " (or "1 · ", "2 · " when the order matters), and
+keep the lines short (1 to 6 words). Two lines are a pair, not a list, and need no bullets. `make check` gives an ERROR
+for a stacked list of 3 or more lines in which a line has no bullet.
+
 **Text keeps to a grid (the user asked, 2026-11-09; an ERROR since 2026-11-14).** Words scattered "all over the page" lose the harmony of
 the frame. Stack the formulas and labels of one zone on one column: the same left edge (or the same centre for a
 centred block), with even row gaps. Texts side by side share a top or a middle. Exact or clearly apart, never a

@@ -96,8 +96,9 @@ The user chose the clay look over the old style mix for consistency across video
 - **The picture explains; text only names.** Text stays flat and sharp, in HTML over the 3D. Per
   frame: a kicker (small capitals, the part and a source), a title of at most 8 words, a few labels
   of 1 to 4 words each with thin leader lines, and at most one caption line at the bottom. **Never
-  a column of sentences, never a bullet list, never a legend of what the colours mean.** About 15
-  words on screen at most.
+  a column of sentences, never a legend of what the colours mean.** About 15 words on screen at most.
+  **A list of text uses bullet points (the user asked, 2026-11-14):** 3 or more stacked lines start each with
+  "• " (or "1 · " when the order matters), on one left edge. `make check` gives an ERROR for a list without them.
 - **Formulas act out the voice (the user asked for this).** A fixed formula is no better than reading notes.
   Build each one with `eqn()`: terms arrive as they are said, move when the voice moves them, strike and burst
   when it says cancel, and bounce only when it names something important. `make look` gives a fault for a
