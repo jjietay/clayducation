@@ -63,7 +63,7 @@ confirms that the engine catches it. Run it after each change to a check.
 | A render ran with a collision or an overlap open | `make final` reads `collisions.md` and `overlaps.md` |
 | Content labels at 30 to 32 px, too small to read (JEV video, 2026-11-14) | `make check` ERROR for content text under 34 px in the clay look (runtime `layoutIssues`, selftest `smallLabel`) |
 | Texts a few px out of column or row were left as WARNs (JEV video, 2026-11-14) | `make check` ERROR for 4 to 40 px out of column or row in the clay look (selftest `outOfColumn`) |
-| Stacked lists of text with no bullet points (JEV video, 2026-11-14) | `make check` ERROR in the clay look for 3 or more lines on one left edge where a line has no "• " or "1 · " (runtime `listIssues`, selftest `unbulletedList`) |
+| Stacked lists of text with no bullet points (JEV video, 2026-11-14; a right-aligned list in the agentic harness recap) | `make check` ERROR in the clay look for 3 or more lines on one left, right or centre edge where a line has no "• " or "1 · " (runtime `listIssues`, selftest `unbulletedList`) |
 | A plain box that the mascot carried had no label, so the viewer could not tell what it stood for (JEV video, 2026-11-14) | `make check` ERROR for a scene that makes a `parcel` or a `crate` with no `g.print` label (`engine/labels.mjs`, selftest) |
 
 ## Caught only by reading and by the user

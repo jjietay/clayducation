@@ -555,19 +555,24 @@ window.listIssues = () => {
     if (n.dataset.pass === '1' || seenOpacity(n, current.root) < 0.5) continue;
     const r = n.getBoundingClientRect(), txt = n.textContent.trim();
     if (r.width < 2 || !txt || (r.top < 200 && r.left < 900)) continue;
-    T.push({ l: r.left, t: r.top, b: r.bottom, txt });
+    T.push({ l: r.left, r: r.right, c: (r.left + r.right) / 2, t: r.top, b: r.bottom, txt });
   }
   T.sort((a, b) => a.t - b.t);
-  const out = [], used = new Set();
-  for (let i = 0; i < T.length; i++) {
-    if (used.has(i)) continue;
-    const col = [T[i]]; used.add(i);
-    for (let j = i + 1; j < T.length; j++) {
-      const last = col[col.length - 1];
-      if (!used.has(j) && Math.abs(T[j].l - T[i].l) < 4 && T[j].t - last.b < 40 && T[j].t >= last.t) { col.push(T[j]); used.add(j); }
+  // A stack on one left, right or centre edge is a list (the recap of the agentic harness video, 2026-11-14,
+  // stacked 4 right-aligned lines with no bullets, and a left-edge check missed it).
+  const out = [], said = new Set();
+  for (const k of ['l', 'r', 'c']) {
+    const used = new Set();
+    for (let i = 0; i < T.length; i++) {
+      if (used.has(i)) continue;
+      const col = [T[i]]; used.add(i);
+      for (let j = i + 1; j < T.length; j++) {
+        const last = col[col.length - 1];
+        if (!used.has(j) && Math.abs(T[j][k] - T[i][k]) < 4 && T[j].t - last.b < 40 && T[j].t >= last.t) { col.push(T[j]); used.add(j); }
+      }
+      const bare = col.filter((x) => !/^(•|\d+\s*[·.)])/.test(x.txt));
+      if (col.length >= 3 && bare.length && !said.has(bare[0].txt)) { said.add(bare[0].txt); out.push(`a list of ${col.length} lines with no bullet points ("${bare[0].txt.slice(0, 30)}"). Start each line with "• " (or "1 · " when the order matters)`); }
     }
-    const bare = col.filter((x) => !/^(•|\d+\s*[·.)])/.test(x.txt));
-    if (col.length >= 3 && bare.length) out.push(`a list of ${col.length} lines with no bullet points ("${bare[0].txt.slice(0, 30)}"). Start each line with "• " (or "1 · " when the order matters)`);
   }
   return out;
 };
