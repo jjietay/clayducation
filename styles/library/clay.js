@@ -265,6 +265,20 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
         else if (!shapesMeet(hand, s._heroModel, gr.m.groups[gr.part], gr.m, -0.06, -0.06)) out.push(`hand ${g.i} does not touch the ${gr.m.name} ${gr.part} that it holds`);
       }
       for (const g of h.grips || []) if (g.gap > 0.3) out.push(`hand ${g.i} misses what it holds, by ${g.gap.toFixed(1)}`);
+      // Pointing at a thing behind his back twists the arm across his body (the agentic harness video, 2026-11-14).
+      if (h._pointBehind) out.push('mascot points at something behind his back');
+      h._pointBehind = false;
+    }
+    // A held part (a pen) moves only in a hand. The agentic harness video lifted a pen off its book with no hand on it.
+    for (const m of models) {
+      if (m.hero || !m.groups) continue;
+      for (const [n, grp] of Object.entries(m.groups)) {
+        const r = grp.userData.rest; if (!r) continue;
+        const off = grp.position.distanceTo(r[0]) > 0.02 || Math.abs(grp.rotation.x - r[1].x) + Math.abs(grp.rotation.y - r[1].y) + Math.abs(grp.rotation.z - r[1].z) > 0.05;
+        if (!off) continue;
+        const hm = s._heroModel, touched = hm && [0, 1].some((i) => shapesMeet(hm.groups[`hand${i}`], hm, grp, m, -0.06, -0.06));
+        if (!touched) out.push(`the ${m.name} ${n} moves with no hand on it`);
+      }
     }
     return [...out, ...objectHits(models), ...(s._heroModel ? selfHits(s._heroModel) : []), ...(third ? textHits(scene, camera, items, s.W, s.H) : [])];
   };
@@ -462,6 +476,21 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
       mesh.position.set(...at); grp.add(mesh);
       return mesh;
     },
+    // A label on a plain item (the user asked, 2026-11-14: a box that stands for something says what it is). It
+    // prints str on the part's +z face, and with sides 4 also on -z, +x and -x, so it stays readable while he carries
+    // and turns the item. The size comes from the part's own box: the print sits in the upper part of each face,
+    // above where carry() puts the hands. y: the print's centre as a share of the height (0.78).
+    async labelBox(model, str, { part = 'box', sides = 4, y = 0.78, h = 0.3, color = '#26262a' } = {}) {
+      const grp = model.groups[part]; if (!grp) throw new Error(`labelBox: ${model.name} has no part "${part}"`);
+      const geo = meshOf(grp).geometry; geo.boundingBox ?? geo.computeBoundingBox();
+      const bb = geo.boundingBox, pv = grp.userData.pv || [0, 0, 0];
+      const cx = (bb.min.x + bb.max.x) / 2 + pv[0], cz = (bb.min.z + bb.max.z) / 2 + pv[2], hx = (bb.max.x - bb.min.x) / 2, hz = (bb.max.z - bb.min.z) / 2;
+      const yy = bb.min.y + pv[1] + y * (bb.max.y - bb.min.y), hh = h * (bb.max.y - bb.min.y), e = 0.012;
+      const F = [[cx, cz + hz + e, 0, 1.6 * hx], [cx, cz - hz - e, Math.PI, 1.6 * hx], [cx + hx + e, cz, Math.PI / 2, 1.6 * hz], [cx - hx - e, cz, -Math.PI / 2, 1.6 * hz]].slice(0, sides);
+      const out = [];
+      for (const [x, z, ry, w] of F) { const p = await g.print(model, part, str, { at: [x - pv[0], yy - pv[1], z - pv[2]], w, h: hh, color }); p.rotation.y = ry; out.push(p); }
+      return out;
+    },
     // Where the mascot stands to push, pull or hold one part of a model from one side (the user asked, 2026-11-09:
     // 4 look rounds went to hands that missed a cart and shoes inside its rail). side is the face he touches:
     // '-x', '+x', '-z' or '+z'. He stands standOff (1.85) out from that face and faces it; if a floor-level part
@@ -614,6 +643,8 @@ export async function clay(s, { bg = BG.sage, fov = 20 } = {}) {
         const f = new THREE.Vector3(0, 0, 1).applyQuaternion(hero.root.quaternion), [fx, fz] = hero.feet;
         hand = (point[0] - fx) * -f.z + (point[2] - fz) * f.x > 0 ? 0 : 1;
       }
+      { const f = new THREE.Vector3(0, 0, 1).applyQuaternion(hero.root.quaternion), [fx, fz] = hero.feet, dx = point[0] - fx, dz = point[2] - fz;
+        if (k > 0.5 && (dx * f.x + dz * f.z) / (Math.hypot(dx, dz) || 1) < -0.2) hero._pointBehind = true; }
       const S = hero.arms[hand].shoulder.getWorldPosition(new THREE.Vector3()), d = new THREE.Vector3(...point).sub(S).normalize();
       const T = S.clone().add(d.multiplyScalar(2.3)); T.y = Math.min(T.y, S.y - 0.75);   // 2.3 of the 2.65 arm: bent, but it reads as a point
       if (k > 0) hero.reach(hand, [T.x, T.y, T.z], k);

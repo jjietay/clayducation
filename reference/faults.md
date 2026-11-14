@@ -47,6 +47,8 @@ confirms that the engine catches it. Run it after each change to a check.
 | The mascot stood still with his legs apart, frozen mid-step, while route() waited between two keys at one spot | route() gives no stride to a wait; a still mascot with a hip turned over 0.15 rad is a collide fault | `route` in `mascot.js`, `_collide` in `clay.js` |
 | A model hidden with a tiny scale kept its floor shadow (the gauge's shadow showed before the gauge) | Each floor shadow follows its model's scale every frame | `render` in `clay.js` |
 | Labels and formulas left the frame, and each fix by hand took a 10-minute look pass (computed torque video, 3 passes) | Auto-fit: each frame, every text and formula is pushed back into the safe area, and shrinks when it is wider; an eqn() row moves as one. Each fit is a WARN, so the author still places it | `fitText` in `runtime.js`, `make check`, `make look` |
+| A pen lifted and tilted off its book while no hand held it (agentic harness video) | A part marked `held` in its model (the book's `pen`) that is off its rest place must touch a mascot hand | `held` in `models.js`, `_collide` in `clay.js` |
+| He pointed at a book behind his back, so the arm twisted across his body (agentic harness video) | `pointAt` on a target more than a little behind the way he faces is a fault | `pointAt` and `_collide` in `clay.js` |
 | A scene's first frame showed the end of the scene before, because a start was a float sum | The scene of a frame is found with a 1e-6 s tolerance | `seek` and `sceneAt` in `engine/runtime.js`, `make verify` |
 
 ## Caught by a gate

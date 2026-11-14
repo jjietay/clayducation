@@ -354,7 +354,7 @@ export const MODELS = {
       const m = def();
       m.add('covers', (x, y, z) => Math.min(rbox(x, y, z, 0, 0.06, 0, 1.2, 0.05, 0.86, 0.04), rbox(x, y, z, 0, 0.56, 0, 1.2, 0.05, 0.86, 0.04), rbox(x, y, z, -1.15, 0.31, 0, 0.05, 0.28, 0.86, 0.04)), PAL.red);
       m.add('pages', (x, y, z) => rbox(x, y, z, 0.03, 0.31, 0, 1.1, 0.2, 0.8, 0.02) + Math.sin(y * 70) * 0.002, PAL.cream);
-      m.add('pen', (x, y, z) => { const ax = 0.28, c = Math.cos(ax), s = Math.sin(ax), u = c * (x - 0.1) - s * z, w = s * (x - 0.1) + c * z; return cone(u, y, w, -0.72, 0.675, 0, 0.42, 0.675, 0, 0.065, 0.065); }, PAL.barrel, { pivot: [0.1, 0.675, 0], free: true });
+      m.add('pen', (x, y, z) => { const ax = 0.28, c = Math.cos(ax), s = Math.sin(ax), u = c * (x - 0.1) - s * z, w = s * (x - 0.1) + c * z; return cone(u, y, w, -0.72, 0.675, 0, 0.42, 0.675, 0, 0.065, 0.065); }, PAL.barrel, { pivot: [0.1, 0.675, 0], free: true, held: true });
       m.add('nib', (x, y, z) => { const ax = 0.28, c = Math.cos(ax), s = Math.sin(ax), u = c * (x - 0.1) - s * z, w = s * (x - 0.1) + c * z; return cone(u, y, w, 0.42, 0.675, 0, 0.66, 0.675, 0, 0.06, 0.012); }, PAL.ink, { parent: 'pen' });
       return m;
     },
@@ -475,7 +475,7 @@ export function buildModel(THREE, name) {
     const base = new THREE.Color(p.color), deep = base.clone().multiplyScalar(0.42).lerp(new THREE.Color('#3a2a26'), 0.12);
     const g = bake(THREE, `m-${name}-${p.name}`, p.f, () => { const b = autoBox(p.f), st = p.step ?? spec.step; if (st) b.step = st; return b; }, 0, worldFor(p), (x, y, z, n, A, o) => { o[0] = mix(deep.r, base.r, A); o[1] = mix(deep.g, base.g, A); o[2] = mix(deep.b, base.b, A); });
     const parent = p.parent ? groups[p.parent] : null, pv = p.pivot || parent?.userData.pv || [0, 0, 0], ppv = parent?.userData.pv || [0, 0, 0];
-    const grp = new THREE.Group(); grp.userData.pv = pv; grp.userData.f = p.f; grp.userData.part = p.name; grp.position.set(pv[0] - ppv[0], pv[1] - ppv[1], pv[2] - ppv[2]);
+    const grp = new THREE.Group(); grp.userData.pv = pv; grp.userData.f = p.f; grp.userData.part = p.name; grp.userData.held = !!p.held; grp.position.set(pv[0] - ppv[0], pv[1] - ppv[1], pv[2] - ppv[2]);
     g.translate(-pv[0], -pv[1], -pv[2]);
     const mat = p.led ? new THREE.MeshStandardMaterial({ color: p.led, emissive: p.led, emissiveIntensity: 0.75, roughness: 0.4 }) : mats[p.mat || 'clay'];
     grp.add(new THREE.Mesh(g, mat));
@@ -502,6 +502,8 @@ export function buildModel(THREE, name) {
     const N = named[name]; if (!N) throw new Error(`setPose: ${spec.label} has no pose "${name}". Poses: ${Object.keys(named).join(', ') || 'none'}`);
     Object.values(groups).forEach((g, i) => { if (N.moves[i]) blend(g, i, A, N.P, k); });
   };
+  // A part marked held (a pen) moves only in a hand: the review flags it off its rest place with no hand on it.
+  Object.values(groups).forEach((g, i) => { if (g.userData.held) g.userData.rest = A[i]; });
   setPose(0);
   return { root, groups, setPose, label: spec.label, moving: spec.moving, hasPose: !!spec.pose };
 }

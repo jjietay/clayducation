@@ -51,6 +51,9 @@ const CASES = {
   // A hand on its way to a grip is judged only when the hold is complete; the complete hold above still fails.
   gripOnItsWay: { code: `${world("s.m = await s.g.model('rack', { x: 0 });")} draw(s) { s.hero.place(-3.6, 0, { face: 1.57 }); s.hero.hold(1, [-1.15, 4.0, -1.3], 0.6); s.g.render(); } }`, expect: null },
   holdsNothing: { code: `${world('')} draw(s) { s.hero.place(-4, 0, { face: 1.57 }); s.hero.hold(1, [-3, 3, 0]); s.g.render(); } }`, expect: /hand 1 holds nothing/ },
+  // The agentic harness video (2026-11-14): a pen lifted off its book with no hand on it, and he pointed behind his back.
+  penWithNoHand: { code: `${world("s.m = await s.g.model('book', { x: 5, y: 2.2, k: 1.4 });")} draw(s) { s.hero.place(-9, 0); s.m.setPose(1); s.g.render(); } }`, expect: /the book pen moves with no hand on it/ },
+  pointsBehind: { code: `${world("s.m = await s.g.model('book', { x: 0, y: 2.2, k: 1.4 });")} draw(s) { s.hero.place(-4, 0, { face: -1.57 }); s.g.pointAt(s.hero, [0, 3, 0], { k: 1 }); s.g.render(); } }`, expect: /mascot points at something behind his back/ },
   raisesStraightArm: { code: `${world('')} draw(s) { s.hero.place(-4, 0, { face: 1.57 }); s.hero.reach(1, [8, 9, 0]); s.g.render(); } }`, expect: /mascot raises a straight arm/ },
   formulaSitsStill: { dur: 4, code: `${world("s.f = await s.tex('x = 1', { x: 1500, y: 200, size: 60, color: '#222' });")} draw(s) { s.hero.place(-9, 0); s.g.render(); } }`, expect: /a formula sits still/ },
   voiceCancelsNothing: { code: `${world('')} draw(s) { s.hero.place(-9 + s.t, 0, { face: 1.57 }); s.g.render(); } }`, voice: 'The mass cancels here.', expect: /the voice says something cancels/ },
@@ -111,6 +114,7 @@ try {
   const boxScene = (extra) => `scene('carry', { async setup(s) { s.p = await s.g.model('parcel', { x: 0 }); ${extra} } });`;
   report('a box with no label is caught', unlabeledItems(boxScene('')).some((m) => /carry: parcel with no label/.test(m)));
   report('a box with a label gives no fault', unlabeledItems(boxScene("await s.g.print(s.p, 'box', 'ticket', { at: [0, 0.6, 0.66] });")).length === 0);
+  report('a box labelled with labelBox gives no fault', unlabeledItems(boxScene("await s.g.labelBox(s.p, 'ticket');")).length === 0);
   report('a scene with no box gives no fault', unlabeledItems("scene('a', { async setup(s) { s.m = await s.g.model('tank'); } });").length === 0);
 
   // ---------- loose parts: a spring that stops short of its wall ----------
